@@ -364,3 +364,26 @@ export function glazingTexture() {
   t.wrapS = t.wrapT = THREE.RepeatWrapping
   return t
 }
+
+// normal map pentru nervurile verticale ale tablei fălțuite (o nervură la 8 pixeli)
+export function ribNormalTexture() {
+  const [c, g] = canvas(1024, 8)
+  const img = g.createImageData(1024, 8)
+  for (let x = 0; x < 1024; x++) {
+    const ph = (x % 8) / 8
+    const sx = ph < 0.25 ? Math.sin(ph * Math.PI * 4) * 0.9 : 0.05 * Math.sin(ph * Math.PI * 2)
+    const len = Math.hypot(sx, 1)
+    for (let y = 0; y < 8; y++) {
+      const o = (y * 1024 + x) * 4
+      img.data[o] = (sx / len * 0.5 + 0.5) * 255
+      img.data[o + 1] = 128
+      img.data[o + 2] = (1 / len * 0.5 + 0.5) * 255
+      img.data[o + 3] = 255
+    }
+  }
+  g.putImageData(img, 0, 0)
+  const t = new THREE.CanvasTexture(c)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.anisotropy = 16
+  return t
+}

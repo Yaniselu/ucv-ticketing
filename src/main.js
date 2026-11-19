@@ -14,6 +14,7 @@ import { buildCrowd } from './scene/crowd.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
 import { buildWorld } from './scene/world.js'
+import { addGoogleTiles, GOOGLE_KEY } from './scene/google.js'
 import { createUI } from './ui/ui.js'
 
 const isTouch = matchMedia('(pointer: coarse)').matches
@@ -118,9 +119,25 @@ scene.add(crowd)
 
 // împrejurimile reale (satelit + OpenStreetMap), încărcate în fundal
 let streetLabelData = []
+let googleTiles = null
 buildWorld(scene, { lowSpec })
   .then((w) => {
     streetLabelData = w.labels
+    // cu cheie Google: orașul fotorealist înlocuiește împrejurimile construite din OSM
+    if (GOOGLE_KEY) {
+      try {
+        googleTiles = addGoogleTiles(scene, camera, renderer, {
+          origin: w.data.origin,
+          onReady: () => {
+            w.group.visible = false
+            const cr = document.querySelector('.credits')
+            if (cr) cr.textContent = 'Model 3D: Google · Imagini: Google, Airbus, Maxar · Hartă: © OpenStreetMap contributors'
+          },
+        })
+      } catch (e) {
+        console.warn('Google 3D Tiles indisponibil', e)
+      }
+    }
     if (state.mode === 'overview') buildLabels()
     return w.ready
   })
@@ -780,6 +797,7 @@ function frame(now) {
   }
   positionLabels()
   ui.tick()
+  googleTiles?.update()
   if (composer) composer.render(dt)
   else renderer.render(scene, camera)
   requestAnimationFrame(frame)

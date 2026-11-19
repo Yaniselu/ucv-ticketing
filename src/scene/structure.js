@@ -218,7 +218,8 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   }
   if (railGeo.length) root.add(new THREE.Mesh(mergeGeometries(railGeo), new THREE.MeshStandardMaterial({ color: 0xb8bec4, metalness: 0.7, roughness: 0.3 })))
 
-  const aisleMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1.05, 0.03, G.depth), white, aisleMarks.length)
+  // scările culoarelor: beton gri cu muchia treptei mai deschisă (ca în fotografii)
+  const aisleMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1.05, 0.03, G.depth), new THREE.MeshStandardMaterial({ color: 0x9a9e9f, roughness: 0.9 }), aisleMarks.length)
   const m4 = new THREE.Matrix4()
   const q4 = new THREE.Quaternion()
   const up = new THREE.Vector3(0, 1, 0)
@@ -353,8 +354,11 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   // ─── Fațada ───
   const look = profileLookup(SHELL_PROFILE)
   const cladTex = TX.claddingTexture()
-  cladTex.repeat.set(70, 1)
-  const cladMat = new THREE.MeshStandardMaterial({ map: cladTex, color: 0xe4e8ec, roughness: 0.38, metalness: 0.35 })
+  cladTex.repeat.set(10, 1)
+  const cladNormal = TX.ribNormalTexture()
+  cladNormal.repeat.set(10, 1)
+  // tablă de aluminiu fălțuită, cu nervuri pe meridiane (ca în fotografiile exterioare)
+  const cladMat = new THREE.MeshStandardMaterial({ map: cladTex, normalMap: cladNormal, normalScale: new THREE.Vector2(1.2, 1.2), color: 0xdfe3e7, roughness: 0.3, metalness: 0.62 })
   const clad = new THREE.Mesh(shellBand(look, 320, 24, waveEdge, () => SHELL_TOP), cladMat)
   clad.castShadow = true
   clad.receiveShadow = true

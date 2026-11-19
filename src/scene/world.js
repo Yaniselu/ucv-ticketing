@@ -2,6 +2,7 @@
 // clădiri și străzi din OpenStreetMap, copaci detectați din imaginea satelit.
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { buildCity } from './city.js'
 
 const TILE_URL = (z, x, y) => `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`
 
@@ -239,7 +240,8 @@ function buildBuildings(data, layers) {
   const col = new THREE.Color()
   let seed = 7
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
-  for (const [h, kind, flat] of data.buildings) {
+  for (const [h, kind, flat, bname] of data.buildings) {
+    if (bname === 'Sala Polivalentă') continue // modelată separat în city.js
     const pts = []
     for (let i = 0; i < flat.length; i += 2) pts.push([flat[i], flat[i + 1]])
     const n = pts.length
@@ -582,6 +584,7 @@ export async function buildWorld(scene, { lowSpec = false, onProgress } = {}) {
   const buildings = buildBuildings(data, [close, near, mid].filter(Boolean))
   group.add(buildings)
   group.add(buildStreetLights(data))
+  group.add(buildCity(data, { lowSpec }))
 
   const labels = streetLabels(data)
   const ready = (async () => {

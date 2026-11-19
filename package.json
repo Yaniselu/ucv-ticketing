@@ -11,6 +11,7 @@
     "osm": "node scripts/build-osm.mjs"
   },
   "dependencies": {
+    "3d-tiles-renderer": "^0.5.4",
     "three": "^0.187.0"
   },
   "devDependencies": {

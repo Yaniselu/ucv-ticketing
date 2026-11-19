@@ -39,6 +39,14 @@ Coș cu maximum 4 bilete (regula clubului), rezervare temporară de 10 minute ș
 
 Totalurile sunt exacte (30.983), dar împărțirea pe rânduri și pe locuri în fiecare sector este reconstituită din geometrie și fotografii. Pentru potrivire 1:1 e nevoie de planul oficial al locurilor (sector → rând → numerele locurilor), pe care îl are furnizorul de ticketing al clubului (myticket / Entertix). Odată primit, planul se poate importa direct în generatorul din `src/data/layout.js`.
 
+## Orașul fotorealist (Google Photorealistic 3D Tiles)
+
+Pentru ca împrejurimile să arate exact ca în realitate, aplicația poate încărca modelul 3D al orașului de la Google, aceeași sursă ca Google Earth. Stadionul din modelul Google e decupat automat și în locul lui rămâne modelul nostru, cu toate locurile.
+
+1. În Google Cloud Console activează **Map Tiles API** și creează o cheie API. Restricționeaz-o la domeniul site-ului (HTTP referrer) și la Map Tiles API.
+2. În Vercel deschide proiectul **ucv-ticketing**, apoi Settings → Environment Variables, și adaugă `VITE_GOOGLE_MAPS_API_KEY` cu valoarea cheii.
+3. Fă un redeploy. Fără cheie, aplicația folosește împrejurimile construite din OpenStreetMap: străzi cu asfalt, marcaje, borduri și trotuare, parcări cu mașini 3D, spații verzi, Sala Polivalentă cu acoperiș curb și clădirile extrudate.
+
 ## Rulare
 
 ```bash

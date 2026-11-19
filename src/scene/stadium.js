@@ -21,15 +21,19 @@ function rng(seed) {
   }
 }
 
+// scaun de stadion turnat din plastic: șezut, spătar curbat și picior
 function chairGeometry(w = 0.46) {
-  const seat = new THREE.BoxGeometry(w, 0.07, 0.4)
-  seat.translate(0, 0.43, 0.05)
-  const back = new THREE.BoxGeometry(w, 0.44, 0.06)
-  back.rotateX(-0.14)
-  back.translate(0, 0.68, -0.15)
-  const stem = new THREE.BoxGeometry(0.08, 0.4, 0.1)
-  stem.translate(0, 0.2, -0.05)
-  return mergeGeometries([seat, back, stem])
+  const seat = new THREE.BoxGeometry(w, 0.06, 0.38)
+  seat.translate(0, 0.44, 0.06)
+  const back = new THREE.CylinderGeometry(w * 0.62, w * 0.62, 0.42, 7, 1, true, Math.PI * 0.72, Math.PI * 0.56)
+  back.scale(1, 1, 0.45)
+  back.rotateX(-0.12)
+  back.translate(0, 0.7, 0.02)
+  const lip = new THREE.BoxGeometry(w * 0.96, 0.05, 0.05)
+  lip.translate(0, 0.91, -0.13)
+  const stem = new THREE.BoxGeometry(0.08, 0.42, 0.1)
+  stem.translate(0, 0.21, -0.05)
+  return mergeGeometries([seat, back, lip, stem].map((g) => g.toNonIndexed()))
 }
 
 function armchairGeometry() {
@@ -62,7 +66,18 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   scene.add(root)
   const out = { root, seatMeshes: new Map(), proxies: [], fadeMats: [], boxRooms: new Map() }
 
-  const concrete = new THREE.MeshStandardMaterial({ color: 0xc4c8cc, roughness: 0.92, side: THREE.DoubleSide })
+  const concrete = new THREE.MeshStandardMaterial({ color: 0xa9adae, roughness: 0.92, side: THREE.DoubleSide })
+  // beton turnat: variații fine și pete, calculate din poziție (geometria treptelor nu are UV)
+  concrete.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vCw;').replace('#include <project_vertex>', '#include <project_vertex>\nvCw = (modelMatrix * vec4(transformed, 1.0)).xyz;')
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+      varying vec3 vCw;
+      float h3(vec3 p){ return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+      float vn(vec3 p){ vec3 i = floor(p); vec3 f = fract(p); f = f*f*(3.0-2.0*f);
+        return mix(mix(mix(h3(i), h3(i+vec3(1,0,0)), f.x), mix(h3(i+vec3(0,1,0)), h3(i+vec3(1,1,0)), f.x), f.y),
+                   mix(mix(h3(i+vec3(0,0,1)), h3(i+vec3(1,0,1)), f.x), mix(h3(i+vec3(0,1,1)), h3(i+vec3(1,1,1)), f.x), f.y), f.z); }`)
+      .replace('#include <map_fragment>', '#include <map_fragment>\n diffuseColor.rgb *= 0.86 + 0.1 * vn(vCw * 0.7) + 0.08 * vn(vCw * 6.0);')
+  }
   const white = new THREE.MeshStandardMaterial({ color: 0xf1f3f5, roughness: 0.7, side: THREE.DoubleSide })
   const darkGlass = new THREE.MeshStandardMaterial({ color: 0x1d2a38, roughness: 0.15, metalness: 0.3 })
   const glass = new THREE.MeshStandardMaterial({
@@ -113,7 +128,7 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   Object.assign(out, { roofMat: structure.roofMat, shellInMat: structure.shellInMat, roofParts: structure.roofParts, shell: structure.shell })
 
   // ─── Locurile ───
-  const seatMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 })
+  const seatMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.45, side: THREE.DoubleSide })
   const chair = chairGeometry()
   const vipChair = chairGeometry(0.5)
   const tmpPos = new THREE.Vector3()
