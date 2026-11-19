@@ -135,6 +135,61 @@ function paintPolygon(layer, pts, color) {
 }
 
 // ─── Clădiri ─────────────────────────────────────────────────────────
+function facadeTile(kind) {
+  const c = document.createElement('canvas')
+  c.width = 128
+  c.height = 128
+  const g = c.getContext('2d')
+  g.fillStyle = '#ffffff'
+  g.fillRect(0, 0, 128, 128)
+  const glass = (x, y, w, h) => {
+    const grd = g.createLinearGradient(0, y, 0, y + h)
+    grd.addColorStop(0, '#6b7c8c')
+    grd.addColorStop(1, '#3a4653')
+    g.fillStyle = grd
+    g.fillRect(x, y, w, h)
+    g.fillStyle = 'rgba(255,255,255,0.16)'
+    g.fillRect(x, y, w, 5)
+  }
+  if (kind === 'block') {
+    // bloc de locuințe: panou prefabricat, fereastră și balcon cu parapet
+    g.fillStyle = '#ecebe7'
+    g.fillRect(0, 0, 128, 128)
+    g.fillStyle = 'rgba(0,0,0,0.08)'
+    g.fillRect(0, 0, 2, 128); g.fillRect(0, 126, 128, 2)
+    glass(14, 26, 44, 56)
+    glass(72, 22, 40, 76)
+    g.fillStyle = '#d8d5cd'
+    g.fillRect(64, 88, 56, 30)
+    g.fillStyle = 'rgba(0,0,0,0.18)'
+    g.fillRect(64, 86, 56, 3)
+  } else if (kind === 'office') {
+    g.fillStyle = '#e8ecef'
+    g.fillRect(0, 0, 128, 128)
+    glass(0, 18, 128, 92)
+    g.fillStyle = 'rgba(220,226,230,0.9)'
+    for (let x = 0; x < 128; x += 32) g.fillRect(x, 18, 3, 92)
+  } else {
+    // casă: tencuială, fereastră cu ramă și pervaz
+    g.fillStyle = '#f4f2ec'
+    g.fillRect(0, 0, 128, 128)
+    glass(40, 34, 48, 54)
+    g.strokeStyle = '#ffffff'
+    g.lineWidth = 5
+    g.strokeRect(40, 34, 48, 54)
+    g.beginPath(); g.moveTo(64, 34); g.lineTo(64, 88); g.stroke()
+    g.fillStyle = '#cfcac0'
+    g.fillRect(36, 88, 56, 5)
+    g.fillStyle = '#d7d1c4'
+    g.fillRect(0, 118, 128, 10)
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.anisotropy = 4
+  return t
+}
+
 function windowTexture() {
   const c = document.createElement('canvas')
   c.width = 128
@@ -178,9 +233,8 @@ function buildBuildings(data, layers) {
     for (let i = 0; i < a[1].length; i += 2) { x += a[1][i]; z += a[1][i + 1] }
     return [x / n, z / n]
   })
-  const wallPos = []
-  const wallUV = []
-  const wallCol = []
+  const buckets = { house: { pos: [], uv: [], col: [] }, block: { pos: [], uv: [], col: [] }, office: { pos: [], uv: [], col: [] } }
+  let wallPos, wallUV, wallCol
   const roofSets = layers.map(() => ({ pos: [], uv: [] }))
   const col = new THREE.Color()
   let seed = 7
@@ -212,6 +266,10 @@ function buildBuildings(data, layers) {
       if (dmax - dmin > 8) hv = ds.map((d) => 1.2 + (h + 3 - 1.2) * ((d - dmin) / (dmax - dmin)))
     }
     const H = (i) => (hv ? hv[i] : wallH)
+    const bk = buckets[kind === 1 ? 'block' : kind === 2 && h > 14 ? 'office' : 'house']
+    wallPos = bk.pos
+    wallUV = bk.uv
+    wallCol = bk.col
     const palette = WALLS[kind] || WALLS[2]
     col.set(palette[Math.floor(rnd() * palette.length)])
     const shade = 0.78 + rnd() * 0.1
@@ -259,13 +317,15 @@ function buildBuildings(data, layers) {
     }
   }
   const group = new THREE.Group()
-  const wg = new THREE.BufferGeometry()
-  wg.setAttribute('position', new THREE.Float32BufferAttribute(wallPos, 3))
-  wg.setAttribute('uv', new THREE.Float32BufferAttribute(wallUV, 2))
-  wg.setAttribute('color', new THREE.Float32BufferAttribute(wallCol, 3))
-  wg.computeVertexNormals()
-  const walls = new THREE.Mesh(wg, new THREE.MeshStandardMaterial({ map: windowTexture(), vertexColors: true, roughness: 0.85, side: THREE.DoubleSide }))
-  group.add(walls)
+  for (const [name, bk] of Object.entries(buckets)) {
+    if (!bk.pos.length) continue
+    const wg = new THREE.BufferGeometry()
+    wg.setAttribute('position', new THREE.Float32BufferAttribute(bk.pos, 3))
+    wg.setAttribute('uv', new THREE.Float32BufferAttribute(bk.uv, 2))
+    wg.setAttribute('color', new THREE.Float32BufferAttribute(bk.col, 3))
+    wg.computeVertexNormals()
+    group.add(new THREE.Mesh(wg, new THREE.MeshStandardMaterial({ map: facadeTile(name), vertexColors: true, roughness: 0.85, side: THREE.DoubleSide })))
+  }
   roofSets.forEach((R, i) => {
     if (!R.pos.length) return
     const rg = new THREE.BufferGeometry()
@@ -359,9 +419,46 @@ function detectTrees(layer, data, radius, maxTrees) {
   return trees
 }
 
+function leafTexture() {
+  const c = document.createElement('canvas')
+  c.width = c.height = 256
+  const g = c.getContext('2d')
+  let seed = 3
+  const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+  for (let k = 0; k < 1500; k++) {
+    // grupuri de frunze într-un contur neregulat, mai întunecate jos
+    const a = r() * Math.PI * 2
+    const rad = Math.sqrt(r()) * (100 + 18 * Math.sin(a * 5 + 1))
+    const x = 128 + Math.cos(a) * rad
+    const y = 128 + Math.sin(a) * rad * 0.92
+    const shade = 150 + (1 - y / 256) * 80 + r() * 25
+    g.fillStyle = `rgb(${shade},${shade},${shade})`
+    g.beginPath()
+    g.ellipse(x, y, 4 + r() * 5, 2.5 + r() * 3, r() * Math.PI, 0, Math.PI * 2)
+    g.fill()
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+
 function buildTrees(trees) {
   const geo = treeGeometry()
-  const crown = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 }), trees.length)
+  geo.scale(0.82, 0.82, 0.82)
+  const crown = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: 0xb9b9b9, roughness: 0.95 }), trees.length)
+  // frunzișul: trei planuri încrucișate cu textură de frunze, nuanțate cu culoarea din satelit
+  const planes = []
+  for (let k = 0; k < 3; k++) {
+    const pl = new THREE.PlaneGeometry(2.5, 2.3)
+    pl.rotateY((k * Math.PI) / 3)
+    pl.translate(0, 1.2, 0)
+    planes.push(pl)
+  }
+  const top = new THREE.PlaneGeometry(2.3, 2.3)
+  top.rotateX(-Math.PI / 2)
+  top.translate(0, 1.55, 0)
+  planes.push(top)
+  const foliage = new THREE.InstancedMesh(mergeGeometries(planes), new THREE.MeshStandardMaterial({ map: leafTexture(), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.9 }), trees.length)
   const trunkGeo = new THREE.CylinderGeometry(0.16, 0.26, 1, 6).translate(0, 0.5, 0)
   const trunk = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardMaterial({ color: 0x5b4a3a, roughness: 1 }), trees.length)
   const m4 = new THREE.Matrix4()
@@ -378,11 +475,13 @@ function buildTrees(trees) {
     // culoarea reală a coroanei, ușor luminată (imaginea satelit conține umbre)
     c.setRGB((r / 255) ** 2.2, (g / 255) ** 2.2, (b / 255) ** 2.2).multiplyScalar(1.7)
     crown.setColorAt(k, c)
+    foliage.setMatrixAt(k, m4)
+    foliage.setColorAt(k, c)
     m4.compose(new THREE.Vector3(x, 0, z), q.identity(), new THREE.Vector3(1, trunkH, 1))
     trunk.setMatrixAt(k, m4)
   })
   const g = new THREE.Group()
-  g.add(trunk, crown)
+  g.add(trunk, crown, foliage)
   return g
 }
 
@@ -462,6 +561,12 @@ export async function buildWorld(scene, { lowSpec = false, onProgress } = {}) {
   const mid = satelliteLayer(proj, 16, lowSpec ? 1100 : 1500, -0.6, lowSpec ? 1536 : 2304, prog(1))
   const near = satelliteLayer(proj, 18, lowSpec ? 330 : 480, -0.15, lowSpec ? 1536 : 2560, prog(2))
   group.add(far.mesh, mid.mesh, near.mesh)
+  // cel mai fin nivel (≈ 0,2 m/pixel) chiar lângă stadion, doar pe calculator
+  const close = lowSpec ? null : satelliteLayer(proj, 19, 280, -0.05, 3072, null)
+  if (close) {
+    close.covers = (x, z) => Math.abs(x) < 260 && Math.abs(z) < 260
+    group.add(close.mesh)
+  }
   const nearR = lowSpec ? 330 : 480
   const midR = lowSpec ? 1100 : 1500
   near.covers = (x, z) => Math.abs(x) < nearR - 20 && Math.abs(z) < nearR - 20
@@ -471,19 +576,19 @@ export async function buildWorld(scene, { lowSpec = false, onProgress } = {}) {
   const footprint = []
   for (let k = 0; k < 72; k++) footprint.push([100 * Math.cos((k / 72) * Math.PI * 2), 111.5 * Math.sin((k / 72) * Math.PI * 2)])
   const cover = () => {
-    for (const L of [mid, near]) {
+    for (const L of [mid, near, close].filter(Boolean)) {
       paintPolygon(L, footprint, '#b9bab4')
       L.tex.needsUpdate = true
     }
   }
   cover()
-  const buildings = buildBuildings(data, [near, mid])
+  const buildings = buildBuildings(data, [close, near, mid].filter(Boolean))
   group.add(buildings)
   group.add(buildStreetLights(data))
 
   const labels = streetLabels(data)
   const ready = (async () => {
-    await Promise.all([near.done, mid.done])
+    await Promise.all([near.done, mid.done, close ? close.done : null])
     cover()
     const trees = detectTrees(near, data, nearR - 10, lowSpec ? 2500 : 6500)
     group.add(buildTrees(trees))

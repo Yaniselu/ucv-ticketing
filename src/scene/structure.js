@@ -195,6 +195,26 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   const glassMesh = new THREE.Mesh(glassQ.geometry(), glass)
   root.add(stepsMesh, wallMesh, darkMesh, glassMesh)
 
+  // mâna curentă de pe scările inelului de sus
+  const railByAisle = new Map()
+  for (const [p, t, front, y] of aisleMarks) {
+    if (front < D2(0) - 0.01) continue
+    const key = `${p}:${t.toFixed(5)}`
+    if (!railByAisle.has(key)) railByAisle.set(key, [])
+    railByAisle.get(key).push([p, t, front, y])
+  }
+  const railGeo = []
+  for (const pts of railByAisle.values()) {
+    if (pts.length < 8) continue
+    pts.sort((a, b) => a[2] - b[2])
+    const curve = new THREE.CatmullRomCurve3(pts.map(([p, t, front, y]) => {
+      const q = pathPoint(p, t, front + 0.4)
+      return new THREE.Vector3(q.x, y + 0.95, q.z)
+    }))
+    railGeo.push(new THREE.TubeGeometry(curve, pts.length * 2, 0.03, 4, false).toNonIndexed())
+  }
+  if (railGeo.length) root.add(new THREE.Mesh(mergeGeometries(railGeo), new THREE.MeshStandardMaterial({ color: 0xb8bec4, metalness: 0.7, roughness: 0.3 })))
+
   const aisleMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1.05, 0.03, G.depth), white, aisleMarks.length)
   const m4 = new THREE.Matrix4()
   const q4 = new THREE.Quaternion()

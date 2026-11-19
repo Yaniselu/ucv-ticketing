@@ -10,6 +10,9 @@ import { buildLayout, G, D2 } from './data/layout.js'
 import { EVENT, STANDS, MAX_TICKETS, HOLD_SECONDS } from './data/stadium-data.js'
 import { computeAvailability, FREE, TAKEN, BLOCKED } from './data/availability.js'
 import { buildStadium } from './scene/stadium.js'
+import { buildCrowd } from './scene/crowd.js'
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
 import { buildWorld } from './scene/world.js'
 import { createUI } from './ui/ui.js'
 
@@ -110,6 +113,8 @@ sun.shadow.normalBias = 0.4
 scene.add(sun)
 
 const stadium = buildStadium(scene, layout, { lowSpec })
+const crowd = buildCrowd(layout, status, { lowSpec })
+scene.add(crowd)
 
 // împrejurimile reale (satelit + OpenStreetMap), încărcate în fundal
 let streetLabelData = []
@@ -132,7 +137,23 @@ if (useAO) {
   ao.updateGtaoMaterial({ radius: 0.9, distanceExponent: 1.4, thickness: 1.5, scale: 1.1, samples: 12, distanceFallOff: 1.0, screenSpaceRadius: false })
   ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 5, radiusExponent: 1, rings: 2, samples: 16 })
   composer.addPass(ao)
+  composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.16, 0.45, 0.93))
   composer.addPass(new OutputPass())
+  // gradare de culoare discretă (contrast, saturație, vignetă), ca la o fotografie
+  composer.addPass(new ShaderPass({
+    uniforms: { tDiffuse: { value: null } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+    fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv;
+      void main(){
+        vec4 c = texture2D(tDiffuse, vUv);
+        float l = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+        c.rgb = mix(vec3(l), c.rgb, 1.07);
+        c.rgb = (c.rgb - 0.5) * 1.05 + 0.5;
+        float v = smoothstep(1.15, 0.35, length(vUv - 0.5) * 1.35);
+        c.rgb *= mix(0.86, 1.0, v);
+        gl_FragColor = c;
+      }`,
+  }))
 }
 
 // ─── Culorile locurilor ─────────────────────────────────────────────
@@ -326,6 +347,7 @@ function povPose(i) {
 // ─── Moduri ─────────────────────────────────────────────────────────
 function setRoofFor(mode) {
   stadium.roofParts.visible = mode === 'overview' || mode === 'pov' || mode === 'box'
+  crowd.visible = mode === 'pov' || mode === 'box'
   fovTarget = { box: 66, pov: 64 }[mode] || baseFov()
   const roof = { overview: 0.3, stand: 0.2, sector: 0.12, box: 0.55, pov: 0.62 }[mode]
   const inner = { overview: 0.9, stand: 0.45, sector: 0.3, box: 0.8, pov: 0.9 }[mode]
@@ -497,11 +519,17 @@ function renderThumb(i) {
   thumbCam.position.copy(eye)
   thumbCam.lookAt(at)
   const roofOp = stadium.roofMat.opacity
+  const crowdVis = crowd.visible
+  const partsVis = stadium.roofParts.visible
+  crowd.visible = true
+  stadium.roofParts.visible = true
   stadium.roofMat.opacity = 0.62
   renderer.setRenderTarget(thumbRT)
   renderer.render(scene, thumbCam)
   renderer.setRenderTarget(null)
   stadium.roofMat.opacity = roofOp
+  crowd.visible = crowdVis
+  stadium.roofParts.visible = partsVis
   const px = new Uint8Array(480 * 300 * 4)
   renderer.readRenderTargetPixels(thumbRT, 0, 0, 480, 300, px)
   const c = document.createElement('canvas')

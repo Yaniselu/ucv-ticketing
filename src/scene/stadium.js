@@ -6,6 +6,7 @@ import {
 import * as TX from './textures.js'
 import { Quads, strip } from './geom.js'
 import { buildStructure } from './structure.js'
+import { createTurf } from './turf.js'
 
 
 
@@ -69,9 +70,7 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   })
 
   // ─── Terenul ───
-  const pitch = new THREE.Mesh(new THREE.PlaneGeometry(G.hx * 2, G.hz * 2), new THREE.MeshStandardMaterial({ map: TX.pitchTexture(), roughness: 0.95 }))
-  pitch.rotation.x = -Math.PI / 2
-  pitch.receiveShadow = true
+  const pitch = createTurf({ lowSpec })
   root.add(pitch)
 
   // steagurile de corner

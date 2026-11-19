@@ -19,6 +19,19 @@ Coș cu maximum 4 bilete (regula clubului), rezervare temporară de 10 minute ș
 - **Fațada:** placajul alb e doar deasupra „valului”. Dedesubt se văd structura albă în X, lamelele de aluminiu și clădirea vitrată de pe mai multe niveluri.
 - **Stadionul** e așezat și orientat după conturul real din OpenStreetMap: terenul e rotit cu 12,4° față de nord, iar carcasa are 207 × 230 m. Soarele are aceeași poziție ca în imaginea satelit, ca umbrele reale să se potrivească.
 
+## Realism
+
+- **Gazonul** are variații de culoare la mai multe scări, zone tocite în careuri și pe linia de tușă, microrelief pentru firele de iarbă și dungi de tuns care se schimbă după unghiul din care privești, ca la un gazon real.
+- **În vederea din scaun și în loje**, pe locurile deja vândute apar spectatori: fani în alb-albastru, cei din sectorul oaspeților, VIP-uri și jurnaliști.
+- **Imaginea satelit** are lângă stadion cel mai fin nivel disponibil (≈ 0,2 m/pixel).
+- **Copacii** au frunziș texturat în locul formelor pline.
+- **Clădirile** au fațade diferite pentru case, blocuri și clădiri de birouri.
+- **Pe calculator** imaginea primește ocluzie ambientală, o strălucire discretă a luminilor și gradare de culoare.
+
+## Locurile 1:1 cu stadionul real
+
+Totalurile sunt exacte (30.983), dar împărțirea pe rânduri și pe locuri în fiecare sector este reconstituită din geometrie și fotografii. Pentru potrivire 1:1 e nevoie de planul oficial al locurilor (sector → rând → numerele locurilor), pe care îl are furnizorul de ticketing al clubului (myticket / Entertix). Odată primit, planul se poate importa direct în generatorul din `src/data/layout.js`.
+
 ## Rulare
 
 ```bash
