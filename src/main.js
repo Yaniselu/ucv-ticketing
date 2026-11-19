@@ -112,6 +112,21 @@ Object.assign(sun.shadow.camera, { left: -150, right: 150, top: 150, bottom: -15
 sun.shadow.bias = -0.0004
 sun.shadow.normalBias = 0.4
 scene.add(sun)
+// panourile acoperișului (stratul 2) lasă să treacă ~jumătate din lumină:
+// soarele e împărțit în două lumini; doar a doua „vede” panourile când calculează umbrele
+camera.layers.enable(2)
+let sun2 = null
+if (!lowSpec) {
+  sun.intensity = 1.55
+  sun2 = sun.clone()
+  sun2.shadow = sun.shadow.clone()
+  sun2.shadow.mapSize.set(2048, 2048)
+  Object.assign(sun2.shadow.camera, { left: -130, right: 130, top: 130, bottom: -130, near: 150, far: 800 })
+  sun2.shadow.camera.updateProjectionMatrix()
+  sun2.shadow.camera.layers.enable(2)
+  sun2.intensity = 1.45
+  scene.add(sun2)
+}
 
 const stadium = buildStadium(scene, layout, { lowSpec })
 const crowd = buildCrowd(layout, status, { lowSpec })
@@ -526,6 +541,7 @@ function autoPick(sectorId, qty) {
 const thumbs = new Map()
 const thumbRT = new THREE.WebGLRenderTarget(480, 300, { colorSpace: THREE.SRGBColorSpace, samples: 4 })
 const thumbCam = new THREE.PerspectiveCamera(62, 480 / 300, 0.2, 3000)
+thumbCam.layers.enable(2)
 function renderThumb(i) {
   if (thumbs.has(i)) return thumbs.get(i)
   const { eye, look: at } = povPose(i)

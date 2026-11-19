@@ -39,6 +39,13 @@ Coș cu maximum 4 bilete (regula clubului), rezervare temporară de 10 minute ș
 
 Totalurile sunt exacte (30.983), dar împărțirea pe rânduri și pe locuri în fiecare sector este reconstituită din geometrie și fotografii. Pentru potrivire 1:1 e nevoie de planul oficial al locurilor (sector → rând → numerele locurilor), pe care îl are furnizorul de ticketing al clubului (myticket / Entertix). Odată primit, planul se poate importa direct în generatorul din `src/data/layout.js`.
 
+## Interiorul, după fotografiile reale
+
+- **Cupola** e o structură spațială pe două straturi, din piramide pătrate cu grinzi albe, ca rețeaua deasă din fotografii.
+- **Panourile translucide** lasă să treacă aproximativ jumătate din lumina soarelui. Pe gazon și pe scaune se vede pata de soare din dreptul deschiderii, iar restul e în umbra parțială a acoperișului, cu desenul grinzilor.
+- **În spatele tribunelor** sunt stâlpi albi, o grindă la jumătatea înălțimii și vitraj.
+- **Exterior:** bordura albă la marginea placajului, iar parterul are perete cortină din sticlă cu porți și turnicheți.
+
 ## Orașul fotorealist (Google Photorealistic 3D Tiles)
 
 Pentru ca împrejurimile să arate exact ca în realitate, aplicația poate încărca modelul 3D al orașului de la Google, aceeași sursă ca Google Earth. Stadionul din modelul Google e decupat automat și în locul lui rămâne modelul nostru, cu toate locurile.

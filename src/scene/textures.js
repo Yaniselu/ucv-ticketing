@@ -324,23 +324,28 @@ export function claddingTexture() {
 // Soclul de beton de la nivelul promenadei, cu porți și vitrine
 export function plinthTexture() {
   const [c, g] = canvas(1024, 128)
-  g.fillStyle = '#cfd1cf'
+  const grd = g.createLinearGradient(0, 0, 0, 128)
+  grd.addColorStop(0, '#55646f')
+  grd.addColorStop(1, '#2c3740')
+  g.fillStyle = grd
   g.fillRect(0, 0, 1024, 128)
-  const img = g.getImageData(0, 0, 1024, 128)
-  for (let i = 0; i < img.data.length; i += 4) {
-    const n = (Math.random() - 0.5) * 10
-    img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n
-  }
-  g.putImageData(img, 0, 0)
-  for (let x = 24; x < 1024; x += 128) {
-    g.fillStyle = '#2f3a45'
-    g.fillRect(x, 40, 80, 88)
-    g.fillStyle = 'rgba(150,180,205,0.35)'
-    g.fillRect(x + 4, 44, 34, 84)
-    g.fillRect(x + 42, 44, 34, 84)
-  }
-  g.fillStyle = '#9fa3a3'
+  g.fillStyle = 'rgba(255,255,255,0.08)'
+  g.fillRect(0, 8, 1024, 40)
+  // montanți și traverse
+  g.fillStyle = '#9aa3aa'
+  for (let x = 0; x < 1024; x += 32) g.fillRect(x, 0, 3, 128)
+  g.fillRect(0, 60, 1024, 3)
   g.fillRect(0, 0, 1024, 6)
+  // porți cu turnicheți (gri metalic)
+  for (let x = 96; x < 1024; x += 256) {
+    g.fillStyle = '#6d757b'
+    g.fillRect(x, 54, 96, 74)
+    g.fillStyle = '#3a4248'
+    for (let k = 0; k < 6; k++) g.fillRect(x + 6 + k * 15, 62, 8, 66)
+  }
+  // soclul de beton
+  g.fillStyle = '#b9bbba'
+  g.fillRect(0, 118, 1024, 10)
   const t = tex(c)
   t.wrapS = THREE.RepeatWrapping
   return t

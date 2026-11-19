@@ -278,6 +278,17 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   }
   cols.castShadow = true
   root.add(cols)
+  // între stâlpi: grindă la jumătate și vitraj, ca în spatele tribunelor din fotografii
+  {
+    const gq = new Quads()
+    ellipseBand(gq, BB.ax + 1.95, BB.az + 1.95, RING_TOP + 1.0, SPRING_Y, 192)
+    root.add(new THREE.Mesh(gq.geometry(), new THREE.MeshStandardMaterial({ color: 0xc7d3dc, roughness: 0.15, metalness: 0.2, transparent: true, opacity: 0.38, side: THREE.DoubleSide, depthWrite: false })))
+    const beamRing = new THREE.TubeGeometry(ellipseCurve(BB.ax + 1.6, BB.az + 1.6, (RING_TOP + SPRING_Y) / 2), 256, 0.22, 5, true)
+    const topRing = new THREE.TubeGeometry(ellipseCurve(BB.ax + 1.6, BB.az + 1.6, SPRING_Y), 256, 0.45, 6, true)
+    const rings = new THREE.Mesh(mergeGeometries([beamRing.toNonIndexed(), topRing.toNonIndexed()]), white)
+    rings.castShadow = true
+    root.add(rings)
+  }
 
   const roofParts = new THREE.Group()
   root.add(roofParts)
@@ -296,7 +307,49 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
     archGeo.push(new THREE.TubeGeometry(ellipseCurve(p.x, p.z, p.y - 0.25), 220, f === 0 ? 0.7 : 0.24, 5, true).toNonIndexed())
   }
   const arches = new THREE.Mesh(mergeGeometries(archGeo), white)
+  arches.castShadow = true
   roofParts.add(arches)
+
+  // structura spațială pe două straturi (piramide pătrate), ca în fotografiile din interior:
+  // nodurile de jos sunt la jumătatea ochiurilor, cu 2,6 m mai jos, legate de cele 4 noduri de sus
+  {
+    const curves = []
+    for (let k = 0; k <= archN; k++) curves.push(roofCurveAt((k / archN) * Math.PI * 2))
+    const halfCurves = []
+    for (let k = 0; k < archN; k++) halfCurves.push(roofCurveAt(((k + 0.5) / archN) * Math.PI * 2))
+    const NF = lowSpec ? 10 : 16
+    const fs = Array.from({ length: NF + 1 }, (_, i) => 0.03 + (0.95 * i) / NF)
+    const up = (k, i) => curves[k].getPoint(fs[i])
+    const low = (k, i) => {
+      const a = halfCurves[k].getPoint((fs[i] + fs[i + 1]) / 2)
+      const r = Math.hypot(a.x, a.z)
+      return new THREE.Vector3(a.x * (1 - 0.9 / r), a.y - 2.6, a.z * (1 - 0.9 / r))
+    }
+    const beams = []
+    for (let k = 0; k < archN; k++) {
+      for (let i = 0; i < NF; i++) {
+        const L = low(k, i)
+        beams.push([L, up(k, i)], [L, up(k + 1, i)], [L, up(k, i + 1)], [L, up(k + 1, i + 1)])
+        beams.push([L, low((k + 1) % archN, i)])
+        if (i < NF - 1) beams.push([L, low(k, i + 1)])
+      }
+    }
+    const unit = new THREE.CylinderGeometry(lowSpec ? 0.1 : 0.12, lowSpec ? 0.1 : 0.12, 1, 5, 1, true).translate(0, 0.5, 0)
+    const web = new THREE.InstancedMesh(unit, white, beams.length)
+    const m = new THREE.Matrix4()
+    const q = new THREE.Quaternion()
+    const Y = new THREE.Vector3(0, 1, 0)
+    const d = new THREE.Vector3()
+    beams.forEach(([a, b], n) => {
+      d.subVectors(b, a)
+      const len = d.length()
+      q.setFromUnitVectors(Y, d.normalize())
+      m.compose(a, q, new THREE.Vector3(1, len, 1))
+      web.setMatrixAt(n, m)
+    })
+    web.castShadow = !lowSpec
+    roofParts.add(web)
+  }
   // panourile translucide ale cupolei
   const latticeRoof = TX.latticeTexture()
   latticeRoof.repeat.set(256, 16)
@@ -333,6 +386,10 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
     g.computeVertexNormals()
     const roofMesh = new THREE.Mesh(g, roofMat)
     roofMesh.renderOrder = 2
+    // stratul 2: panourile translucide umbresc doar jumătate din lumina soarelui (vezi main.js)
+    roofMesh.layers.set(2)
+    roofMesh.castShadow = true
+    out.roofPanels = roofMesh
     root.add(roofMesh)
   }
   out.roofMat = roofMat
@@ -364,6 +421,10 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   clad.receiveShadow = true
   root.add(clad)
   out.shell = clad
+  // jgheabul / bordura albă de la marginea de sus a placajului
+  const rim = new THREE.Mesh(new THREE.TubeGeometry(ellipseCurve(84, 94, SHELL_TOP - 0.1), 256, 0.55, 8, true), new THREE.MeshStandardMaterial({ color: 0xf2f4f6, roughness: 0.4, metalness: 0.3 }))
+  rim.castShadow = true
+  root.add(rim)
   const latticeIn = TX.latticeTexture(true)
   latticeIn.repeat.set(150, 9)
   const shellInMat = new THREE.MeshStandardMaterial({ map: latticeIn, color: 0xffffff, side: THREE.BackSide, roughness: 0.7 })
