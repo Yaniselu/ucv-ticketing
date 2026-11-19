@@ -10,6 +10,13 @@ Prototip de ticketing cu harta 3D a stadionului din Craiova, în stilul celor fo
 
 Coș cu maximum 4 bilete (regula clubului), rezervare temporară de 10 minute și un checkout demonstrativ.
 
+## Împrejurimi reale, 1:1
+
+- **Solul** este imaginea satelit reală (Esri World Imagery), încărcată în browser pe trei niveluri de detaliu: aproximativ 0,4 m/pixel lângă stadion, apoi tot mai puțin detaliat spre marginea orașului.
+- **Clădirile și străzile** vin din OpenStreetMap (`public/data/craiova.json`, generat de `npm run osm`): 6.024 de clădiri pe o rază de 1 km, extrudate după contur și numărul de etaje (Sala Polivalentă, Malmo Office Tower, blocurile A0–A4 etc.). Acoperișurile sunt texturate cu imaginea satelit, iar numele străzilor apar în vederea de ansamblu.
+- **Copacii** sunt detectați automat din imaginea satelit (coroanele verzi), deci stau unde sunt și în realitate.
+- **Stadionul** e așezat și orientat după conturul real din OpenStreetMap: terenul e rotit cu 12,4° față de nord, iar carcasa are 207 × 230 m. Soarele are aceeași poziție ca în imaginea satelit, ca umbrele reale să se potrivească.
+
 ## Rulare
 
 ```bash
@@ -17,6 +24,7 @@ npm install
 npm run dev      # http://localhost:5173
 npm run build    # build static în dist/
 npm run verify   # verifică faptul că harta are exact 30.983 de locuri
+npm run osm      # regenerează datele OpenStreetMap din jurul stadionului
 ```
 
 Stack: Vite + three.js, fără framework. Se poate publica pe orice hosting static (Vercel detectează automat Vite).

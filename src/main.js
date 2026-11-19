@@ -1,16 +1,22 @@
 import './style.css'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
+import { Sky } from 'three/addons/objects/Sky.js'
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js'
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import { buildLayout, G, D2 } from './data/layout.js'
 import { EVENT, STANDS, MAX_TICKETS, HOLD_SECONDS } from './data/stadium-data.js'
 import { computeAvailability, FREE, TAKEN, BLOCKED } from './data/availability.js'
 import { buildStadium } from './scene/stadium.js'
-import { skyTexture } from './scene/textures.js'
+import { buildWorld } from './scene/world.js'
 import { createUI } from './ui/ui.js'
 
 const isTouch = matchMedia('(pointer: coarse)').matches
-const lowSpec = isTouch || (navigator.hardwareConcurrency || 8) <= 4
+const params = new URLSearchParams(location.search)
+const lowSpec = params.has('lite') || isTouch || (navigator.hardwareConcurrency || 8) <= 4
+const useAO = !lowSpec && !params.has('noao')
 
 // ─── Date ───────────────────────────────────────────────────────────
 const layout = buildLayout()
@@ -54,20 +60,35 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPrefere
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, lowSpec ? 1.5 : 2))
 renderer.outputColorSpace = THREE.SRGBColorSpace
 renderer.toneMapping = THREE.ACESFilmicToneMapping
-renderer.toneMappingExposure = 1.05
+renderer.toneMappingExposure = 0.64
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFShadowMap
 
 const scene = new THREE.Scene()
-const sky = skyTexture()
-scene.background = sky
-scene.fog = new THREE.Fog(0xdfe8f1, 700, 2100)
+// Soarele are aceeași poziție ca în imaginea satelit (dinspre SSE, umbrele spre NNV),
+// ca umbrele reale din imagine să se potrivească cu cele randate.
+const SUN_DIR = new THREE.Vector3(0.173, 0.819, 0.548).normalize()
+function makeSky(scale) {
+  const s = new Sky()
+  s.scale.setScalar(scale)
+  const u = s.material.uniforms
+  u.turbidity.value = 4.5
+  u.rayleigh.value = 1.25
+  u.mieCoefficient.value = 0.004
+  u.mieDirectionalG.value = 0.82
+  u.sunPosition.value.copy(SUN_DIR)
+  return s
+}
+scene.add(makeSky(4500))
+scene.fog = new THREE.Fog(0xc9d6e2, 1500, 5600)
 const pmrem = new THREE.PMREMGenerator(renderer)
-scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
-scene.environmentIntensity = 0.45
+const envScene = new THREE.Scene()
+envScene.add(makeSky(1000))
+scene.environment = pmrem.fromScene(envScene).texture
+scene.environmentIntensity = 0.16
 
-const camera = new THREE.PerspectiveCamera(40, 1, 0.3, 5000)
-camera.position.set(260, 300, 380)
+const camera = new THREE.PerspectiveCamera(40, 1, 2, 6500)
+camera.position.set(900, 760, 1150)
 const controls = new OrbitControls(camera, canvas)
 controls.enableDamping = true
 controls.dampingFactor = 0.08
@@ -77,17 +98,41 @@ controls.minDistance = 60
 controls.maxDistance = 620
 controls.autoRotateSpeed = 0.35
 
-scene.add(new THREE.HemisphereLight(0xdcecff, 0x55603f, 1.0))
-const sun = new THREE.DirectionalLight(0xfff3df, 2.6)
-sun.position.set(-190, 260, 150)
+scene.add(new THREE.HemisphereLight(0xd6e6ff, 0x6b6a58, 0.55))
+const sun = new THREE.DirectionalLight(0xfff1dc, 3.0)
+sun.position.copy(SUN_DIR).multiplyScalar(420)
 sun.castShadow = true
 sun.shadow.mapSize.set(lowSpec ? 2048 : 4096, lowSpec ? 2048 : 4096)
-Object.assign(sun.shadow.camera, { left: -175, right: 175, top: 175, bottom: -175, near: 50, far: 700 })
+Object.assign(sun.shadow.camera, { left: -150, right: 150, top: 150, bottom: -150, near: 150, far: 800 })
 sun.shadow.bias = -0.0004
 sun.shadow.normalBias = 0.4
 scene.add(sun)
 
 const stadium = buildStadium(scene, layout, { lowSpec })
+
+// împrejurimile reale (satelit + OpenStreetMap), încărcate în fundal
+let streetLabelData = []
+buildWorld(scene, { lowSpec })
+  .then((w) => {
+    streetLabelData = w.labels
+    if (state.mode === 'overview') buildLabels()
+    return w.ready
+  })
+  .catch((e) => console.warn('Împrejurimile nu s-au putut încărca', e))
+
+// post-procesare: ocluzie ambientală pentru umbrele de contact dintre rânduri
+let composer = null
+if (useAO) {
+  composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }))
+  composer.addPass(new RenderPass(scene, camera))
+  const ao = new GTAOPass(scene, camera, 1, 1)
+  ao.output = GTAOPass.OUTPUT.Default
+  ao.blendIntensity = 0.9
+  ao.updateGtaoMaterial({ radius: 0.9, distanceExponent: 1.4, thickness: 1.5, scale: 1.1, samples: 12, distanceFallOff: 1.0, screenSpaceRadius: false })
+  ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 5, radiusExponent: 1, rings: 2, samples: 16 })
+  composer.addPass(ao)
+  composer.addPass(new OutputPass())
+}
 
 // ─── Culorile locurilor ─────────────────────────────────────────────
 const C = {
@@ -160,7 +205,8 @@ function seatColor(i) {
     if (i === state.hoverSeat) return st === FREE ? C.freeHot : natural[i]
     return st === FREE ? C.free : natural[i]
   }
-  // sector / pov
+  if (m === 'pov') return natural[i]
+  // sector
   const active = s.sector === state.sector
   if (st === BLOCKED) return active ? C.na : dimCol[i]
   if (active) {
@@ -291,6 +337,9 @@ let fovTarget = 40
 let innerTarget = 0.9
 
 function applyControls(mode) {
+  // planul apropiat: mare când suntem departe (precizie pentru sol), mic în loje / din scaun
+  camera.near = { overview: 2, stand: 1, sector: 0.4, box: 0.08, pov: 0.08 }[mode]
+  camera.updateProjectionMatrix()
   controls.enabled = mode !== 'pov'
   controls.autoRotate = false
   if (mode === 'overview') Object.assign(controls, { minDistance: 120, maxDistance: 620 * boost(), maxPolarAngle: 1.3 })
@@ -503,6 +552,7 @@ function buildLabels() {
     labels.push({ el, pos: new THREE.Vector3(...pos) })
   }
   if (state.mode === 'overview') {
+    for (const st of streetLabelData) add([st.x, 3, st.z], st.name, 'street')
     for (const id of ['PN', 'T2', 'PS', 'T1']) {
       const v = standLabelPos(id)
       const st = standStats(id)
@@ -668,6 +718,10 @@ function resize() {
   if (!['box', 'pov'].includes(state.mode)) fovTarget = baseFov()
   camera.fov = fovTarget
   camera.updateProjectionMatrix()
+  if (composer) {
+    composer.setPixelRatio(renderer.getPixelRatio())
+    composer.setSize(w, h)
+  }
 }
 window.addEventListener('resize', resize)
 resize()
@@ -701,7 +755,8 @@ function frame(now) {
   }
   positionLabels()
   ui.tick()
-  renderer.render(scene, camera)
+  if (composer) composer.render(dt)
+  else renderer.render(scene, camera)
   requestAnimationFrame(frame)
 }
 function currentHit() {
@@ -721,7 +776,7 @@ requestAnimationFrame((t) => {
   last = t
   frame(t)
   document.getElementById('loader').classList.add('done')
-  flyTo(OVERVIEW.pos, OVERVIEW.target, 2.4)
+  flyTo(OVERVIEW.pos, OVERVIEW.target, 3.4)
 })
 
 // acces pentru testare din consolă

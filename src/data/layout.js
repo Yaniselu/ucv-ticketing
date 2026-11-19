@@ -10,13 +10,14 @@ export const G = {
   pitchL: 105,
   pitchW: 68,
   // marginea interioară a tribunelor (dreptunghi cu colțuri rotunjite)
-  hx: 41.5,
-  hz: 61,
+  // după conturul real al gazonului din OpenStreetMap (77 × 113 m)
+  hx: 39.5,
+  hz: 57.5,
   r: 10,
   depth: 0.8, // adâncimea unui rând
   ring1: { rows: 16, y0: 1.2, rise: 0.4 },
   walkway: 2.6, // culoarul dintre inele
-  ring2: { rows: 24, wall: 1.1, rise: 0.52 },
+  ring2: { rows: 25, wall: 1.1, rise: 0.52 },
   seatW: 0.5,
   vipSeatW: 0.52,
   aisle: 1.2,

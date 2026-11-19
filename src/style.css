@@ -174,6 +174,16 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .lbl.sec { letter-spacing: 0.02em; font-size: 15px; padding: 5px 8px; text-align: center; }
 .lbl.sec small { color: #9ff0bd; }
 .lbl.sec.sold small { color: #ffb4b4; }
+.lbl.street {
+  background: transparent; box-shadow: none; padding: 0; letter-spacing: 0.04em;
+  font: 600 12px/1 var(--body); text-transform: none; color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85), 0 0 8px rgba(0, 0, 0, 0.55);
+}
+.credits {
+  position: absolute; right: 412px; bottom: 6px; padding: 2px 8px; border-radius: 6px;
+  font-size: 10.5px; color: rgba(255, 255, 255, 0.92); background: rgba(10, 31, 68, 0.45);
+  pointer-events: none; white-space: nowrap;
+}
 
 /* ─── Tooltip ─── */
 .tip {
@@ -294,6 +304,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   .pov-bar { bottom: calc(40% + 10px); width: calc(100% - 20px); padding: 8px 8px 8px 12px; }
   .pov-bar .btn { padding: 10px 10px; font-size: 13px; }
   .legend { display: none !important; }
+  .credits { right: 6px; bottom: auto; top: calc(max(10px, env(safe-area-inset-top)) + 100px); font-size: 9.5px; }
   .cart-items { max-height: 90px; }
 }
 

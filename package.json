@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "verify": "node scripts/verify-capacity.mjs"
+    "verify": "node scripts/verify-capacity.mjs",
+    "osm": "node scripts/build-osm.mjs"
   },
   "dependencies": {
     "three": "^0.187.0"

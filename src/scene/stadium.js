@@ -82,11 +82,12 @@ function armchairGeometry() {
 }
 
 // ─── Profilul „oului” lui Brâncuși: fațada și acoperișul ───────────────
+// semiaxele reale după conturul clădirii din OpenStreetMap (≈ 207 × 230 m)
 const SHELL_PROFILE = [
-  [90, 112, 0], [93, 115, 9], [95, 117, 20], [94.5, 116.5, 31], [91, 113, 40],
-  [85, 106, 46.5], [77, 97, SHELL_TOP],
+  [97, 108.5, 0], [100.8, 112.6, 9], [103, 115, 19], [102.5, 114.5, 30], [99.6, 111.4, 39],
+  [94.8, 105.8, 45.4], [88.6, 98.8, 49.1], [84, 94, SHELL_TOP],
 ]
-const ROOF_PROFILE = [[77, 97, SHELL_TOP], [66, 85, 49.4], [55, 72, 47], [45, 63, 44], [38, 56, 41.5]]
+const ROOF_PROFILE = [[84, 94, SHELL_TOP], [72, 82, 49.3], [60, 70, 47.2], [48, 62, 44.4], [40, 55, 41.6]]
 
 function revolve(profile, segs, samplesN, uvFn) {
   const curve = new THREE.CatmullRomCurve3(profile.map(([ax, az, y]) => new THREE.Vector3(ax, y, az)))
@@ -404,10 +405,10 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   for (const z of [-9.5, 9.5]) {
     const canopy = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.25, 11, 20, 1, true, 0, Math.PI), dugMat)
     canopy.rotation.set(Math.PI / 2, 0, -Math.PI / 2)
-    canopy.position.set(-39.6, 0.05, z)
+    canopy.position.set(-37.3, 0.05, z)
     root.add(canopy)
     const bench = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 10.5), new THREE.MeshStandardMaterial({ color: 0x1b4fa0 }))
-    bench.position.set(-40.2, 0.25, z)
+    bench.position.set(-37.9, 0.25, z)
     root.add(bench)
   }
 
@@ -415,8 +416,8 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   const ledTex = TX.ledTexture()
   const ledMat = new THREE.MeshStandardMaterial({ map: ledTex, emissive: 0xffffff, emissiveMap: ledTex, emissiveIntensity: 0.9 })
   const leds = [
-    [37.6, 0, 100, -Math.PI / 2], [-37.0, 30, 30, Math.PI / 2], [-37.0, -30, 30, Math.PI / 2],
-    [0, 57.4, 62, Math.PI], [0, -57.4, 62, 0],
+    [37.4, 0, 96, -Math.PI / 2], [-36.6, 30, 28, Math.PI / 2], [-36.6, -30, 28, Math.PI / 2],
+    [0, 55.6, 62, Math.PI], [0, -55.6, 62, 0],
   ]
   for (const [x, z, len, ry] of leds) {
     const t = ledTex.clone()
@@ -438,12 +439,13 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   shell.receiveShadow = true
   root.add(shell)
   out.shell = shell
-  const latticeIn = TX.latticeTexture()
-  latticeIn.repeat.set(140, 9)
-  const shellInMat = new THREE.MeshStandardMaterial({ map: latticeIn, color: 0xffffff, transparent: true, side: THREE.BackSide, roughness: 0.6, depthWrite: false })
+  const latticeIn = TX.latticeTexture(true)
+  latticeIn.repeat.set(150, 9)
+  // interiorul carcasei e opac (placajul de aluminiu), cu grinzile albe vizibile
+  const shellInMat = new THREE.MeshStandardMaterial({ map: latticeIn, color: 0xffffff, side: THREE.BackSide, roughness: 0.7 })
   root.add(new THREE.Mesh(facade.geometry, shellInMat))
   const latticeRoof = TX.latticeTexture()
-  latticeRoof.repeat.set(140, 6)
+  latticeRoof.repeat.set(150, 9)
   const roofMat = new THREE.MeshStandardMaterial({
     map: latticeRoof, color: 0xffffff, transparent: true, opacity: 0.5, side: THREE.DoubleSide, roughness: 0.5, depthWrite: false,
   })
@@ -488,126 +490,6 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
     scr.lookAt(0, TOP_Y + 2, 0)
     root.add(scr)
   }
-
-  // ─── Împrejurimile ───
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(3200, 3200), new THREE.MeshStandardMaterial({ map: TX.noiseTexture('#6d8a4c', 26, 256, [400, 400]), roughness: 1 }))
-  ground.rotation.x = -Math.PI / 2
-  ground.position.y = -0.06
-  ground.receiveShadow = true
-  root.add(ground)
-  const pavers = TX.noiseTexture('#cfd1d3', 18, 256, [40, 40], 32)
-  const plaza = new THREE.Mesh(new THREE.ShapeGeometry(ellipseShape(150, 175)), new THREE.MeshStandardMaterial({ map: pavers, roughness: 0.95 }))
-  plaza.rotation.x = -Math.PI / 2
-  plaza.position.y = -0.02
-  plaza.receiveShadow = true
-  root.add(plaza)
-  // promenada înălțată din jurul stadionului
-  const promShape = ellipseShape(106, 128)
-  promShape.holes.push(ellipseShape(89, 111))
-  const prom = new THREE.Mesh(new THREE.ExtrudeGeometry(promShape, { depth: 5, bevelEnabled: false, curveSegments: 64 }), new THREE.MeshStandardMaterial({ color: 0xd3d6d9, roughness: 0.9 }))
-  prom.rotation.x = -Math.PI / 2
-  prom.castShadow = true
-  prom.receiveShadow = true
-  root.add(prom)
-  // scări spre promenadă
-  const stairGeo = []
-  for (const [ang, w] of [[0, 30], [Math.PI / 2, 40], [Math.PI, 30], [-Math.PI / 2, 40], [Math.PI / 4, 18], [(3 * Math.PI) / 4, 18], [(-3 * Math.PI) / 4, 18], [-Math.PI / 4, 18]]) {
-    for (let k = 0; k < 14; k++) {
-      const g = new THREE.BoxGeometry(w, 5 - k * 0.36, 0.7)
-      g.translate(0, (5 - k * 0.36) / 2, k * 0.7)
-      g.rotateY(-ang + Math.PI / 2)
-      const ex = 106 * Math.cos(ang)
-      const ez = 128 * Math.sin(ang)
-      const n = new THREE.Vector2(Math.cos(ang) / 106, Math.sin(ang) / 128).normalize()
-      g.translate(ex - n.x * 0.5, 0, ez - n.y * 0.5)
-      stairGeo.push(g)
-    }
-  }
-  const stairs = new THREE.Mesh(mergeGeometries(stairGeo), new THREE.MeshStandardMaterial({ color: 0xbfc3c6, roughness: 0.9 }))
-  stairs.receiveShadow = true
-  root.add(stairs)
-
-  // drumuri și parcare
-  const asphalt = new THREE.MeshStandardMaterial({ color: 0x3e4146, roughness: 0.95 })
-  const roads = [[0, -235, 1400, 16, 0], [0, 250, 1400, 14, 0], [215, 0, 14, 1400, 0], [-330, 0, 12, 1400, 0]]
-  for (const [x, z, w, d] of roads) {
-    const r = new THREE.Mesh(new THREE.PlaneGeometry(w, d), asphalt)
-    r.rotation.x = -Math.PI / 2
-    r.position.set(x, -0.01, z)
-    r.receiveShadow = true
-    root.add(r)
-  }
-  const park = new THREE.Mesh(new THREE.PlaneGeometry(130, 220), new THREE.MeshStandardMaterial({ map: TX.parkingTexture(), roughness: 0.95 }))
-  park.material.map.repeat.set(5, 9)
-  park.material.map.wrapS = park.material.map.wrapT = THREE.RepeatWrapping
-  park.rotation.x = -Math.PI / 2
-  park.position.set(-240, 0.0, 0)
-  park.receiveShadow = true
-  root.add(park)
-
-  // copaci și case (deterministe)
-  const rand = rng(1948)
-  const trees = []
-  const tryTree = (x, z) => {
-    const e = (x / 152) ** 2 + (z / 177) ** 2
-    if (e < 1.02) return
-    if (x > -310 && x < -170 && Math.abs(z) < 115) return
-    for (const [rx, rz, rw, rd] of roads) if (Math.abs(x - rx) < rw / 2 + 4 && Math.abs(z - rz) < rd / 2 + 4) return
-    trees.push([x, z, 0.8 + rand() * 0.6])
-  }
-  for (let k = 0; k < 260; k++) {
-    const t = rand() * Math.PI * 2
-    const r = 1.04 + rand() * 0.35
-    tryTree(150 * r * Math.cos(t), 175 * r * Math.sin(t))
-  }
-  for (let k = -680; k < 680; k += 14) {
-    tryTree(k + rand() * 4, -247 + rand() * 2)
-    tryTree(k + rand() * 4, 262 + rand() * 2)
-    tryTree(203 + rand() * 2, k + rand() * 4)
-    tryTree(227 + rand() * 2, k + rand() * 4)
-  }
-  const trunk = new THREE.CylinderGeometry(0.35, 0.5, 4, 6)
-  trunk.translate(0, 2, 0)
-  const crown = new THREE.IcosahedronGeometry(3.6, 1)
-  crown.translate(0, 6.5, 0)
-  const trunkMesh = new THREE.InstancedMesh(trunk, new THREE.MeshStandardMaterial({ color: 0x5a4532 }), trees.length)
-  const crownMesh = new THREE.InstancedMesh(crown, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, flatShading: true }), trees.length)
-  trees.forEach(([x, z, s], k) => {
-    m4.compose(new THREE.Vector3(x, 0, z), q4.setFromAxisAngle(up, rand() * 6), new THREE.Vector3(s, s, s))
-    trunkMesh.setMatrixAt(k, m4)
-    crownMesh.setMatrixAt(k, m4)
-    crownMesh.setColorAt(k, new THREE.Color().setHSL(0.24 + rand() * 0.07, 0.42, 0.27 + rand() * 0.1))
-  })
-  crownMesh.castShadow = !lowSpec
-  root.add(trunkMesh, crownMesh)
-
-  const houses = []
-  for (let x = -900; x <= 900; x += 26) {
-    for (let z = -900; z <= 900; z += 26) {
-      const jx = x + (rand() - 0.5) * 8
-      const jz = z + (rand() - 0.5) * 8
-      if ((jx / 175) ** 2 + (jz / 200) ** 2 < 1.6) continue
-      if (jx > -340 && jx < 230 && jz > -255 && jz < 270) continue
-      if (rand() < 0.22) continue
-      let onRoad = false
-      for (const [rx, rz, rw, rd] of roads) if (Math.abs(jx - rx) < rw / 2 + 10 && Math.abs(jz - rz) < rd / 2 + 10) onRoad = true
-      if (onRoad) continue
-      const tall = rand() < 0.08
-      houses.push([jx, jz, 8 + rand() * 6, 8 + rand() * 6, tall ? 18 + rand() * 20 : 4 + rand() * 3, rand() * 0.4, tall])
-    }
-  }
-  const houseMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), houses.length)
-  const roofGeo = new THREE.ConeGeometry(0.75, 1, 4, 1).rotateY(Math.PI / 4).translate(0, 0.5, 0)
-  const houseRoof = new THREE.InstancedMesh(roofGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 }), houses.length)
-  houses.forEach(([x, z, w, d, h, rot, tall], k) => {
-    m4.compose(new THREE.Vector3(x, 0, z), q4.setFromAxisAngle(up, rot), new THREE.Vector3(w, h, d))
-    houseMesh.setMatrixAt(k, m4)
-    houseMesh.setColorAt(k, new THREE.Color().setHSL(0.1, 0.12, tall ? 0.78 : 0.82 + rand() * 0.1))
-    m4.compose(new THREE.Vector3(x, h, z), q4.setFromAxisAngle(up, rot), new THREE.Vector3(w * 1.33, tall ? 0.01 : 3.2, d * 1.33))
-    houseRoof.setMatrixAt(k, m4)
-    houseRoof.setColorAt(k, tall ? new THREE.Color(0x9aa0a6) : new THREE.Color().setHSL(0.03 + rand() * 0.03, 0.55, 0.38 + rand() * 0.1))
-  })
-  root.add(houseMesh, houseRoof)
 
   // ─── Zonele de selecție (invizibile) ───
   const proxyMat = new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide })

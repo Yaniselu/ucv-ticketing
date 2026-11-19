@@ -139,18 +139,23 @@ export function facadeTexture(heightTop) {
   return tex(c)
 }
 
-// Acoperișul: grinzi albe din oțel și panouri translucide
-export function latticeTexture() {
+// Acoperișul: grilă de grinzi albe din oțel cu panouri de policarbonat
+// (așa apare în imaginile satelit: panouri dreptunghiulare pe inele)
+export function latticeTexture(opaque = false) {
   const [c, g] = canvas(256, 256)
-  g.fillStyle = 'rgba(236,240,244,0.32)'
+  g.fillStyle = opaque ? '#c9ced4' : 'rgba(214,224,233,0.34)'
   g.fillRect(0, 0, 256, 256)
-  g.strokeStyle = 'rgba(255,255,255,1)'
-  g.lineWidth = 9
+  g.fillStyle = 'rgba(255,255,255,0.08)'
+  g.fillRect(0, 0, 128, 128)
+  g.fillRect(128, 128, 128, 128)
+  g.strokeStyle = 'rgba(250,251,252,1)'
+  g.lineWidth = 10
   g.strokeRect(0, 0, 256, 256)
-  g.lineWidth = 3.5
-  g.beginPath(); g.moveTo(0, 0); g.lineTo(256, 256); g.moveTo(256, 0); g.lineTo(0, 256); g.stroke()
-  g.lineWidth = 2
+  g.lineWidth = 4
   g.beginPath(); g.moveTo(128, 0); g.lineTo(128, 256); g.moveTo(0, 128); g.lineTo(256, 128); g.stroke()
+  g.strokeStyle = 'rgba(235,238,242,0.7)'
+  g.lineWidth = 2
+  g.beginPath(); g.moveTo(0, 0); g.lineTo(128, 128); g.moveTo(256, 0); g.lineTo(128, 128); g.stroke()
   const t = tex(c)
   t.wrapS = t.wrapT = THREE.RepeatWrapping
   return t
