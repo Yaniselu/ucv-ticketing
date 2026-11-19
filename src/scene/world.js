@@ -561,12 +561,9 @@ export async function buildWorld(scene, { lowSpec = false, onProgress } = {}) {
   const mid = satelliteLayer(proj, 16, lowSpec ? 1100 : 1500, -0.6, lowSpec ? 1536 : 2304, prog(1))
   const near = satelliteLayer(proj, 18, lowSpec ? 330 : 480, -0.15, lowSpec ? 1536 : 2560, prog(2))
   group.add(far.mesh, mid.mesh, near.mesh)
-  // cel mai fin nivel (≈ 0,2 m/pixel) chiar lângă stadion, doar pe calculator
-  const close = lowSpec ? null : satelliteLayer(proj, 19, 280, -0.05, 3072, null)
-  if (close) {
-    close.covers = (x, z) => Math.abs(x) < 260 && Math.abs(z) < 260
-    group.add(close.mesh)
-  }
+  // Notă: Esri nu are nivelul 19 pentru Craiova (dalele sunt „Map data not yet available”),
+  // deci nivelul 18 (≈ 0,4 m/pixel) este cel mai detaliat disponibil.
+  const close = null
   const nearR = lowSpec ? 330 : 480
   const midR = lowSpec ? 1100 : 1500
   near.covers = (x, z) => Math.abs(x) < nearR - 20 && Math.abs(z) < nearR - 20

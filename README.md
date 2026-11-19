@@ -23,7 +23,7 @@ Coș cu maximum 4 bilete (regula clubului), rezervare temporară de 10 minute ș
 
 - **Gazonul** are variații de culoare la mai multe scări, zone tocite în careuri și pe linia de tușă, microrelief pentru firele de iarbă și dungi de tuns care se schimbă după unghiul din care privești, ca la un gazon real.
 - **În vederea din scaun și în loje**, pe locurile deja vândute apar spectatori: fani în alb-albastru, cei din sectorul oaspeților, VIP-uri și jurnaliști.
-- **Imaginea satelit** are lângă stadion cel mai fin nivel disponibil (≈ 0,2 m/pixel).
+- **Imaginea satelit** folosește cel mai fin nivel pe care Esri îl are pentru Craiova (z18, ≈ 0,4 m/pixel). Nivelul z19 nu există pentru zonă.
 - **Copacii** au frunziș texturat în locul formelor pline.
 - **Clădirile** au fațade diferite pentru case, blocuri și clădiri de birouri.
 - **Pe calculator** imaginea primește ocluzie ambientală, o strălucire discretă a luminilor și gradare de culoare.
