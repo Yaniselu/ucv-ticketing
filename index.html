@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ro">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Bilete Universitatea Craiova – Stadionul Ion Oblemenco 3D</title>
+    <meta name="description" content="Alege-ți locul pe harta 3D a Stadionului „Ion Oblemenco”: tribună, sector, rând și loc, cu vederea reală din scaun." />
+    <meta name="theme-color" content="#0a1f44" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="scene" aria-label="Harta 3D a stadionului"></canvas>
+      <div id="labels" class="labels" aria-hidden="true"></div>
+
+      <header class="topbar">
+        <div class="brand">
+          <span class="crest" aria-hidden="true">U</span>
+          <div>
+            <div class="brand-name">Universitatea Craiova</div>
+            <div class="brand-sub">Bilete oficiale · harta 3D</div>
+          </div>
+        </div>
+        <div class="match" id="match"></div>
+      </header>
+
+      <nav id="crumbs" class="crumbs" aria-label="Pași"></nav>
+
+      <aside id="panel" class="panel" aria-live="polite"></aside>
+
+      <div id="tip" class="tip" role="tooltip"></div>
+      <section id="ticket" class="ticket" aria-live="polite"></section>
+      <div id="legend" class="legend"></div>
+      <div id="hint" class="hint"></div>
+      <div id="modal" class="modal" role="dialog" aria-modal="true"></div>
+
+      <div id="loader" class="loader">
+        <div class="loader-card">
+          <span class="crest big" aria-hidden="true">U</span>
+          <div class="loader-title">Stadionul „Ion Oblemenco”</div>
+          <div class="loader-sub" id="loader-sub">Se construiesc cele 30.983 de locuri…</div>
+          <div class="loader-bar"><i></i></div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
