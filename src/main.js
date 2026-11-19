@@ -88,7 +88,8 @@ scene.environment = pmrem.fromScene(envScene).texture
 scene.environmentIntensity = 0.16
 
 const camera = new THREE.PerspectiveCamera(40, 1, 2, 6500)
-camera.position.set(900, 760, 1150)
+// intrarea: de sus, perpendicular pe stadion (ca o hartă), apoi coborâm
+camera.position.set(0, 820, 0.5)
 const controls = new OrbitControls(camera, canvas)
 controls.enableDamping = true
 controls.dampingFactor = 0.08
@@ -239,7 +240,7 @@ function paint() {
 // ─── Camera ─────────────────────────────────────────────────────────
 let flight = null
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
-function flyTo(pos, target, dur = 1.5, onDone) {
+function flyTo(pos, target, dur = 1.5, onDone, lift = true) {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
   flight = {
     p0: camera.position.clone(), t0: controls.target.clone(),
@@ -247,7 +248,7 @@ function flyTo(pos, target, dur = 1.5, onDone) {
     start: performance.now(), dur: reduce ? 1 : dur * 1000, onDone,
   }
   // arc ușor în sus pentru zborurile lungi
-  flight.lift = Math.min(60, flight.p0.distanceTo(flight.p1) * 0.18)
+  flight.lift = lift ? Math.min(60, flight.p0.distanceTo(flight.p1) * 0.18) : 0
 }
 function stepFlight(now) {
   if (!flight) return
@@ -263,7 +264,7 @@ function stepFlight(now) {
   }
 }
 
-const OVERVIEW_BASE = { pos: [225, 215, 290], target: [0, 4, 0] }
+const OVERVIEW_BASE = { pos: [188, 182, 246], target: [0, 4, 0] }
 // pe ecrane înguste camera se dă mai în spate ca să încapă stadionul
 const boost = () => (camera.aspect < 1 ? Math.min(1.9, 0.66 / camera.aspect) : 1)
 const OVERVIEW = {
@@ -776,7 +777,12 @@ requestAnimationFrame((t) => {
   last = t
   frame(t)
   document.getElementById('loader').classList.add('done')
-  flyTo(OVERVIEW.pos, OVERVIEW.target, 3.4)
+  // o clipă de sus, ca pe hartă, apoi coborâm și ne înclinăm spre stadion
+  controls.maxDistance = 2000
+  setTimeout(() => flyTo(OVERVIEW.pos, OVERVIEW.target, 4.2, () => {
+    applyControls('overview')
+    idleSince = performance.now()
+  }, false), 1400)
 })
 
 // acces pentru testare din consolă

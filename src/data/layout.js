@@ -17,7 +17,10 @@ export const G = {
   depth: 0.8, // adâncimea unui rând
   ring1: { rows: 16, y0: 1.2, rise: 0.4 },
   walkway: 2.6, // culoarul dintre inele
-  ring2: { rows: 25, wall: 1.1, rise: 0.52 },
+  // inelul 2: numărul de rânduri variază după elipsa din spatele tribunelor
+  // (multe rânduri la mijlocul laturilor, puține în colțuri, ca la stadionul real)
+  ring2: { rows: 42, wall: 1.1, rise: 0.52 },
+  bowlBack: { ax: 86.7, az: 100.7 },
   seatW: 0.5,
   vipSeatW: 0.52,
   aisle: 1.2,
@@ -34,8 +37,6 @@ export const WALK_D = G.ring1.rows * G.depth
 export const WALK_Y = Y1(G.ring1.rows)
 export const D2 = (j) => WALK_D + G.walkway + j * G.depth
 export const Y2 = (j) => WALK_Y + G.ring2.wall + j * G.ring2.rise
-export const BACK_D = D2(G.ring2.rows)
-export const TOP_Y = Y2(G.ring2.rows - 1)
 
 const AX = G.hx - G.r
 const AZ = G.hz - G.r
@@ -70,6 +71,22 @@ export function pathPoint(p, t, d) {
     }
   }
 }
+
+// câte rânduri are inelul 2 în dreptul punctului (piesă, t): până la elipsa din spate
+export function ring2RowsAt(p, t) {
+  const { ax, az } = G.bowlBack
+  let n = 0
+  while (n < G.ring2.rows) {
+    const q = pathPoint(p, t, D2(n + 1))
+    if ((q.x / ax) ** 2 + (q.z / az) ** 2 > 1) break
+    n++
+  }
+  return Math.max(6, n)
+}
+export const MAX_R2 = Math.max(ring2RowsAt(2, 0.5), ring2RowsAt(0, 0.5))
+export const BACK_D = D2(MAX_R2)
+export const TOP_Y = Y2(MAX_R2 - 1)
+export const RING_TOP = TOP_Y + 1.6 // peretele alb din spatele tribunelor / grinda inelară
 
 const zToT = (z) => (AZ - z) / (2 * AZ) // tronsonul vest (W)
 export const T_BLOCK_A = zToT(G.blockHalf)
@@ -166,17 +183,33 @@ function rowSlots(sector, row) {
   return { d, L, slots }
 }
 
+// limitele blocurilor din inelul 2 (folosite și pentru gradenele 3D)
+export function sectorBlocks(sector) {
+  const n = sector.innerAisles + 1
+  const out = []
+  for (let b = 0; b < n; b++) {
+    const t0 = sector.t0 + ((sector.t1 - sector.t0) * b) / n
+    const t1 = sector.t0 + ((sector.t1 - sector.t0) * (b + 1)) / n
+    out.push({ b, t0, t1, rows: ring2RowsAt(sector.piece, (t0 + t1) / 2) })
+  }
+  return out
+}
+export const VOM_ROWS = [5, 9] // vomitoarele sunt la jumătatea de jos a inelului 2
+
 function buildNaturalRows(sector) {
   const rows = []
   let rowNum = 0
+  const blocks = sectorBlocks(sector)
   for (const ring of sector.rings) {
     for (const row of ringRows(ring)) {
+      if (ring === 2 && !blocks.some((bl) => row.idx < bl.rows)) continue
       rowNum++
       const { d, slots } = rowSlots(sector, row)
       const seats = []
       for (const sl of slots) {
-        // vomitoare: ieșiri pe primele 3 rânduri ale inelului 2, în mijlocul fiecărui bloc
-        if (sector.vomitories && ring === 2 && row.idx < 3 && sl.blockLen > 8 && Math.abs(sl.s - sl.blockCenter) < 1.55) continue
+        if (ring === 2 && row.idx >= blocks[sl.block].rows) continue
+        // vomitoare: ieșiri din inelul 2, în mijlocul blocurilor înalte
+        if (sector.vomitories && ring === 2 && blocks[sl.block].rows >= 16 && row.idx >= VOM_ROWS[0] && row.idx < VOM_ROWS[1] && Math.abs(sl.s - sl.blockCenter) < 1.6) continue
         const p = pathPoint(sector.piece, sl.t, d)
         // tunelul jucătorilor, sub Tribuna VIP (între sectoarele C și D)
         if (sector.kind === 'vip' && row.idx < 7 && Math.abs(p.z) < 3.2) continue

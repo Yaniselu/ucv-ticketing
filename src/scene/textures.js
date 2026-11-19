@@ -262,3 +262,68 @@ export function skyTexture() {
   g.fillRect(0, 0, 16, 512)
   return tex(c)
 }
+
+// Placajul de aluminiu alb al „oului”: nervuri verticale fine și îmbinări de panou
+export function claddingTexture() {
+  const [c, g] = canvas(1024, 512)
+  const grd = g.createLinearGradient(0, 0, 0, 512)
+  grd.addColorStop(0, '#f7f8f9')
+  grd.addColorStop(1, '#e6eaee')
+  g.fillStyle = grd
+  g.fillRect(0, 0, 1024, 512)
+  for (let x = 0; x < 1024; x += 8) {
+    g.fillStyle = 'rgba(140,150,162,0.28)'
+    g.fillRect(x, 0, 1, 512)
+    g.fillStyle = 'rgba(255,255,255,0.7)'
+    g.fillRect(x + 1, 0, 1, 512)
+  }
+  g.fillStyle = 'rgba(150,158,168,0.35)'
+  for (let y = 0; y < 512; y += 64) g.fillRect(0, y, 1024, 2)
+  const t = tex(c)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  return t
+}
+
+// Soclul de beton de la nivelul promenadei, cu porți și vitrine
+export function plinthTexture() {
+  const [c, g] = canvas(1024, 128)
+  g.fillStyle = '#cfd1cf'
+  g.fillRect(0, 0, 1024, 128)
+  const img = g.getImageData(0, 0, 1024, 128)
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * 10
+    img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n
+  }
+  g.putImageData(img, 0, 0)
+  for (let x = 24; x < 1024; x += 128) {
+    g.fillStyle = '#2f3a45'
+    g.fillRect(x, 40, 80, 88)
+    g.fillStyle = 'rgba(150,180,205,0.35)'
+    g.fillRect(x + 4, 44, 34, 84)
+    g.fillRect(x + 42, 44, 34, 84)
+  }
+  g.fillStyle = '#9fa3a3'
+  g.fillRect(0, 0, 1024, 6)
+  const t = tex(c)
+  t.wrapS = THREE.RepeatWrapping
+  return t
+}
+
+// Clădirea vitrată din spatele structurii în X (concourse pe mai multe niveluri)
+export function glazingTexture() {
+  const [c, g] = canvas(256, 256)
+  const grd = g.createLinearGradient(0, 0, 0, 256)
+  grd.addColorStop(0, '#5d7387')
+  grd.addColorStop(1, '#3a4b5c')
+  g.fillStyle = grd
+  g.fillRect(0, 0, 256, 256)
+  g.fillStyle = 'rgba(255,255,255,0.10)'
+  g.fillRect(0, 30, 256, 60)
+  g.fillStyle = '#eef0f2'
+  g.fillRect(0, 0, 256, 34)
+  g.fillStyle = 'rgba(210,220,228,0.9)'
+  for (let x = 0; x < 256; x += 64) g.fillRect(x, 34, 4, 222)
+  const t = tex(c)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  return t
+}

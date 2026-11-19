@@ -172,6 +172,12 @@ const WALLS = {
 }
 
 function buildBuildings(data, layers) {
+  const pitchCentres = data.areas.filter((a) => a[0] === 2).map((a) => {
+    let x = 0, z = 0
+    const n = a[1].length / 2
+    for (let i = 0; i < a[1].length; i += 2) { x += a[1][i]; z += a[1][i + 1] }
+    return [x / n, z / n]
+  })
   const wallPos = []
   const wallUV = []
   const wallCol = []
@@ -196,6 +202,16 @@ function buildBuildings(data, layers) {
     const hip = kind === 0 && n <= 10
     const roofH = hip ? Math.min(3.4, 0.32 * Math.sqrt(area)) : 0
     const wallH = Math.max(2.6, h - roofH)
+    // tribună (fără nume, tip sport): gradenele urcă dinspre teren spre spate
+    let hv = null
+    if (kind === 5 && area > 1500 && pitchCentres.length) {
+      const pc = pitchCentres.reduce((best, c) => (Math.hypot(c[0] - cx, c[1] - cz) < Math.hypot(best[0] - cx, best[1] - cz) ? c : best))
+      const ds = pts.map(([x, z]) => Math.hypot(x - pc[0], z - pc[1]))
+      const dmin = Math.min(...ds)
+      const dmax = Math.max(...ds)
+      if (dmax - dmin > 8) hv = ds.map((d) => 1.2 + (h + 3 - 1.2) * ((d - dmin) / (dmax - dmin)))
+    }
+    const H = (i) => (hv ? hv[i] : wallH)
     const palette = WALLS[kind] || WALLS[2]
     col.set(palette[Math.floor(rnd() * palette.length)])
     const shade = 0.78 + rnd() * 0.1
@@ -208,8 +224,10 @@ function buildBuildings(data, layers) {
       const u1 = (u + len) / 3.3
       u += len
       const v1 = wallH / 3
-      wallPos.push(a[0], 0, a[1], b[0], 0, b[1], b[0], wallH, b[1], a[0], 0, a[1], b[0], wallH, b[1], a[0], wallH, a[1])
-      wallUV.push(u0, 0, u1, 0, u1, v1, u0, 0, u1, v1, u0, v1)
+      const ha = H(i)
+      const hb = H((i + 1) % n)
+      wallPos.push(a[0], 0, a[1], b[0], 0, b[1], b[0], hb, b[1], a[0], 0, a[1], b[0], hb, b[1], a[0], ha, a[1])
+      wallUV.push(u0, 0, u1, 0, u1, hb / 3, u0, 0, u1, hb / 3, u0, ha / 3)
       for (let k = 0; k < 6; k++) wallCol.push(col.r * shade, col.g * shade, col.b * shade)
     }
     // acoperișul: texturat din imaginea satelit
@@ -236,7 +254,7 @@ function buildBuildings(data, layers) {
     } else {
       const tri = THREE.ShapeUtils.triangulateShape(pts.map(([x, z]) => new THREE.Vector2(x, z)), [])
       for (const [i0, i1, i2] of tri) {
-        push(pts[i0][0], wallH, pts[i0][1]); push(pts[i2][0], wallH, pts[i2][1]); push(pts[i1][0], wallH, pts[i1][1])
+        push(pts[i0][0], H(i0), pts[i0][1]); push(pts[i2][0], H(i2), pts[i2][1]); push(pts[i1][0], H(i1), pts[i1][1])
       }
     }
   }
@@ -368,6 +386,49 @@ function buildTrees(trees) {
   return g
 }
 
+// stâlpii de iluminat de pe bulevarde și din jurul stadionului
+function buildStreetLights(data) {
+  const spots = []
+  for (const [cls, width, , flat] of data.roads) {
+    if (cls > 2) continue
+    let acc = 0
+    let side = 1
+    for (let i = 0; i < flat.length - 2; i += 2) {
+      const ax = flat[i], az = flat[i + 1], bx = flat[i + 2], bz = flat[i + 3]
+      const len = Math.hypot(bx - ax, bz - az)
+      if (!len) continue
+      const dx = (bx - ax) / len, dz = (bz - az) / len
+      for (let s = (30 - acc) % 30; s < len; s += 30) {
+        const x = ax + dx * s, z = az + dz * s
+        if (Math.hypot(x, z) > 720 || (x / 112) ** 2 + (z / 124) ** 2 < 1) continue
+        const off = width / 2 + 1.3
+        const sides = cls <= 1 ? [1, -1] : [side]
+        for (const sd of sides) spots.push([x - dz * off * sd, z + dx * off * sd, Math.atan2(dz * sd, -dx * sd)])
+        side = -side
+      }
+      acc = (acc + len) % 30
+    }
+  }
+  // pe promenada din jurul stadionului
+  for (let k = 0; k < 40; k++) {
+    const a = (k / 40) * Math.PI * 2
+    spots.push([124 * Math.cos(a), 137 * Math.sin(a), a + Math.PI / 2])
+  }
+  const pole = new THREE.CylinderGeometry(0.09, 0.14, 9, 6).translate(0, 4.5, 0)
+  const arm = new THREE.BoxGeometry(1.7, 0.09, 0.09).translate(0.8, 8.9, 0)
+  const head = new THREE.BoxGeometry(0.7, 0.16, 0.32).translate(1.6, 8.85, 0)
+  const geo = mergeGeometries([pole.toNonIndexed(), arm.toNonIndexed(), head.toNonIndexed()])
+  const mesh = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: 0x9aa0a6, roughness: 0.5, metalness: 0.6 }), spots.length)
+  const m4 = new THREE.Matrix4()
+  const q = new THREE.Quaternion()
+  const up = new THREE.Vector3(0, 1, 0)
+  spots.forEach(([x, z, r], k) => {
+    m4.compose(new THREE.Vector3(x, 0, z), q.setFromAxisAngle(up, r), new THREE.Vector3(1, 1, 1))
+    mesh.setMatrixAt(k, m4)
+  })
+  return mesh
+}
+
 // etichetele străzilor importante (pentru vederea de ansamblu)
 function streetLabels(data) {
   const best = new Map()
@@ -408,7 +469,7 @@ export async function buildWorld(scene, { lowSpec = false, onProgress } = {}) {
 
   // sub carcasa stadionului pictăm betonul promenadei (imaginea are acoperișul real)
   const footprint = []
-  for (let k = 0; k < 72; k++) footprint.push([106 * Math.cos((k / 72) * Math.PI * 2), 118 * Math.sin((k / 72) * Math.PI * 2)])
+  for (let k = 0; k < 72; k++) footprint.push([100 * Math.cos((k / 72) * Math.PI * 2), 111.5 * Math.sin((k / 72) * Math.PI * 2)])
   const cover = () => {
     for (const L of [mid, near]) {
       paintPolygon(L, footprint, '#b9bab4')
@@ -418,6 +479,7 @@ export async function buildWorld(scene, { lowSpec = false, onProgress } = {}) {
   cover()
   const buildings = buildBuildings(data, [near, mid])
   group.add(buildings)
+  group.add(buildStreetLights(data))
 
   const labels = streetLabels(data)
   const ready = (async () => {
