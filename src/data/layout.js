@@ -15,7 +15,7 @@ export const G = {
   hz: 57.5,
   r: 10,
   depth: 0.8, // adâncimea unui rând
-  ring1: { rows: 16, y0: 1.2, rise: 0.4 },
+  ring1: { rows: 16, y0: 1.9, rise: 0.4 },
   walkway: 2.6, // culoarul dintre inele
   // inelul 2: numărul de rânduri variază după elipsa din spatele tribunelor
   // (multe rânduri la mijlocul laturilor, puține în colțuri, ca la stadionul real)
@@ -194,7 +194,7 @@ export function sectorBlocks(sector) {
   }
   return out
 }
-export const VOM_ROWS = [5, 9] // vomitoarele sunt la jumătatea de jos a inelului 2
+export const VOM_ROWS = [0, 5] // vomitoarele ies pe culoarul dintre inele (ca în fotografii)
 
 function buildNaturalRows(sector) {
   const rows = []

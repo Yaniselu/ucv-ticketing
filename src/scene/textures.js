@@ -142,22 +142,59 @@ export function facadeTexture(heightTop) {
 // Acoperișul: grilă de grinzi albe din oțel cu panouri de policarbonat
 // (așa apare în imaginile satelit: panouri dreptunghiulare pe inele)
 export function latticeTexture(opaque = false) {
+  // structura spațială albă a cupolei, cu panouri de policarbonat (ca în fotografiile din interior)
   const [c, g] = canvas(256, 256)
-  g.fillStyle = opaque ? '#c9ced4' : 'rgba(214,224,233,0.34)'
+  g.fillStyle = opaque ? '#c9ced4' : 'rgba(196,206,216,0.55)'
   g.fillRect(0, 0, 256, 256)
-  g.fillStyle = 'rgba(255,255,255,0.08)'
-  g.fillRect(0, 0, 128, 128)
-  g.fillRect(128, 128, 128, 128)
-  g.strokeStyle = 'rgba(250,251,252,1)'
-  g.lineWidth = 10
+  g.strokeStyle = 'rgba(252,253,254,1)'
+  g.lineWidth = 8
   g.strokeRect(0, 0, 256, 256)
-  g.lineWidth = 4
-  g.beginPath(); g.moveTo(128, 0); g.lineTo(128, 256); g.moveTo(0, 128); g.lineTo(256, 128); g.stroke()
-  g.strokeStyle = 'rgba(235,238,242,0.7)'
-  g.lineWidth = 2
-  g.beginPath(); g.moveTo(0, 0); g.lineTo(128, 128); g.moveTo(256, 0); g.lineTo(128, 128); g.stroke()
+  g.lineWidth = 3
+  g.beginPath()
+  g.moveTo(0, 0); g.lineTo(256, 256); g.moveTo(256, 0); g.lineTo(0, 256)
+  g.moveTo(128, 0); g.lineTo(128, 256); g.moveTo(0, 128); g.lineTo(256, 128)
+  g.moveTo(128, 0); g.lineTo(256, 128); g.lineTo(128, 256); g.lineTo(0, 128); g.closePath()
+  g.stroke()
   const t = tex(c)
   t.wrapS = t.wrapT = THREE.RepeatWrapping
+  return t
+}
+
+// pavele gri dreptunghiulare în rânduri decalate (ca pe platoul din fața stadionului)
+export function pavingTexture() {
+  const [c, g] = canvas(512, 512)
+  g.fillStyle = '#a9abaa'
+  g.fillRect(0, 0, 512, 512)
+  let seed = 9
+  const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+  const bw = 64
+  const bh = 32
+  for (let y = 0; y < 512; y += bh) {
+    const off = (y / bh) % 2 ? bw / 2 : 0
+    for (let x = -bw; x < 512 + bw; x += bw) {
+      const v = 160 + Math.floor(r() * 36)
+      g.fillStyle = `rgb(${v},${v + 1},${v})`
+      g.fillRect(x + off + 1.5, y + 1.5, bw - 3, bh - 3)
+    }
+  }
+  const t = tex(c)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  return t
+}
+
+export function graniteTexture() {
+  const [c, g] = canvas(256, 256)
+  g.fillStyle = '#7f8285'
+  g.fillRect(0, 0, 256, 256)
+  const img = g.getImageData(0, 0, 256, 256)
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * 70
+    img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n
+  }
+  g.putImageData(img, 0, 0)
+  const t = tex(c)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.repeat.set(6, 1)
   return t
 }
 

@@ -158,7 +158,7 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
       const dt = 1.55 / pieceLen(B.piece, dm)
       const d0 = D2(VOM_ROWS[0])
       const d1 = D2(VOM_ROWS[1])
-      const yb = Y2(VOM_ROWS[0]) - 0.25
+      const yb = VOM_ROWS[0] === 0 ? WALK_Y : Y2(VOM_ROWS[0]) - 0.25
       const yt = Y2(VOM_ROWS[1]) - 0.03
       for (const side of [-1, 1]) {
         const t = tc + side * dt
@@ -168,9 +168,12 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
         walls.quad(P(B.piece, t, d0, yb), P(B.piece, t, d0, yt + 1.0), P(B.piece, t2, d0, yt + 1.0), P(B.piece, t2, d0, yb))
       }
       // golul tunelului (întunecat)
-      darkQ.quad(P(B.piece, tc - dt, d0, yb), P(B.piece, tc - dt, d0, yt), P(B.piece, tc + dt, d0, yt), P(B.piece, tc + dt, d0, yb))
+      darkQ.quad(P(B.piece, tc - dt, d0 - 0.03, yb), P(B.piece, tc - dt, d0 - 0.03, yt), P(B.piece, tc + dt, d0 - 0.03, yt), P(B.piece, tc + dt, d0 - 0.03, yb))
       darkQ.quad(P(B.piece, tc - dt, d0, yt), P(B.piece, tc - dt, d1, yt), P(B.piece, tc + dt, d1, yt), P(B.piece, tc + dt, d0, yt))
-      vomGeo.push({ piece: B.piece, t: tc })
+      // rama albă a vomitorului
+      const fw = 0.25 / pieceLen(B.piece, d0)
+      walls.quad(P(B.piece, tc - dt - fw, d0 - 0.05, yt), P(B.piece, tc - dt - fw, d0 - 0.05, yt + 0.55), P(B.piece, tc + dt + fw, d0 - 0.05, yt + 0.55), P(B.piece, tc + dt + fw, d0 - 0.05, yt))
+      vomGeo.push({ piece: B.piece, t: tc, d: d0 - 0.08, y: yt + 0.27, label: B.sector.num != null ? String(B.sector.num) : B.sector.letter || (B.sector.away ? 'OAS' : 'T1') })
     }
   }
   // scările culoarelor din inelul 1
@@ -228,6 +231,36 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   aisleMesh.receiveShadow = true
   root.add(aisleMesh)
 
+  // plăcuțele cu numărul sectorului deasupra fiecărui vomitor
+  const signMats = new Map()
+  const signFor = (label) => {
+    if (signMats.has(label)) return signMats.get(label)
+    const c = document.createElement('canvas')
+    c.width = 128
+    c.height = 64
+    const g = c.getContext('2d')
+    g.fillStyle = '#0b4aa2'
+    g.fillRect(0, 0, 128, 64)
+    g.fillStyle = '#ffffff'
+    g.font = '800 44px "Barlow Condensed", Arial Narrow, sans-serif'
+    g.textAlign = 'center'
+    g.textBaseline = 'middle'
+    g.fillText(label, 64, 34)
+    const t = new THREE.CanvasTexture(c)
+    t.colorSpace = THREE.SRGBColorSpace
+    const m = new THREE.MeshBasicMaterial({ map: t })
+    signMats.set(label, m)
+    return m
+  }
+  const signGeo = new THREE.PlaneGeometry(1.4, 0.7)
+  for (const v of vomGeo) {
+    const q = pathPoint(v.piece, v.t, v.d)
+    const sign = new THREE.Mesh(signGeo, signFor(v.label))
+    sign.position.set(q.x, v.y, q.z)
+    sign.rotation.y = Math.atan2(-q.nx, -q.nz)
+    root.add(sign)
+  }
+
   // ─── Grinda inelară, stâlpii, cupola din arce ───
   const ringQ = new Quads()
   ellipseBand(ringQ, BB.ax + 0.4, BB.az + 0.4, RING_TOP, RING_TOP + 1.0)
@@ -250,14 +283,14 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   out.roofParts = roofParts
   const roofCurveAt = (t) => new THREE.CatmullRomCurve3(ROOF_PROFILE.map(([ax, az, y]) => new THREE.Vector3(ax * Math.cos(t), y, az * Math.sin(t))))
   const archGeo = []
-  const archN = lowSpec ? 48 : 84
+  const archN = lowSpec ? 64 : 128
   for (let k = 0; k < archN; k++) {
     const curve = roofCurveAt((k / archN) * Math.PI * 2)
     archGeo.push(new THREE.TubeGeometry(curve, 36, 0.32, 5, false).toNonIndexed())
   }
   // inele secundare (pane) pe cupolă
   const roofLook = new THREE.CatmullRomCurve3(ROOF_PROFILE.map(([ax, az, y]) => new THREE.Vector3(ax, y, az)))
-  for (const f of [0.0, 0.12, 0.3, 0.48, 0.66, 0.84]) {
+  for (const f of [0.0, 0.08, 0.18, 0.3, 0.42, 0.54, 0.66, 0.78, 0.9]) {
     const p = roofLook.getPoint(f)
     archGeo.push(new THREE.TubeGeometry(ellipseCurve(p.x, p.z, p.y - 0.25), 220, f === 0 ? 0.7 : 0.24, 5, true).toNonIndexed())
   }
@@ -265,7 +298,7 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   roofParts.add(arches)
   // panourile translucide ale cupolei
   const latticeRoof = TX.latticeTexture()
-  latticeRoof.repeat.set(168, 10)
+  latticeRoof.repeat.set(256, 16)
   const roofMat = new THREE.MeshStandardMaterial({
     map: latticeRoof, color: 0xffffff, transparent: true, opacity: 0.5, side: THREE.DoubleSide, roughness: 0.5, depthWrite: false,
   })
@@ -321,7 +354,7 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   const look = profileLookup(SHELL_PROFILE)
   const cladTex = TX.claddingTexture()
   cladTex.repeat.set(70, 1)
-  const cladMat = new THREE.MeshStandardMaterial({ map: cladTex, roughness: 0.42, metalness: 0.25 })
+  const cladMat = new THREE.MeshStandardMaterial({ map: cladTex, color: 0xe4e8ec, roughness: 0.38, metalness: 0.35 })
   const clad = new THREE.Mesh(shellBand(look, 320, 24, waveEdge, () => SHELL_TOP), cladMat)
   clad.castShadow = true
   clad.receiveShadow = true
@@ -334,9 +367,9 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   out.shellInMat = shellInMat
   // lamelele de aluminiu de sub val
   const louverGeo = []
-  for (let k = 0; k < 5; k++) {
-    const top = (u) => waveEdge(u) - 0.75 - k * 1.35
-    const bot = (u) => top(u) - 0.55
+  for (let k = 0; k < 9; k++) {
+    const top = (u) => waveEdge(u) - 0.6 - k * 1.05
+    const bot = (u) => top(u) - 0.62
     louverGeo.push(shellBand(look, 320, 1, (u) => Math.max(PLINTH_Y + 1, bot(u)), (u) => Math.max(PLINTH_Y + 1.02, top(u)), -0.15))
   }
   const louvers = new THREE.Mesh(mergeGeometries(louverGeo), new THREE.MeshStandardMaterial({ color: 0xf3f5f7, roughness: 0.45, metalness: 0.3, side: THREE.DoubleSide }))
@@ -379,13 +412,18 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
     const [ax, az] = look(y)
     return [(ax - 1.0) * Math.cos(t), y, (az - 1.0) * Math.sin(t)]
   }
+  // ca în fotografii: stâlpi verticali care se ramifică în V spre carcasă, cu X între ei jos
+  const MIDY = 13
   for (let k = 0; k < K; k++) {
-    trussGeo.push(beam(at(k, PLINTH_Y), at(k + 1, TOPY), 0.42))
-    trussGeo.push(beam(at(k + 1, PLINTH_Y), at(k, TOPY), 0.42))
+    trussGeo.push(beam(at(k, 1.2), at(k, MIDY), 0.5, 8))
+    trussGeo.push(beam(at(k, MIDY), at(k - 0.5, TOPY), 0.38))
+    trussGeo.push(beam(at(k, MIDY), at(k + 0.5, TOPY), 0.38))
+    trussGeo.push(beam(at(k, PLINTH_Y), at(k + 1, MIDY), 0.22))
+    trussGeo.push(beam(at(k + 1, PLINTH_Y), at(k, MIDY), 0.22))
   }
-  for (const y of [PLINTH_Y + 0.3, 21.5]) {
+  for (const y of [PLINTH_Y + 0.3, MIDY, 24]) {
     const [ax, az] = look(y)
-    trussGeo.push(new THREE.TubeGeometry(ellipseCurve(ax - 1.0, az - 1.0, y), 256, 0.35, 5, true).toNonIndexed())
+    trussGeo.push(new THREE.TubeGeometry(ellipseCurve(ax - 1.0, az - 1.0, y), 256, 0.3, 5, true).toNonIndexed())
   }
   const truss = new THREE.Mesh(mergeGeometries(trussGeo), new THREE.MeshStandardMaterial({ color: 0xf4f6f8, roughness: 0.4, metalness: 0.3 }))
   truss.castShadow = true
@@ -405,5 +443,62 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
     scr.lookAt(0, Y2(rows - 1) + 3, 0)
     root.add(scr)
   }
+  buildPodium(root, lowSpec)
   return out
+}
+
+// ─── Podiumul / pasarela din jurul stadionului ─────────────────────────
+// Stadionul stă pe un podium pietonal (pavaj gri) mărginit de ziduri de beton,
+// cu trepte de granit spre platou; poziția treptelor e după OpenStreetMap.
+export const PODIUM = { ax: 113, az: 125, h: 1.2 }
+function buildPodium(root, lowSpec) {
+  const ell = (ax, az, n = 160) => {
+    const sh = new THREE.Shape()
+    for (let k = 0; k <= n; k++) {
+      const a = (k / n) * Math.PI * 2
+      k ? sh.lineTo(ax * Math.cos(a), az * Math.sin(a)) : sh.moveTo(ax, 0)
+    }
+    return sh
+  }
+  const shape = ell(PODIUM.ax, PODIUM.az)
+  shape.holes.push(ell(96, 107.6))
+  const top = new THREE.ShapeGeometry(shape, 96)
+  top.rotateX(-Math.PI / 2)
+  top.translate(0, PODIUM.h, 0)
+  const pav = TX.pavingTexture()
+  pav.repeat.set(0.5, 0.5)
+  const topMesh = new THREE.Mesh(top, new THREE.MeshStandardMaterial({ map: pav, roughness: 0.92, side: THREE.DoubleSide }))
+  topMesh.receiveShadow = true
+  root.add(topMesh)
+  const wq = new Quads()
+  ellipseBand(wq, PODIUM.ax, PODIUM.az, -0.3, PODIUM.h, 200)
+  ellipseRing(wq, PODIUM.ax, PODIUM.az, PODIUM.ax + 0.45, PODIUM.az + 0.45, PODIUM.h + 0.02, 200)
+  const wallMesh = new THREE.Mesh(wq.geometry(), new THREE.MeshStandardMaterial({ color: 0xb4b7b7, roughness: 0.95, side: THREE.DoubleSide }))
+  wallMesh.castShadow = !lowSpec
+  wallMesh.receiveShadow = true
+  root.add(wallMesh)
+  // treptele de granit: [unghi pe elipsă, lățime în metri]
+  const STEPS = [
+    [0.14, 16], [-0.39, 14], [-1.34, 16], [Math.PI / 2, 48], [2.05, 18], [Math.PI, 22], [-2.35, 14], [0.95, 16], [-Math.PI / 2 - 0.25, 12],
+  ]
+  const granite = new THREE.MeshStandardMaterial({ map: TX.graniteTexture(), roughness: 0.75 })
+  const sg = []
+  const nSteps = 4
+  for (const [a, w] of STEPS) {
+    const px = PODIUM.ax * Math.cos(a)
+    const pz = PODIUM.az * Math.sin(a)
+    const n = new THREE.Vector2(Math.cos(a) / PODIUM.ax, Math.sin(a) / PODIUM.az).normalize()
+    const rot = Math.atan2(n.x, n.y)
+    for (let k = 0; k < nSteps; k++) {
+      const h = PODIUM.h * (1 - k / nSteps)
+      const g = new THREE.BoxGeometry(w, h, 0.42)
+      g.translate(0, h / 2, 0)
+      g.rotateY(rot)
+      g.translate(px + n.x * (0.15 + 0.42 * k), 0, pz + n.y * (0.15 + 0.42 * k))
+      sg.push(g.toNonIndexed())
+    }
+  }
+  const steps = new THREE.Mesh(mergeGeometries(sg), granite)
+  steps.receiveShadow = true
+  root.add(steps)
 }

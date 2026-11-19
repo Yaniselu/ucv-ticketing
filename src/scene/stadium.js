@@ -172,9 +172,13 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   for (const b of layout.boxes) {
     // pereții despărțitori
     for (const z of [b.z0, b.z1]) {
-      const g = new THREE.BoxGeometry(6, G.boxH, 0.12)
-      g.translate(xFront - 3, b.floorY + G.boxH / 2, z)
+      // perete între loje în interior, separator jos pe terasă
+      const g = new THREE.BoxGeometry(3, G.boxH, 0.12)
+      g.translate(xFront - 4.5, b.floorY + G.boxH / 2, z)
       slabGeo.push(g)
+      const lo = new THREE.BoxGeometry(3, 1.05, 0.06)
+      lo.translate(xFront - 1.5, b.floorY + 0.52, z)
+      slabGeo.push(lo)
     }
     // treapta pentru rândul 2
     const st = new THREE.BoxGeometry(2.2, 0.35, G.boxW - 0.2)
@@ -203,17 +207,23 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   // fațada vitrată a lojelor
   const glassFront = new THREE.Mesh(new THREE.PlaneGeometry(bh * 2, G.boxH * 2), glass)
   glassFront.rotation.y = -Math.PI / 2
-  glassFront.position.set(xFront - 0.02, WALK_Y + G.boxH, 0)
+  glassFront.position.set(xFront - 3.05, WALK_Y + G.boxH, 0)
   block.add(glassFront)
+  for (const lvl of [0, 1]) {
+    const rail = new THREE.Mesh(new THREE.PlaneGeometry(bh * 2, 1.05), glass)
+    rail.rotation.y = -Math.PI / 2
+    rail.position.set(xFront - 0.05, WALK_Y + lvl * G.boxH + 0.52, 0)
+    block.add(rail)
+  }
   const mullGeo = []
   for (let z = -bh; z <= bh + 0.01; z += G.boxW / 2) {
     const g = new THREE.BoxGeometry(0.08, G.boxH * 2, 0.06)
-    g.translate(xFront, WALK_Y + G.boxH, z)
+    g.translate(xFront - 3.05, WALK_Y + G.boxH, z)
     mullGeo.push(g)
   }
   for (const y of [WALK_Y + 1.05, WALK_Y + G.boxH + 1.05]) {
     const g = new THREE.BoxGeometry(0.06, 0.06, bh * 2)
-    g.translate(xFront + 0.05, y, 0)
+    g.translate(xFront - 3.0, y, 0)
     mullGeo.push(g)
   }
   block.add(new THREE.Mesh(mergeGeometries(mullGeo), new THREE.MeshStandardMaterial({ color: 0x9aa4ad, metalness: 0.6, roughness: 0.3 })))

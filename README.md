@@ -17,6 +17,13 @@ Coș cu maximum 4 bilete (regula clubului), rezervare temporară de 10 minute ș
 - **Copacii** sunt detectați automat din imaginea satelit (coroanele verzi), deci stau unde sunt și în realitate.
 - **Tribunele** sunt reconstituite după fotografiile din interior: inelul de jos are 16 rânduri peste tot, iar cel de sus are de la 38 de rânduri la mijlocul laturilor până la 16 în colțuri. Marginea de sus urcă și coboară în trepte, cu pereți albi în spate, vomitoare la jumătatea inelului, balustradă de sticlă pe culoar, grindă inelară cu stâlpi și cupolă din arce de oțel.
 - **Fațada:** placajul alb e doar deasupra „valului”. Dedesubt se văd structura albă în X, lamelele de aluminiu și clădirea vitrată de pe mai multe niveluri.
+- **Detalii verificate pe fotografiile stadionului nou:**
+  - scaunele sunt toate albastre;
+  - vomitoarele se deschid pe culoarul dintre inele și au numărul sectorului deasupra;
+  - locurile din loje sunt pe terase, în fața geamurilor;
+  - fațada are 9 lamele orizontale sub „val” și stâlpi care se ramifică în V;
+  - cupola e o structură spațială albă deasă;
+  - stadionul stă pe un podium pietonal (pasarela) cu pavaj gri, ziduri de beton și trepte de granit, poziționate după OpenStreetMap.
 - **Stadionul** e așezat și orientat după conturul real din OpenStreetMap: terenul e rotit cu 12,4° față de nord, iar carcasa are 207 × 230 m. Soarele are aceeași poziție ca în imaginea satelit, ca umbrele reale să se potrivească.
 
 ## Realism

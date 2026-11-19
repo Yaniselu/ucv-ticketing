@@ -158,7 +158,7 @@ if (useAO) {
 
 // ─── Culorile locurilor ─────────────────────────────────────────────
 const C = {
-  blue: new THREE.Color(0x2a6fd1),
+  blue: new THREE.Color(0x2b67b3),
   white: new THREE.Color(0xdde4ec),
   vip: new THREE.Color(0x163c86),
   leather: new THREE.Color(0x24211f),
@@ -170,20 +170,16 @@ const C = {
   dim: new THREE.Color(0xb8c0ca),
   na: new THREE.Color(0xc7ccd3),
 }
+// toate scaunele stadionului sunt albastre (ca în fotografiile din interior), cu mici variații
 const natural = seats.map((s, i) => {
   if (s.kind === 'vip') return C.vip
   if (s.kind === 'box') return C.leather
   if (s.kind === 'wheelchair' || s.kind === 'press') return C.blue
-  // mozaicul real albastru–alb al gradenelor
-  const sec = sectorById.get(s.sector)
-  const maxRow = sec ? seats[sec.seatIdx[sec.seatIdx.length - 1]].row : 40
-  const f = s.row / maxRow
-  const wave = 0.5 + 0.5 * Math.sin(s.num * 0.21 + s.row * 0.37 + (s.x + s.z) * 0.03)
   const h = Math.sin(i * 12.9898) * 43758.5453
   const r = h - Math.floor(h)
-  return r < 0.05 + 0.55 * Math.pow(f, 1.6) * wave ? C.white : C.blue
+  return C.blue.clone().multiplyScalar(0.93 + r * 0.12)
 })
-const TAKEN_C = new THREE.Color(0x4a5c7b)
+const TAKEN_C = new THREE.Color(0x46536a)
 const takenCol = natural.map((c) => (c === C.leather ? c : TAKEN_C))
 const dimCol = natural.map((c) => c.clone().lerp(C.dim, 0.55))
 
@@ -349,12 +345,12 @@ function setRoofFor(mode) {
   stadium.roofParts.visible = mode === 'overview' || mode === 'pov' || mode === 'box'
   crowd.visible = mode === 'pov' || mode === 'box'
   fovTarget = { box: 66, pov: 64 }[mode] || baseFov()
-  const roof = { overview: 0.3, stand: 0.2, sector: 0.12, box: 0.55, pov: 0.62 }[mode]
+  const roof = { overview: 0.55, stand: 0.22, sector: 0.12, box: 0.6, pov: 0.7 }[mode]
   const inner = { overview: 0.9, stand: 0.45, sector: 0.3, box: 0.8, pov: 0.9 }[mode]
   roofTarget = roof
   innerTarget = inner
 }
-let roofTarget = 0.3
+let roofTarget = 0.55
 const baseFov = () => (canvas.clientWidth < 820 ? 52 : 40)
 let fovTarget = 40
 let innerTarget = 0.9
