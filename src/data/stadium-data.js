@@ -4,8 +4,9 @@
 // din geometrie și marcate ca atare.
 
 // Competițiile în care poate juca Universitatea Craiova pe „Ion Oblemenco”. Pentru fiecare:
-// numele, textul de pe panourile LED / tabelă și emblema pictată pe gazon (variantă generică,
-// desenată de noi; fișierul oficial se pune în src/assets/logos/<id>.png și e folosit automat).
+// numele, textul de pe panourile LED / tabelă și emblema pictată pe gazon. Logoul oficial din
+// src/assets/logos/<id>.png e folosit automat; `lines` și `mark` sunt pentru emblema generică
+// a competițiilor fără fișier.
 export const COMPETITIONS = {
   superliga: { name: 'Superliga', board: 'SUPERLIGA', lines: [['SUPERLIGA', 2.6], ['ROMÂNIA', 1.2]], mark: 'ball' },
   cupa: { name: 'Cupa României', board: 'CUPA ROMÂNIEI', lines: [['CUPA', 2.1], ['ROMÂNIEI', 2.1]], mark: 'cup' },

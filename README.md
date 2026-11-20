@@ -32,7 +32,8 @@ Coș cu maximum 4 bilete (regula clubului), rezervare temporară de 10 minute ș
 - **Emblema competiției** e pictată pe gazon, câte una în fiecare jumătate, între cercul central și semicercul careului, și se citește din Tribuna 1, unde e camera TV principală. Vopseaua e albă, ușor transparentă, cu dungile de tuns peste ea.
   - Emblema, panourile LED, tabela și antetul urmează competiția meciului: `EVENT.competitionId` din `src/data/stadium-data.js` (superliga, cupa, supercupa, champions, europa, conference).
   - Pentru previzualizare se poate adăuga `?comp=superliga` (sau `cupa`, `europa` etc.) la adresă.
-  - Emblemele desenate acum sunt generice: numele competiției și un semn simplu (minge, cupă). Logoul oficial se pune ca `src/assets/logos/<id>.png` (sau `.svg`, `.webp`, cu fundal transparent), de exemplu `src/assets/logos/superliga.png`, și e pictat automat în locul celui generic.
+  - Logourile oficiale (primite de la club, cu fundalul scos) sunt în `src/assets/logos/`: `superliga.png`, `cupa.png`, `champions.png`, `europa.png`, `conference.png`. Sunt pictate la proporțiile lor, cel mult 16 m pe lungimea terenului și 11 m pe lățime.
+  - Un logo nou se adaugă la fel, ca `src/assets/logos/<id>.png` (sau `.svg`, `.webp`, cu fundal transparent), și e folosit automat. Pentru o competiție fără fișier (acum Supercupa României) se pictează o emblemă generică, cu numele competiției și un semn simplu.
 - **În vederea din scaun și în loje**, pe locurile deja vândute apar spectatori: fani în alb-albastru, cei din sectorul oaspeților, VIP-uri și jurnaliști.
 - **Imaginea satelit** folosește cel mai fin nivel pe care Esri îl are pentru Craiova (z18, ≈ 0,4 m/pixel). Nivelul z19 nu există pentru zonă.
 - **Copacii** au frunziș texturat în locul formelor pline.

@@ -137,53 +137,69 @@ function paintGrain(c) {
   g.putImageData(img, 0, 0)
 }
 
+// pe teren: cel mult 16 m pe lungime (între cercul central și semicercul careului) și 11 m pe lățime
+const MAX_W = 16
+const MAX_H = 11
+
 export function createPitchLogos(compId, comp, { lowSpec = false } = {}) {
-  const c = document.createElement('canvas')
-  c.width = Math.round(LOGO_W * PPM * (lowSpec ? 0.6 : 1))
-  c.height = Math.round(LOGO_H * PPM * (lowSpec ? 0.6 : 1))
-  const g = c.getContext('2d')
-  const tex = new THREE.CanvasTexture(c)
-  tex.colorSpace = THREE.SRGBColorSpace
-  tex.anisotropy = 16
-  const draw = (img) => {
-    g.setTransform(1, 0, 0, 1, 0, 0)
-    g.clearRect(0, 0, c.width, c.height)
-    g.scale(c.width / (LOGO_W * PPM), c.height / (LOGO_H * PPM))
-    if (img) {
-      const k = Math.min((LOGO_W * PPM) / img.width, (LOGO_H * PPM) / img.height)
-      g.drawImage(img, (LOGO_W * PPM - img.width * k) / 2, (LOGO_H * PPM - img.height * k) / 2, img.width * k, img.height * k)
-    } else drawGeneric(g, comp)
-    paintGrain(c)
-    tex.needsUpdate = true
+  const group = new THREE.Group()
+  const q = lowSpec ? 0.6 : 1
+  // w × h în metri; draw(g, W, H) desenează în pixeli
+  const build = (w, h, draw) => {
+    const c = document.createElement('canvas')
+    c.width = Math.round(w * PPM * q)
+    c.height = Math.round(h * PPM * q)
+    const g = c.getContext('2d')
+    const tex = new THREE.CanvasTexture(c)
+    tex.colorSpace = THREE.SRGBColorSpace
+    tex.anisotropy = 16
+    const paint = () => {
+      g.setTransform(1, 0, 0, 1, 0, 0)
+      g.clearRect(0, 0, c.width, c.height)
+      draw(g, c.width, c.height)
+      paintGrain(c)
+      tex.needsUpdate = true
+    }
+    paint()
+    const mat = new THREE.MeshStandardMaterial({
+      map: tex, transparent: true, opacity: 0.92, depthWrite: false, roughness: 0.85,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+    })
+    mowStripes(mat)
+    const geo = new THREE.PlaneGeometry(w, h)
+    // textul curge spre sud (+z), cu partea de sus spre est: se citește din Tribuna 1 (vest)
+    geo.rotateX(-Math.PI / 2)
+    geo.rotateY(-Math.PI / 2)
+    // între cercul central (9,15 m) și semicercul careului (32,35 m de la centru)
+    for (const z of [-20.75, 20.75]) {
+      const m = new THREE.Mesh(geo, mat)
+      m.position.set(0, 0.012, z)
+      m.receiveShadow = true
+      m.renderOrder = 1
+      group.add(m)
+    }
+    return paint
+  }
+  const generic = () => {
+    const repaint = build(LOGO_W, LOGO_H, (g, W, H) => {
+      g.scale(W / (LOGO_W * PPM), H / (LOGO_H * PPM))
+      drawGeneric(g, comp)
+    })
+    // fontul condensat se încarcă după pornire: emblema se redesenează cu el
+    document.fonts?.ready.then(repaint)
   }
   const url = officialUrl(compId)
-  if (url) {
-    const img = new Image()
-    img.onload = () => draw(img)
-    img.onerror = () => draw(null)
-    img.src = url
-  } else {
-    draw(null)
-    // fontul condensat se încarcă după pornire: emblema se redesenează cu el
-    document.fonts?.ready.then(() => draw(null))
+  if (!url) {
+    generic()
+    return group
   }
-  const mat = new THREE.MeshStandardMaterial({
-    map: tex, transparent: true, opacity: 0.92, depthWrite: false, roughness: 0.85,
-    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
-  })
-  mowStripes(mat)
-  const geo = new THREE.PlaneGeometry(LOGO_W, LOGO_H)
-  // textul curge spre sud (+z), cu partea de sus spre est: se citește din Tribuna 1 (vest)
-  geo.rotateX(-Math.PI / 2)
-  geo.rotateY(-Math.PI / 2)
-  const group = new THREE.Group()
-  // între cercul central (9,15 m) și semicercul careului (32,35 m de la centru)
-  for (const z of [-20.75, 20.75]) {
-    const m = new THREE.Mesh(geo, mat)
-    m.position.set(0, 0.012, z)
-    m.receiveShadow = true
-    m.renderOrder = 1
-    group.add(m)
+  // logoul oficial, la proporțiile lui
+  const img = new Image()
+  img.onload = () => {
+    const k = Math.min(MAX_W / img.width, MAX_H / img.height)
+    build(img.width * k, img.height * k, (g, W, H) => g.drawImage(img, 0, 0, W, H))
   }
+  img.onerror = generic
+  img.src = url
   return group
 }
