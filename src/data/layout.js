@@ -118,7 +118,7 @@ export function uAtLen(u0, u1, d, s) {
   return u1
 }
 // ─── Deschiderile din colțuri (planul oficial: o fantă diagonală prin inelul de jos) ───
-export const NOTCH_W = 4.2
+export const NOTCH_W = 5.2 // accesul pentru ambulanță / vehicule din fiecare colț
 const CORNER_PIECES = [1, 3, 5, 7]
 // jumătatea deschiderii, ca fracțiune din arcul colțului, la distanța d de marginea gradenelor
 export const notchHalfT = (d) => Math.min(0.5, Math.asin(Math.min(1, NOTCH_W / 2 / (G.r + d))) / (Math.PI / 2))

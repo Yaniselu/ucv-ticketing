@@ -847,4 +847,4 @@ requestAnimationFrame((t) => {
 })
 
 // acces pentru testare din consolă
-window.__ucv = { layout, status, state, goStand, goSector, goBox, goPov, goOverview, toggleSeat, cart, pickAt: (x, y) => { pointer = { x, y }; return pick() } }
+window.__ucv = { layout, status, state, goStand, goSector, goBox, goPov, goOverview, toggleSeat, cart, flyTo, pickAt: (x, y) => { pointer = { x, y }; return pick() } }

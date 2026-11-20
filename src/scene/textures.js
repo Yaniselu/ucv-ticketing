@@ -252,23 +252,52 @@ export function ledTexture() {
 }
 
 export function screenTexture(home, away) {
-  const [c, g] = canvas(1024, 576)
-  const grd = g.createLinearGradient(0, 0, 0, 576)
-  grd.addColorStop(0, '#0b3d91')
-  grd.addColorStop(1, '#06193d')
-  g.fillStyle = grd
-  g.fillRect(0, 0, 1024, 576)
-  g.fillStyle = '#ffffff'
+  // ecran LED: fundal negru, text alb / galben, grilă fină de pixeli
+  const [c, g] = canvas(1280, 720)
+  g.fillStyle = '#050607'
+  g.fillRect(0, 0, 1280, 720)
   g.textAlign = 'center'
-  g.font = '800 64px "Barlow Condensed", Arial Narrow, sans-serif'
-  g.fillText(home.toUpperCase(), 512, 170)
-  g.font = '800 150px "Barlow Condensed", Arial Narrow, sans-serif'
-  g.fillText('0 – 0', 512, 345)
-  g.font = '800 64px "Barlow Condensed", Arial Narrow, sans-serif'
-  g.fillText(away.toUpperCase(), 512, 450)
-  g.fillStyle = '#7fb6ff'
-  g.font = '600 34px "Barlow Condensed", Arial Narrow, sans-serif'
-  g.fillText('UEFA CONFERENCE LEAGUE', 512, 520)
+  g.textBaseline = 'middle'
+  const F = (w, px) => `${w} ${px}px "Barlow Condensed", Arial Narrow, sans-serif`
+  // bara de sus
+  g.fillStyle = '#0b4aa2'
+  g.fillRect(0, 0, 1280, 120)
+  g.fillStyle = '#ffffff'
+  g.font = F(800, 70)
+  g.fillText('UEFA CONFERENCE LEAGUE', 640, 62)
+  // stemele (cercuri) și numele echipelor
+  const crest = (x, fill, letter) => {
+    g.beginPath()
+    g.arc(x, 300, 92, 0, Math.PI * 2)
+    g.fillStyle = fill
+    g.fill()
+    g.lineWidth = 10
+    g.strokeStyle = '#ffffff'
+    g.stroke()
+    g.fillStyle = '#ffffff'
+    g.font = F(800, 110)
+    g.fillText(letter, x, 306)
+  }
+  crest(190, '#0b4aa2', 'U')
+  crest(1090, '#c8102e', 'K')
+  g.fillStyle = '#ffffff'
+  g.font = F(800, 60)
+  const short = (n) => n.replace(/^Universitatea /i, 'U ').replace(/^FC /i, '').toUpperCase()
+  g.fillText(short(home), 190, 455)
+  g.fillText(short(away), 1090, 455)
+  // scorul
+  g.font = F(800, 250)
+  g.fillText('0', 520, 300)
+  g.fillText('0', 760, 300)
+  g.fillText('–', 640, 290)
+  // cronometrul
+  g.fillStyle = '#ffd400'
+  g.font = F(800, 120)
+  g.fillText("00:00", 640, 610)
+  // grila de pixeli LED
+  g.fillStyle = 'rgba(0,0,0,0.55)'
+  for (let x = 0; x < 1280; x += 4) g.fillRect(x, 0, 1, 720)
+  for (let y = 0; y < 720; y += 4) g.fillRect(0, y, 1280, 1)
   return tex(c)
 }
 

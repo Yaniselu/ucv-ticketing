@@ -113,6 +113,8 @@ Surplusul (sub 40 de locuri pe sector) se scoate astfel: în câteva rânduri di
   - Colțurile interioare sunt aproape drepte, ca pe plan, deci laturile au lungimea reală (Tribuna 1 are ~109 m). Sectoarele de peluză și de tribună stau pe porțiunile drepte, iar colțurile aparțin sectoarelor de colț 2, 7, 13 și 18.
   - În fiecare colț e o deschidere diagonală prin inelul de jos, care se termină într-un tunel sub culoar, ca pe plan. În inelul de jos, sectoarele de peluză (3, 6, 14, 17) ajung până la deschidere. Intrarea fiecărui colț e de partea tribunei.
   - Capetele blocului central al Tribunei 1 nu mai au un perete înalt: capătul urmează nivelurile blocului și coboară până la scaunele sectoarelor 1 și 19.
+  - Accesul pentru ambulanță / vehicule din fiecare colț e o deschidere dreaptă de ~5 m, paralelă cu diagonala colțului: pereți albi netezi pe panta tribunei, balustradă metalică, pavaj la nivelul terenului și tunel sub culoar (după planul stadionului și fotografii).
+  - Tabelele din colțurile NE și SV sunt ecrane LED negre, plate și verticale, montate sus în colț, pe grinda inelară dintre stâlpii de sub acoperiș, cu pasarelă de service și tiranți.
   - Antetul afișează data versiunii, ca să se vadă dacă pagina e la zi.
   - Bolul e unul singur: „inelul 1” și „inelul 2” sunt partea de jos și cea de sus, legate de culoarul cu vomitoare și de scări.
   - În inelul de jos, sectoarele de la capetele peluzelor (3, 6, 14, 17) coboară până la scara de la intrarea colțului; intrarea sectorului 7 e mai spre Tribuna 2.

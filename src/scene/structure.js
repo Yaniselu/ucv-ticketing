@@ -7,7 +7,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
-  G, D1, Y1, D2, Y2, WALK_D, WALK_Y, RING_TOP, pathPoint, pieceLen, sectorBlocks, ring2RowsAt, VOM_ROWS, vomBlock, vomU, pointU, ring1Ranges, notchRanges, uRanges, lenPerU, wrap8, ring1AisleUs,
+  G, D1, Y1, D2, Y2, WALK_D, WALK_Y, RING_TOP, pathPoint, pieceLen, sectorBlocks, ring2RowsAt, VOM_ROWS, vomBlock, vomU, pointU, notchHalfT, inNotch, uRanges, lenPerU, wrap8, ring1AisleUs,
 } from '../data/layout.js'
 import { Quads, strip, samples, P, ellipseBand, ellipseRing, beam, ellipseCurve } from './geom.js'
 import * as TX from './textures.js'
@@ -99,21 +99,65 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
 
   // ─── Inelul 1 (constant) și culoarul dintre inele ───
   const FULL = [0, 1, 2, 3, 4, 5, 6, 7].map((p) => [p, 0, 1])
-  strip(walls, ring1Ranges(0.3), 0, 0, 0, Y1(0))
-  const notchQ = new Quads()
-  for (let i = 0; i < G.ring1.rows; i++) {
-    const R = ring1Ranges(D1(i) + 0.4)
-    if (i > 0) strip(steps, R, D1(i), Y1(i - 1), D1(i), Y1(i))
-    strip(steps, R, D1(i), Y1(i), D1(i + 1), Y1(i))
-    // deschiderile din colțuri: podea la nivelul terenului și pereți laterali albi, în trepte
-    for (const [p, t0, t1] of notchRanges(D1(i) + 0.4)) {
-      strip(notchQ, [[p, t0, t1]], D1(i), 0.04, D1(i + 1), 0.04)
-      for (const t of [t0, t1]) walls.quad(P(p, t, D1(i), 0), P(p, t, D1(i), Y1(i)), P(p, t, D1(i + 1), Y1(i)), P(p, t, D1(i + 1), 0))
+  // ─── Inelul de jos, cu accesul pentru ambulanță din fiecare colț ───
+  // Accesul e o deschidere dreaptă, paralelă cu diagonala colțului: pereți albi netezi,
+  // înclinați după panta tribunei, cu balustradă, pavaj la nivelul terenului și tunel sub culoar.
+  const te = (d) => 0.5 - notchHalfT(d) // capătul gradenelor spre deschidere (fracțiune din colț)
+  const ts = (d) => 0.5 + notchHalfT(d)
+  // bandă pe un colț între (d0,y0) și (d1,y1), cu marginile care urmează deschiderea
+  const cornerBand = (q, p, d0, y0, d1, y1, lo0, hi0, lo1, hi1, n = 8) => {
+    if (hi0 - lo0 < 1e-4 && hi1 - lo1 < 1e-4) return
+    for (let k = 0; k < n; k++) {
+      const f0 = k / n
+      const f1 = (k + 1) / n
+      q.quad(P(p, lo0 + (hi0 - lo0) * f0, d0, y0), P(p, lo1 + (hi1 - lo1) * f0, d1, y1), P(p, lo1 + (hi1 - lo1) * f1, d1, y1), P(p, lo0 + (hi0 - lo0) * f1, d0, y0))
     }
   }
-  // tunelul de sub culoar, în capătul fiecărei deschideri
-  for (const [p, t0, t1] of notchRanges(WALK_D)) darkQ.quad(P(p, t0, WALK_D - 0.02, 0), P(p, t0, WALK_D - 0.02, WALK_Y - 0.3), P(p, t1, WALK_D - 0.02, WALK_Y - 0.3), P(p, t1, WALK_D - 0.02, 0))
-  strip(steps, ring1Ranges(WALK_D), WALK_D, Y1(G.ring1.rows - 1), WALK_D, WALK_Y)
+  const ring1Band = (q, d0, y0, d1, y1) => {
+    for (let p = 0; p < 8; p++) {
+      if (p % 2 === 0) strip(q, [[p, 0, 1]], d0, y0, d1, y1)
+      else {
+        cornerBand(q, p, d0, y0, d1, y1, 0, te(d0), 0, te(d1))
+        cornerBand(q, p, d0, y0, d1, y1, ts(d0), 1, ts(d1), 1)
+      }
+    }
+  }
+  ring1Band(walls, 0, 0, 0, Y1(0))
+  for (let i = 0; i < G.ring1.rows; i++) {
+    if (i > 0) ring1Band(steps, D1(i), Y1(i - 1), D1(i), Y1(i))
+    ring1Band(steps, D1(i), Y1(i), D1(i + 1), Y1(i))
+  }
+  ring1Band(steps, WALK_D, Y1(G.ring1.rows - 1), WALK_D, WALK_Y)
+  const paveQ = new Quads()
+  const railPts = []
+  const TUN = 3.5 // adâncimea tunelului de sub culoar
+  const slope = (d) => Y1(0) + 0.15 + (Math.min(d, WALK_D) / WALK_D) * (WALK_Y - Y1(0))
+  for (const p of [1, 3, 5, 7]) {
+    // pavajul: de la teren până în tunel
+    const N = 12
+    for (let k = 0; k < N; k++) {
+      const d0 = 0.05 + ((WALK_D + TUN) * k) / N
+      const d1 = 0.05 + ((WALK_D + TUN) * (k + 1)) / N
+      cornerBand(paveQ, p, d0, 0.04, d1, 0.04, te(d0), ts(d0), te(d1), ts(d1), 6)
+    }
+    // pereții laterali netezi (muchia de sus urcă odată cu gradenele) și balustrada
+    for (const side of [te, ts]) {
+      const line = []
+      for (let k = 0; k <= N; k++) line.push(0.05 + (WALK_D * k) / N)
+      for (let k = 0; k < N; k++) {
+        const [d0, d1] = [line[k], line[k + 1]]
+        walls.quad(P(p, side(d0), d0, 0), P(p, side(d0), d0, slope(d0)), P(p, side(d1), d1, slope(d1)), P(p, side(d1), d1, 0))
+      }
+      railPts.push(line.map((d) => P(p, side(d), d, slope(d) + 1.0)))
+      // pereții tunelului
+      for (const [d0, d1] of [[WALK_D, WALK_D + TUN]]) darkQ.quad(P(p, side(d0), d0, 0), P(p, side(d0), d0, WALK_Y - 0.4), P(p, side(d1), d1, WALK_Y - 0.4), P(p, side(d1), d1, 0))
+    }
+    // tavanul și fundul tunelului, plus buiandrugul alb de deasupra intrării
+    const dT = WALK_D + TUN
+    cornerBand(darkQ, p, WALK_D, WALK_Y - 0.4, dT, WALK_Y - 0.4, te(WALK_D), ts(WALK_D), te(dT), ts(dT), 4)
+    cornerBand(darkQ, p, dT, 0, dT, WALK_Y - 0.4, te(dT), ts(dT), te(dT), ts(dT), 4)
+    cornerBand(walls, p, WALK_D - 0.01, WALK_Y - 0.4, WALK_D - 0.01, WALK_Y, te(WALK_D), ts(WALK_D), te(WALK_D), ts(WALK_D), 4)
+  }
   strip(steps, FULL, WALK_D, WALK_Y, D2(0), WALK_Y)
   // balustrada de sticlă și mâna curentă de pe culoar
   strip(glassQ, FULL, WALK_D + 0.05, WALK_Y, WALK_D + 0.05, WALK_Y + 1.05)
@@ -220,7 +264,7 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
     for (const u of ring1AisleUs(s)) ring1Us.set(wrap8(u).toFixed(5), u)
   }
   for (const u of ring1Us.values()) {
-    for (let i = 0; i < G.ring1.rows; i++) aisleMarks.push([u, D1(i), Y1(i)])
+    for (let i = 0; i < G.ring1.rows; i++) if (!inNotch(u, D1(i) + 0.4)) aisleMarks.push([u, D1(i), Y1(i)])
   }
 
   const stepsMesh = new THREE.Mesh(steps.geometry(), concrete)
@@ -231,9 +275,18 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   wallMesh.castShadow = !lowSpec
   const darkMesh = new THREE.Mesh(darkQ.geometry(), new THREE.MeshStandardMaterial({ color: 0x1b2129, roughness: 0.9, side: THREE.DoubleSide }))
   const glassMesh = new THREE.Mesh(glassQ.geometry(), glass)
-  const notchMesh = new THREE.Mesh(notchQ.geometry(), new THREE.MeshStandardMaterial({ color: 0x9c9f9e, roughness: 0.95, side: THREE.DoubleSide }))
-  notchMesh.receiveShadow = true
-  root.add(stepsMesh, wallMesh, darkMesh, glassMesh, notchMesh)
+  const paveTex = TX.pavingTexture()
+  paveTex.repeat.set(0.25, 0.25)
+  const paveMesh = new THREE.Mesh(paveQ.geometry(), new THREE.MeshStandardMaterial({ color: 0xc9cbcb, roughness: 0.95, side: THREE.DoubleSide }))
+  paveMesh.receiveShadow = true
+  const railGeo1 = railPts.flatMap((pts) => {
+    const v = pts.map((q) => new THREE.Vector3(...q))
+    const c = new THREE.CatmullRomCurve3(v)
+    const posts = v.filter((_, k) => k % 2 === 0).map((q) => new THREE.CylinderGeometry(0.025, 0.025, 1.0, 5).translate(q.x, q.y - 0.5, q.z).toNonIndexed())
+    return [new THREE.TubeGeometry(c, 24, 0.035, 5, false).toNonIndexed(), ...posts]
+  })
+  const notchRail = new THREE.Mesh(mergeGeometries(railGeo1), new THREE.MeshStandardMaterial({ color: 0xb8bec4, metalness: 0.7, roughness: 0.3 }))
+  root.add(stepsMesh, wallMesh, darkMesh, glassMesh, paveMesh, notchRail)
 
   // mâna curentă de pe scările inelului de sus
   const railByAisle = new Map()
@@ -536,18 +589,35 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   truss.castShadow = true
   root.add(truss)
 
-  // ─── Ecranele din colțurile NE și SV, deasupra tribunelor joase ───
-  const screenMat = new THREE.MeshBasicMaterial({ map: TX.screenTexture('Universitatea Craiova', 'FC Copenhaga') })
+  // ─── Ecranele (tabelele) din colțurile NE și SV ───
+  // Ca pe stadion: ecran LED negru, plat, vertical, montat sus în colț, între stâlpii de sub
+  // acoperiș (deasupra grinzii inelare), cu cadru negru și tiranți spre structura acoperișului.
+  const screenTex = TX.screenTexture('Universitatea Craiova', 'FC Copenhaga')
+  const screenMat = new THREE.MeshBasicMaterial({ map: screenTex, toneMapped: false })
+  const steel = new THREE.MeshStandardMaterial({ color: 0x2a2e33, metalness: 0.6, roughness: 0.4 })
   for (const piece of [1, 5]) {
-    const rows = ring2RowsAt(piece, 0.5)
-    const p = pathPoint(piece, 0.5, D2(rows) - 1.0)
+    const u = piece + 0.5
+    const q = pointU(u, backOffsetU(u) - 1.2)
+    const W = 13.5
+    const H = 7.6
     const scr = new THREE.Group()
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(14.6, 8.4, 0.6), new THREE.MeshStandardMaterial({ color: 0x15181d }))
-    const face = new THREE.Mesh(new THREE.PlaneGeometry(14, 7.9), screenMat)
-    face.position.z = 0.31
-    scr.add(frame, face)
-    scr.position.set(p.x, Y2(rows - 1) + 7.5, p.z)
-    scr.lookAt(0, Y2(rows - 1) + 3, 0)
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(W + 0.5, H + 0.5, 0.9), new THREE.MeshStandardMaterial({ color: 0x0d0f12, roughness: 0.6 }))
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(W, H), screenMat)
+    face.position.z = 0.46
+    // pasarela de service de sub ecran și tiranții de sus
+    const walk = new THREE.Mesh(new THREE.BoxGeometry(W + 1.2, 0.12, 1.4), steel)
+    walk.position.set(0, -H / 2 - 0.45, 0.2)
+    scr.add(frame, face, walk)
+    for (const sx of [-1, 1]) {
+      const tie = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 4.2, 6), steel)
+      tie.position.set(sx * (W / 2 - 0.8), H / 2 + 2.0, -0.6)
+      tie.rotation.x = -0.35
+      scr.add(tie)
+    }
+    const yc = RING_TOP + 1.1 + H / 2
+    scr.position.set(q.x, yc, q.z)
+    scr.lookAt(0, yc - 3, 0)
+    scr.traverse((o) => (o.castShadow = o.isMesh))
     root.add(scr)
   }
   buildPodium(root, lowSpec)
