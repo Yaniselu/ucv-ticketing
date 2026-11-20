@@ -132,9 +132,17 @@ export const T_BLOCK_A = zToT(G.blockHalf)
 export const T_BLOCK_B = zToT(-G.blockHalf)
 
 // terasa de deasupra lojelor (masa presei + Tribuna 0 de sus): 7 rânduri în trepte
+// Tribuna 1, după fotografia tribunei principale: VIP A–F jos (inelul de jos), deasupra lor
+// un nivel lounge vitrat (fără locuri în față), apoi lojele 101–120 și 201–222 cu balcoane,
+// retrase ușor în trepte, iar deasupra lojelor G, presa (H) și I.
+export const LOUNGE_H = 4.2
+export const BOX_SETBACK = [0, 1.4]
+export const boxFloorY = (level) => WALK_Y + LOUNGE_H + (level - 1) * G.boxH
+export const boxFrontD = (level) => D2(0) + BOX_SETBACK[level - 1]
+export const UPPER_Y0 = WALK_Y + LOUNGE_H + 2 * G.boxH
 export const PRESS_ROWS = 7
-export const PRESS_D = (k) => D2(0) + 0.8 + k * 1.0
-export const PRESS_Y = (k) => WALK_Y + 2 * G.boxH + 0.3 + k * 0.45
+export const PRESS_D = (k) => D2(0) + BOX_SETBACK[1] + 1.0 + k * 0.95
+export const PRESS_Y = (k) => UPPER_Y0 + 0.45 + k * 0.48
 // pe terasă, de la sud la nord: sectorul G | presa (H) | sectorul I (după planul stadionului)
 export const zToTW = (z) => 6 + (AZ - z) / (2 * AZ)
 
@@ -167,13 +175,14 @@ function sectorCfg(key) {
   const n = +key
   if (n >= 3 && n <= 6) return { stand: 'PN', ia: 1, price: PRICES.PN, demand: 'PN' }
   if (n >= 14 && n <= 17) return { stand: 'PS', ia: 1, price: PRICES.PS, demand: 'PS' }
-  if (n === 7 || n === 13) return { stand: 'T2', ia: 1, price: PRICES.T2_7_13, demand: 'T2_corner' }
+  if (n === 7) return { stand: 'T2', ia: 1, price: PRICES.T2_7_13, demand: 'T2_corner', vomFrac: 0.37 }
+  if (n === 13) return { stand: 'T2', ia: 1, price: PRICES.T2_7_13, demand: 'T2_corner', vomFrac: 0.75 }
   if (n >= 8 && n <= 12) return { stand: 'T2', ia: 1, split: T2P[n], demand: n === 10 ? 'T2_center' : 'T2_side' }
   // sectorul oaspeților: 18 și jumătatea sectorului 19 dinspre colț (o scară le desparte de restul lui 19)
   if (n === 19) return { stand: 'T1', ia: 1, split: [PRICES.T0, PRICES.T1], demand: 'T1', awaySplit: 0.5 }
   if (n === 1) return { stand: 'T1', ia: 0, split: [PRICES.T0, PRICES.T1], demand: 'T1' }
-  if (n === 18) return { stand: 'T1', ia: 1, price: PRICES.T1, demand: 'T1', away: true }
-  return { stand: 'T1', ia: 1, price: PRICES.T1, demand: 'T1' } // sectorul 2 (colț NV)
+  if (n === 18) return { stand: 'T1', ia: 1, price: PRICES.T1, demand: 'T1', away: true, vomFrac: 0.25 }
+  return { stand: 'T1', ia: 1, price: PRICES.T1, demand: 'T1', vomFrac: 0.75 } // sectorul 2 (colț NV)
 }
 // zonele pentru persoane în scaun rulant: în fața Tribunei 2, la sectoarele 8–9 și 11–12
 export function wheelchairZones(B = BOUNDS) {
@@ -195,7 +204,7 @@ function defineSectors(B) {
   }
   CHAIN.forEach((key, k) => {
     const c = sectorCfg(key)
-    const base = { num: +key, group: key, stand: c.stand, u0: B.chain[k], u1: B.chain[k + 1], innerAisles: c.ia, demand: c.demand, awaySplit: c.awaySplit }
+    const base = { num: +key, group: key, stand: c.stand, u0: B.chain[k], u1: B.chain[k + 1], innerAisles: c.ia, demand: c.demand, awaySplit: c.awaySplit, vomFrac: c.vomFrac }
     if (c.split) {
       for (const ring of [1, 2]) add({ ...base, id: `${key}-${ring}`, ringLabel: ring, rings: [ring], price: c.split[ring - 1] })
     } else {
@@ -223,6 +232,24 @@ function defineSectors(B) {
     s.gate = s.away ? 'Acces oaspeți' : STANDS[s.stand].gate
     s.kind = s.kind || 'seat'
     s.ring1Vom = s.rings.includes(1) && s.kind !== 'vip'
+  }
+  // granița din inelul de jos dintre peluză și colț: scara de la intrarea colțului
+  const near = (v, ref) => {
+    while (v > ref + 4) v -= 8
+    while (v < ref - 4) v += 8
+    return v
+  }
+  for (const [corner, pel, side] of [['2', '3', 'u1'], ['7', '6', 'u0'], ['13', '14', 'u1'], ['18', '17', 'u0']]) {
+    const c = S.find((s) => s.group === corner)
+    const p = S.find((s) => s.group === pel)
+    const v = vomU(c)
+    if (side === 'u1') {
+      c.r1u1 = v
+      p.r1u0 = near(v, p.u0)
+    } else {
+      c.r1u0 = v
+      p.r1u1 = near(v, p.u1)
+    }
   }
   return S
 }
@@ -273,11 +300,11 @@ export function sectorBlocks(sector) {
 }
 export const VOM_ROWS = [0, 5] // vomitoarele ies pe culoarul dintre inele (ca în fotografii)
 // un singur vomitor pe sector (fotografia Peluzei Nord: intrările 3, 4, 5, 6), sub primul bloc
-export const vomBlock = (sector) => Math.floor(sector.innerAisles / 2)
-// poziția vomitorului sectorului (centrul blocului vomBlock)
+// poziția vomitorului ca fracțiune din lățimea sectorului; implicit centrul blocului din mijloc
+export const vomFrac = (s) => s.vomFrac ?? (Math.floor(s.innerAisles / 2) + 0.5) / (s.innerAisles + 1)
+export const vomBlock = (s) => Math.min(s.innerAisles, Math.floor(vomFrac(s) * (s.innerAisles + 1)))
 export function vomU(sector) {
-  const nb = sector.innerAisles + 1
-  return sector.u0 + ((sector.u1 - sector.u0) * (vomBlock(sector) + 0.5)) / nb
+  return sector.u0 + (sector.u1 - sector.u0) * vomFrac(sector)
 }
 // scările inelului de jos: ca în fotografii, câte una pe sector, care urcă spre vomitor;
 // blocurile de jos trec peste granița dintre sectoare (doar VIP-ul are scări la margini)
@@ -301,7 +328,7 @@ function buildNaturalRows(sector, r1) {
       for (const sl of slots) {
         if (ring === 2 && row.idx >= blocks[sl.block].rows) continue
         // vomitoare: ieșiri din inelul 2, în mijlocul blocurilor înalte
-        if (sector.vomitories && ring === 2 && sl.block === vomBlock(sector) && blocks[sl.block].rows >= 16 && row.idx >= VOM_ROWS[0] && row.idx < VOM_ROWS[1] && Math.abs(sl.s - sl.blockCenter) < 1.6) continue
+        if (sector.vomitories && ring === 2 && sl.block === vomBlock(sector) && blocks[sl.block].rows >= 16 && row.idx >= VOM_ROWS[0] && row.idx < VOM_ROWS[1] && lenU(Math.min(sl.u, vomU(sector)), Math.max(sl.u, vomU(sector)), d) < 1.6) continue
         const p = pointU(sl.u, d)
         // tunelul jucătorilor, sub Tribuna VIP (între sectoarele C și D)
         if (sector.kind === 'vip' && row.idx < 7 && Math.abs(p.z) < 3.2) continue
@@ -316,10 +343,13 @@ function buildNaturalRows(sector, r1) {
 // ─── Inelul de jos: rânduri continue de la o scară la alta ───────────
 // Ca pe stadion, între două scări rândul e neîntrerupt, chiar dacă trece granița dintre
 // două sectoare; fiecare loc aparține sectorului în dreptul căruia se află.
-const inSector = (s, u) => {
+const inRange = (a, b, u) => {
   const w = wrap8(u)
-  return (w >= s.u0 - 1e-9 && w < s.u1 - 1e-9) || (w + 8 >= s.u0 - 1e-9 && w + 8 < s.u1 - 1e-9)
+  return [w - 8, w, w + 8].some((x) => x >= a - 1e-9 && x < b - 1e-9)
 }
+const inSector = (s, u) => inRange(s.u0, s.u1, u)
+// în inelul de jos, peluza coboară până la scara de la intrarea colțului (granița e scara)
+const inSector1 = (s, u) => inRange(s.r1u0 ?? s.u0, s.r1u1 ?? s.u1, u)
 const inZone = (u, z) => {
   const w = wrap8(u)
   return w >= z[0] && w <= z[1]
@@ -333,7 +363,7 @@ function ring1Slots(sectors, zones) {
   for (let k = 0; k < A.length; k++) {
     const a = A[k]
     const b = k + 1 < A.length ? A[k + 1] : A[0] + 8
-    const ms = r1.find((s) => inSector(s, (a + b) / 2))
+    const ms = r1.find((s) => inSector1(s, (a + b) / 2))
     if (!ms) continue
     for (let i = 0; i < G.ring1.rows; i++) {
       const d = D1(i) + G.seatInset
@@ -343,7 +373,7 @@ function ring1Slots(sectors, zones) {
       for (let j = 0; j < n; j++) {
         const u = uAtLen(a, b, d, margin + (j + 0.5) * ms.seatW)
         if (i < 2 && zones.some((z) => inZone(u, z))) continue
-        const s = r1.find((x) => inSector(x, u)) || ms
+        const s = r1.find((x) => inSector1(x, u)) || ms
         const rel = wrap8(u - s.u0)
         const block = s.ring1Vom && rel >= wrap8(vomU(s) - s.u0) ? 1 : 0
         out.get(s.id)[i].push({ u, rel, block })
@@ -384,14 +414,16 @@ function trimBack(list, excess) {
       for (const b of blocks) pairs.push({ r, b })
     }
   }
-  if (!pairs.length) throw new Error('Nu se pot elimina locuri')
-  // de la spate spre față, alternând blocurile
+  // de la spate spre față, alternând blocurile; doar rândurile cu destule locuri
+  const usable = (pr) => pr.r.seats.filter((p) => p.block === pr.b).length > 6
   pairs.sort((x, y) => y.r.ringRow - x.r.ringRow || x.b - y.b)
   let pass = 0
   while (excess > 0) {
-    const k = Math.min(excess, pairs.length)
+    const ok = pairs.filter(usable)
+    if (!ok.length) throw new Error(`Nu se pot elimina locuri din sectorul ${list[0].group}`)
+    const k = Math.min(excess, ok.length)
     for (let j = 0; j < k; j++) {
-      const { r, b } = pairs[Math.floor(((j + 0.5) * pairs.length) / k)]
+      const { r, b } = ok[Math.floor(((j + 0.5) * ok.length) / k)]
       const idx = []
       r.seats.forEach((p, i) => p.block === b && idx.push(i))
       if (idx.length <= 6) continue
@@ -407,7 +439,7 @@ function trimBack(list, excess) {
       }
       excess--
     }
-    if (++pass > 6) throw new Error('Nu se pot elimina suficiente locuri')
+    if (++pass > 6) throw new Error(`Nu se pot elimina suficiente locuri din sectorul ${list[0].group} (rămase: ${excess}, rânduri: ${pairs.length})`)
   }
 }
 
@@ -427,8 +459,8 @@ function buildBoxes() {
     for (const [num, wcells] of list) {
       const z0 = z1 - wcells * cell
       const zc = (z0 + z1) / 2
-      const floorY = WALK_Y + (level - 1) * G.boxH
-      const frontD = WALK_D + G.walkway
+      const floorY = boxFloorY(level)
+      const frontD = boxFrontD(level)
       const per = 5 * wcells
       const seats = []
       for (const [row, dx, dy] of [[1, 1.15, 0], [2, 2.45, 0.35]]) {
@@ -467,7 +499,7 @@ function buildAccessible(sectors, zones) {
     for (let i = 0; i < WHEELCHAIR_PER_ZONE; i++) {
       const u = uAtLen(z[0], z[1], d, (L * (i + 0.5)) / WHEELCHAIR_PER_ZONE)
       const p = pointU(u, d)
-      const s = sectors.find((x) => x.rings.includes(1) && inSector(x, u))
+      const s = sectors.find((x) => x.rings.includes(1) && inSector1(x, u))
       out.push({ sector: s.id, stand: s.stand, zone: zi + 1, num: i + 1, x: p.x, z: p.z, nx: p.nx, nz: p.nz, y: Y1(1), u })
     }
   })

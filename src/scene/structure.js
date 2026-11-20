@@ -7,7 +7,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
-  G, D1, Y1, D2, Y2, WALK_D, WALK_Y, RING_TOP, pathPoint, pieceLen, sectorBlocks, ring2RowsAt, VOM_ROWS, vomBlock, pointU, uRanges, lenPerU, wrap8, ring1AisleUs,
+  G, D1, Y1, D2, Y2, WALK_D, WALK_Y, RING_TOP, pathPoint, pieceLen, sectorBlocks, ring2RowsAt, VOM_ROWS, vomBlock, vomU, pointU, uRanges, lenPerU, wrap8, ring1AisleUs,
 } from '../data/layout.js'
 import { Quads, strip, samples, P, ellipseBand, ellipseRing, beam, ellipseCurve } from './geom.js'
 import * as TX from './textures.js'
@@ -170,7 +170,7 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
     }
     // vomitorul sectorului (unul singur, ca în fotografia Peluzei Nord)
     if (B.sector.vomitories && B.b === vomBlock(B.sector) && B.rows >= 16) {
-      const uc = (B.u0 + B.u1) / 2
+      const uc = vomU(B.sector)
       const dm = (D2(VOM_ROWS[0]) + D2(VOM_ROWS[1])) / 2
       const du = 1.55 / lenPerU(uc, dm)
       const d0 = D2(VOM_ROWS[0])

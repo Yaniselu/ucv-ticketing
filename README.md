@@ -105,7 +105,13 @@ Surplusul (sub 40 de locuri pe sector) se scoate astfel: în câteva rânduri di
   - Peluza Sud: sectoarele 14–17.
   - Colțurile: 2 (nord-vest) și 18 (sud-vest).
   - Sectorul oaspeților: tot sectorul 18 plus jumătatea sectorului 19 dinspre colț (1.314 locuri), despărțită de restul lui 19 printr-o scară. Nu se vinde online, iar accesul oaspeților e marcat lângă sectorul 18.
-  - Tribuna 1: sectoarele 19 și 1 la capete, VIP A–F la nivelul terenului, loje 101–120 (119 și 120 sunt duble) și 201–222, iar sus presa H, între sectoarele G și I.
+  - Tribuna 1 (după fotografia tribunei principale): sectoarele 19 și 1 la capete; în centru, de jos în sus:
+    - VIP A–F, la nivelul terenului;
+    - un nivel lounge vitrat de la podea la tavan, fără locuri în față;
+    - lojele 101–120 (119 și 120 sunt duble) și 201–222, fiecare cu balcon și scaune în fața geamului; nivelurile se retrag ușor în trepte;
+    - sus, G, presa H și I, cu fațada vitrată în spate.
+  - Bolul e unul singur: „inelul 1” și „inelul 2” sunt partea de jos și cea de sus, legate de culoarul cu vomitoare și de scări.
+  - În inelul de jos, sectoarele de la capetele peluzelor (3, 6, 14, 17) coboară până la scara de la intrarea colțului; intrarea sectorului 7 e mai spre Tribuna 2.
   - Zonele pentru persoane în scaun rulant (2 × 31) sunt pe o platformă în fața Tribunei 2.
 - **Accesele** de pe planul stadionului sunt construite pe podium: 21 de puncte, cu numărul lor de turnichete (2 sau 4), plus accesul oaspeților, accesele pentru persoane cu handicap și accesul VIP / Loje.
 - **Intrările în tribune:** fiecare sector are un singur vomitor, cu numărul sectorului deasupra, ca în fotografia Peluzei Nord (intrările 3, 4, 5, 6).

@@ -6,7 +6,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
-import { buildLayout, G, D2 } from './data/layout.js'
+import { buildLayout, G, D2, boxFloorY } from './data/layout.js'
 import { EVENT, STANDS, MAX_TICKETS, HOLD_SECONDS } from './data/stadium-data.js'
 import { computeAvailability, FREE, TAKEN, BLOCKED } from './data/availability.js'
 import { buildStadium } from './scene/stadium.js'
@@ -360,7 +360,7 @@ function sectorView(s) {
 }
 
 function boxView(b) {
-  const x = -(G.hx + D2(0))
+  const x = -(G.hx + b.frontD)
   return { pos: [x - 5.6, b.floorY + 2.55, b.zc], target: [x - 0.6, b.floorY + 0.7, b.zc] }
 }
 
@@ -624,7 +624,7 @@ function buildLabels() {
       const y = s.center.y + (s.ringLabel === 1 ? 0 : 2)
       add([s.center.x - s.normal.x * 2, y + 2.5, s.center.z - s.normal.z * 2], `${name}<small>${sub}</small>`, `sec ${f || s.away ? '' : 'sold'}`)
     }
-    if (state.stand === 'VIP') add([-(G.hx + D2(0)) + 1, 16.6, 0], `Loje VIP<small>${layout.boxes.filter((b) => freeCount(b.seatIdx)).length} cu locuri libere</small>`, 'sec')
+    if (state.stand === 'VIP') add([-(G.hx + D2(0)) + 1, boxFloorY(2) + 1.5, 0], `Loje VIP<small>${layout.boxes.filter((b) => freeCount(b.seatIdx)).length} cu locuri libere</small>`, 'sec')
   }
   positionLabels()
 }
