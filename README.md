@@ -76,7 +76,7 @@ Sursa este planul oficial al stadionului „Ion Oblemenco”, cu locurile pe fie
 
 | Zonă | Sectoare (locuri) | Total |
 |---|---|---:|
-| Tribuna 1 | 18 (929), 19 (1.268), G (343), I (355), 1 (1.221), 2 (956, oaspeți) | 5.072 |
+| Tribuna 1 | 18 (929, oaspeți), 19 (1.268, jumătatea dinspre colț pentru oaspeți), G (343), I (355), 1 (1.221), 2 (956) | 5.072 |
 | VIP | A (190), B (399), C (383), D (383), E (399), F (190) | 1.944 |
 | Loje | 101–120 și 201–222 | 440 |
 | Presă | H | 336 |
@@ -103,7 +103,8 @@ Surplusul (sub 40 de locuri pe sector) se scoate astfel: în câteva rânduri di
   - Peluza Nord: sectoarele 3–6, de la vest la est.
   - Tribuna 2: 7 (colț NE), apoi 8–12 pe Inel 1 și Inel 2, de la nord la sud, și 13 (colț SE).
   - Peluza Sud: sectoarele 14–17.
-  - Colțurile: 2 (nord-vest, sectorul oaspeților, cu acces separat) și 18 (sud-vest).
+  - Colțurile: 2 (nord-vest) și 18 (sud-vest).
+  - Sectorul oaspeților: tot sectorul 18 plus jumătatea sectorului 19 dinspre colț (1.314 locuri), despărțită de restul lui 19 printr-o scară. Nu se vinde online, iar accesul oaspeților e marcat lângă sectorul 18.
   - Tribuna 1: sectoarele 19 și 1 la capete, VIP A–F la nivelul terenului, loje 101–120 (119 și 120 sunt duble) și 201–222, iar sus presa H, între sectoarele G și I.
   - Zonele pentru persoane în scaun rulant (2 × 31) sunt pe o platformă în fața Tribunei 2.
 - **Accesele** de pe planul stadionului sunt construite pe podium: 21 de puncte, cu numărul lor de turnichete (2 sau 4), plus accesul oaspeților, accesele pentru persoane cu handicap și accesul VIP / Loje.
@@ -114,7 +115,7 @@ Surplusul (sub 40 de locuri pe sector) se scoate astfel: în câteva rânduri di
 
 **Estimat** (nu există un plan public al locurilor):
 - Numărul de rânduri și câte locuri are fiecare rând. Totalul pe sector e cel oficial, dar așezarea pe rânduri e reconstituită din fotografii.
-- Harta de prețuri Superliga 2026–2027 arată colțul sud-vest (18) gri și colțul nord-vest vândut ca Tribuna 1, deși planul stadionului marchează sectorul 2 drept sectorul oaspeților. Aplicația urmează planul stadionului.
+- Cât din sectorul 19 e al oaspeților: am considerat jumătatea dinspre colț. Planul stadionului marca inițial sectorul 2 ca sector al oaspeților; acum oaspeții stau în 18 și o parte din 19, ca pe harta de prețuri Superliga 2026–2027.
 - Celelalte porți, prețul locurilor din loje și numărul de locuri din fiecare lojă: 10, respectiv 20 în lojile duble, astfel încât cele 42 de loje să dea 440 de locuri.
 - Disponibilitatea locurilor: este simulată, dar deterministă (`src/data/availability.js`). Într-o integrare reală vine din API-ul de ticketing.
 

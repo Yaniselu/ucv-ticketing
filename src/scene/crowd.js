@@ -26,14 +26,14 @@ const SHIRTS_AWAY = ['#f4f4f4', '#ffffff', '#1d3e8a', '#232323', '#e6e6e6']
 const SKIN = ['#e3b896', '#cf9f7c', '#f0cba9', '#b07d5c', '#d9ab88']
 const HAIR = ['#2b2018', '#3b2a1d', '#151515', '#6b5137', '#8d8d8d', '#c9a46a']
 
-export function buildCrowd(layout, status, { lowSpec = false, awaySector = layout.sectors.find((s) => s.away)?.id } = {}) {
+export function buildCrowd(layout, status, { lowSpec = false } = {}) {
   const list = []
   let seed = 77
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
   for (const s of layout.seats) {
     if (!['seat', 'vip', 'box', 'press'].includes(s.kind)) continue
     const st = status[s.i]
-    const away = s.sector === awaySector
+    const away = !!s.away
     let sit = st === TAKEN || (away && st === BLOCKED && rnd() < 0.78) || (s.kind === 'press' && rnd() < 0.35)
     if (!sit) continue
     if (lowSpec && rnd() < 0.5) continue

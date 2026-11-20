@@ -169,9 +169,11 @@ function sectorCfg(key) {
   if (n >= 14 && n <= 17) return { stand: 'PS', ia: 1, price: PRICES.PS, demand: 'PS' }
   if (n === 7 || n === 13) return { stand: 'T2', ia: 1, price: PRICES.T2_7_13, demand: 'T2_corner' }
   if (n >= 8 && n <= 12) return { stand: 'T2', ia: 1, split: T2P[n], demand: n === 10 ? 'T2_center' : 'T2_side' }
-  if (n === 1 || n === 19) return { stand: 'T1', ia: 0, split: [PRICES.T0, PRICES.T1], demand: 'T1' }
-  if (n === 18) return { stand: 'T1', ia: 1, price: PRICES.T1, demand: 'T1' }
-  return { stand: 'T1', ia: 1, price: PRICES.T1, demand: 'T1', away: true } // sectorul 2
+  // sectorul oaspeților: 18 și jumătatea sectorului 19 dinspre colț (o scară le desparte de restul lui 19)
+  if (n === 19) return { stand: 'T1', ia: 1, split: [PRICES.T0, PRICES.T1], demand: 'T1', awaySplit: 0.5 }
+  if (n === 1) return { stand: 'T1', ia: 0, split: [PRICES.T0, PRICES.T1], demand: 'T1' }
+  if (n === 18) return { stand: 'T1', ia: 1, price: PRICES.T1, demand: 'T1', away: true }
+  return { stand: 'T1', ia: 1, price: PRICES.T1, demand: 'T1' } // sectorul 2 (colț NV)
 }
 // zonele pentru persoane în scaun rulant: în fața Tribunei 2, la sectoarele 8–9 și 11–12
 export function wheelchairZones(B = BOUNDS) {
@@ -193,7 +195,7 @@ function defineSectors(B) {
   }
   CHAIN.forEach((key, k) => {
     const c = sectorCfg(key)
-    const base = { num: +key, group: key, stand: c.stand, u0: B.chain[k], u1: B.chain[k + 1], innerAisles: c.ia, demand: c.demand }
+    const base = { num: +key, group: key, stand: c.stand, u0: B.chain[k], u1: B.chain[k + 1], innerAisles: c.ia, demand: c.demand, awaySplit: c.awaySplit }
     if (c.split) {
       for (const ring of [1, 2]) add({ ...base, id: `${key}-${ring}`, ringLabel: ring, rings: [ring], price: c.split[ring - 1] })
     } else {
@@ -279,8 +281,9 @@ export function vomU(sector) {
 }
 // scările inelului de jos: ca în fotografii, câte una pe sector, care urcă spre vomitor;
 // blocurile de jos trec peste granița dintre sectoare (doar VIP-ul are scări la margini)
+export const awaySplitU = (s) => (s.awaySplit != null ? s.u0 + (s.u1 - s.u0) * s.awaySplit : null)
 export function ring1AisleUs(sector) {
-  if (sector.ring1Vom) return [vomU(sector)]
+  if (sector.ring1Vom) return sector.awaySplit != null ? [vomU(sector), awaySplitU(sector)] : [vomU(sector)]
   const nb = sector.innerAisles + 1
   return Array.from({ length: nb + 1 }, (_, b) => sector.u0 + ((sector.u1 - sector.u0) * b) / nb)
 }
@@ -522,6 +525,7 @@ export function buildLayout(opts) {
       row.seats.forEach((p, k) => {
         const seat = push({
           sector: s.id, stand: s.stand, kind: s.kind, row: row.num, ring: row.ring, num: k + 1,
+          away: s.away || (s.awaySplit != null && p.u < awaySplitU(s)),
           x: p.x, y: row.y, z: p.z, rot: Math.atan2(-p.nx, -p.nz), nx: p.nx, nz: p.nz,
           price: s.price, block: p.block,
         })

@@ -45,6 +45,8 @@ export function computeAvailability(layout, eventId) {
       }
     }
   }
+  // partea din sectorul 19 rezervată oaspeților
+  for (const seat of layout.seats) if (seat.away) status[seat.i] = BLOCKED
   for (const b of layout.boxes) {
     const full = rand() < 0.4
     for (const i of b.seatIdx) status[i] = full || rand() < DEMAND.BOX * 0.6 ? TAKEN : FREE

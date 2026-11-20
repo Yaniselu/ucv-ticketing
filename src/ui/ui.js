@@ -11,7 +11,7 @@ const STAND_NOTES = {
   PN: 'Peluza 2: sectoarele 3–6, în spatele porții de nord (6.053 de locuri). Peluza galeriei, cele mai accesibile bilete.',
   T2: 'Sectoarele 7–13 (10.726 de locuri); 8–12 pe două inele, sectorul 10 la centrul terenului. În față sunt cele două zone pentru persoane în scaun rulant.',
   PS: 'Peluza 1: sectoarele 14–17, în spatele porții de sud (6.170 de locuri).',
-  T1: 'Tribuna principală (vest): sectoarele 19 și 1 la capete, G și I pe terasa de lângă presă, colțurile 18 (sud-vest) și 2 (nord-vest, sectorul oaspeților).',
+  T1: 'Tribuna principală (vest): sectoarele 19 și 1 la capete, G și I pe terasa de lângă presă, colțurile 2 (nord-vest) și 18 (sud-vest). Sectorul oaspeților este 18 plus jumătatea sectorului 19 dinspre colț.',
   VIP: 'Centrul Tribunei 1: sectoarele VIP A–F (1.944 de locuri), 42 de loje (101–120 și 201–222, 440 de locuri) și presa (sectorul H).',
 }
 
@@ -111,7 +111,7 @@ export function createUI(ctx) {
     const secs = standSectors(id)
     const rows = secs.map((s) => {
       const f = freeCount(s.seatIdx)
-      const sub = s.legend ? `„${esc(s.legend)}”` : s.away ? 'Vânzare prin clubul oaspete' : `${fmt(s.capacity)} locuri`
+      const sub = s.away ? 'Sectorul oaspeților · vânzare prin clubul oaspete' : s.awaySplit != null ? `„${esc(s.legend)}” · jumătatea dinspre colț e a oaspeților` : s.legend ? `„${esc(s.legend)}”` : `${fmt(s.capacity)} locuri`
       return `<button class="row-btn" data-sector="${s.id}" ${s.away ? 'disabled' : ''}>
         <span class="row-title">${esc(s.title)}</span>
         <span class="row-price">${lei(s.price)}</span>
@@ -396,7 +396,7 @@ export function createUI(ctx) {
     if (hit.seat != null) {
       const i = hit.seat
       const l = seatLabel(i)
-      const st = cart.has(i) ? ['free', 'În coșul tău · atinge pentru a elimina'] : status[i] === FREE ? ['free', 'Liber'] : status[i] === BLOCKED ? ['na', 'Nu se vinde online'] : ['sold', 'Ocupat']
+      const st = cart.has(i) ? ['free', 'În coșul tău · atinge pentru a elimina'] : status[i] === FREE ? ['free', 'Liber'] : status[i] === BLOCKED ? ['na', seats[i].away ? 'Sectorul oaspeților · nu se vinde aici' : 'Nu se vinde online'] : ['sold', 'Ocupat']
       return box(l.where, l.what, null, st, 'LEI', status[i] === FREE ? fmt(seats[i].price) : '—')
     }
     return ''
