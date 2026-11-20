@@ -17,6 +17,9 @@ import { buildWorld } from './scene/world.js'
 import { addGoogleTiles, GOOGLE_KEY } from './scene/google.js'
 import { createUI } from './ui/ui.js'
 
+/* global __BUILD__ */
+const sub = document.querySelector('.brand-sub')
+if (sub) sub.textContent = `Prototip · versiunea ${__BUILD__}`
 const isTouch = matchMedia('(pointer: coarse)').matches
 const params = new URLSearchParams(location.search)
 const lowSpec = params.has('lite') || isTouch || (navigator.hardwareConcurrency || 8) <= 4

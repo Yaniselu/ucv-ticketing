@@ -331,13 +331,35 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   mediaGlass.rotation.y = Math.PI / 2
   mediaGlass.position.set(mediaX0 + 0.03, baseY + mediaH / 2 - 0.2, 0)
   block.add(mediaGlass)
-  // pereții laterali ai blocului (de la culoar până la grinda inelară)
-  for (const sd of [-1, 1]) {
-    const len = -ellX(bh) - (G.hx + D2(0)) + 0.4
-    const side = new THREE.Mesh(new THREE.BoxGeometry(len, mediaTop - WALK_Y, 0.3), white)
-    side.position.set(xFront - len / 2, (mediaTop + WALK_Y) / 2, sd * (bh + 0.15))
-    side.castShadow = true
-    block.add(side)
+  // capetele blocului: ca pe stadion, nu e un perete înalt; capătul urmează nivelurile blocului
+  // și coboară până la gradenele sectoarelor 1 și 19 de alături (se vede doar deasupra scaunelor)
+  {
+    const dBack = -ellX(bh) - G.hx
+    const top = (d) => {
+      if (d < boxFrontD(2)) return L1 + 1.05
+      if (d < PRESS_D(0) - 0.5) return LT + 1.0
+      for (let k = 0; k < PRESS_ROWS; k++) if (d < PRESS_D(k) + 0.5) return PRESS_Y(k) + 1.0
+      return mediaTop
+    }
+    const bot = (d) => Y2(Math.max(0, Math.floor((d - D2(0)) / G.depth)))
+    const pts = []
+    for (let d = D2(0); d <= dBack + 1e-6; d += 0.05) {
+      if (top(d) <= bot(d) + 0.05) break
+      pts.push([d, top(d), bot(d)])
+    }
+    const sh = new THREE.Shape()
+    pts.forEach(([d, , b], k) => (k ? sh.lineTo(d, b) : sh.moveTo(d, b)))
+    for (let k = pts.length - 1; k >= 0; k--) sh.lineTo(pts[k][0], pts[k][1])
+    sh.closePath()
+    for (const sd of [-1, 1]) {
+      const g = new THREE.ShapeGeometry(sh)
+      const p = g.attributes.position
+      for (let i = 0; i < p.count; i++) p.setXYZ(i, -(G.hx + p.getX(i)), p.getY(i), sd * (bh + 0.02))
+      g.computeVertexNormals()
+      const end = new THREE.Mesh(g, white)
+      end.castShadow = true
+      block.add(end)
+    }
   }
   // ieșirea jucătorilor (tunelul de sub Tribuna VIP)
   const tunH = Y1(7) + 0.5

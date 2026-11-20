@@ -88,7 +88,7 @@ Sursa este planul oficial al stadionului „Ion Oblemenco”, cu locurile pe fie
 
 ### Cum se potrivește fiecare sector
 
-`npm run tune` (`scripts/tune-seats.mjs`) calculează lățimea locului (0,529 m public, 0,544 m VIP) și granițele dintre sectoare, astfel încât geometria să dea fiecărui sector puțin peste numărul oficial. Rezultatul e salvat în `src/data/sector-bounds.js`.
+`npm run tune` (`scripts/tune-seats.mjs`) calculează lățimea locului (0,511 m public, 0,544 m VIP) și granițele dintre sectoare, astfel încât geometria să dea fiecărui sector puțin peste numărul oficial. Rezultatul e salvat în `src/data/sector-bounds.js`.
 
 Surplusul (sub 40 de locuri pe sector) se scoate astfel: în câteva rânduri din spate rămâne un loc mai puțin, iar celelalte locuri se distanțează egal. Marginile blocurilor rămân drepte. Rulează `npm run tune` după orice schimbare a geometriei.
 
@@ -110,6 +110,10 @@ Surplusul (sub 40 de locuri pe sector) se scoate astfel: în câteva rânduri di
     - un nivel lounge vitrat de la podea la tavan, fără locuri în față;
     - lojele 101–120 (119 și 120 sunt duble) și 201–222, fiecare cu balcon și scaune în fața geamului; nivelurile se retrag ușor în trepte;
     - sus, G, presa H și I, cu fațada vitrată în spate.
+  - Colțurile interioare sunt aproape drepte, ca pe plan, deci laturile au lungimea reală (Tribuna 1 are ~109 m). Sectoarele de peluză și de tribună stau pe porțiunile drepte, iar colțurile aparțin sectoarelor de colț 2, 7, 13 și 18.
+  - În fiecare colț e o deschidere diagonală prin inelul de jos, care se termină într-un tunel sub culoar, ca pe plan. În inelul de jos, sectoarele de peluză (3, 6, 14, 17) ajung până la deschidere. Intrarea fiecărui colț e de partea tribunei.
+  - Capetele blocului central al Tribunei 1 nu mai au un perete înalt: capătul urmează nivelurile blocului și coboară până la scaunele sectoarelor 1 și 19.
+  - Antetul afișează data versiunii, ca să se vadă dacă pagina e la zi.
   - Bolul e unul singur: „inelul 1” și „inelul 2” sunt partea de jos și cea de sus, legate de culoarul cu vomitoare și de scări.
   - În inelul de jos, sectoarele de la capetele peluzelor (3, 6, 14, 17) coboară până la scara de la intrarea colțului; intrarea sectorului 7 e mai spre Tribuna 2.
   - Zonele pentru persoane în scaun rulant (2 × 31) sunt pe o platformă în fața Tribunei 2.

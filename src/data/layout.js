@@ -14,7 +14,8 @@ export const G = {
   // după conturul real al gazonului din OpenStreetMap (77 × 113 m)
   hx: 39.5,
   hz: 57.5,
-  r: 10,
+  // colțurile interioare sunt aproape drepte (planul oficial): laturile drepte au lungimea reală
+  r: 2,
   depth: 0.8, // adâncimea unui rând
   ring1: { rows: 16, y0: 2.5, rise: 0.4 },
   walkway: 2.6, // culoarul dintre inele
@@ -116,6 +117,28 @@ export function uAtLen(u0, u1, d, s) {
   }
   return u1
 }
+// ─── Deschiderile din colțuri (planul oficial: o fantă diagonală prin inelul de jos) ───
+export const NOTCH_W = 4.2
+const CORNER_PIECES = [1, 3, 5, 7]
+// jumătatea deschiderii, ca fracțiune din arcul colțului, la distanța d de marginea gradenelor
+export const notchHalfT = (d) => Math.min(0.5, Math.asin(Math.min(1, NOTCH_W / 2 / (G.r + d))) / (Math.PI / 2))
+export function inNotch(u, d) {
+  const w = wrap8(u)
+  const h = notchHalfT(d)
+  return CORNER_PIECES.some((p) => Math.abs(w - (p + 0.5)) < h)
+}
+// porțiunile conturului din inelul de jos, fără deschiderile din colțuri
+export function ring1Ranges(d) {
+  const h = notchHalfT(d)
+  const out = []
+  for (let p = 0; p < 8; p++) {
+    if (p % 2 === 0) out.push([p, 0, 1])
+    else if (h < 0.5) out.push([p, 0, 0.5 - h], [p, 0.5 + h, 1])
+  }
+  return out
+}
+export const notchRanges = (d) => CORNER_PIECES.map((p) => [p, 0.5 - notchHalfT(d), 0.5 + notchHalfT(d)])
+
 // lungimea pe unitate de u în dreptul lui u (pentru deschideri de lățime fixă, ex. vomitoare)
 export const lenPerU = (u, d) => pieceLen(Math.min(7, Math.floor(wrap8(u) + 1e-9)), d)
 export const ring2RowsAtU = (u) => {
@@ -175,14 +198,14 @@ function sectorCfg(key) {
   const n = +key
   if (n >= 3 && n <= 6) return { stand: 'PN', ia: 1, price: PRICES.PN, demand: 'PN' }
   if (n >= 14 && n <= 17) return { stand: 'PS', ia: 1, price: PRICES.PS, demand: 'PS' }
-  if (n === 7) return { stand: 'T2', ia: 1, price: PRICES.T2_7_13, demand: 'T2_corner', vomFrac: 0.37 }
-  if (n === 13) return { stand: 'T2', ia: 1, price: PRICES.T2_7_13, demand: 'T2_corner', vomFrac: 0.75 }
+  if (n === 7) return { stand: 'T2', ia: 1, price: PRICES.T2_7_13, demand: 'T2_corner', vomAbs: 9.75 }
+  if (n === 13) return { stand: 'T2', ia: 1, price: PRICES.T2_7_13, demand: 'T2_corner', vomAbs: 11.25 }
   if (n >= 8 && n <= 12) return { stand: 'T2', ia: 1, split: T2P[n], demand: n === 10 ? 'T2_center' : 'T2_side' }
   // sectorul oaspeților: 18 și jumătatea sectorului 19 dinspre colț (o scară le desparte de restul lui 19)
   if (n === 19) return { stand: 'T1', ia: 1, split: [PRICES.T0, PRICES.T1], demand: 'T1', awaySplit: 0.5 }
   if (n === 1) return { stand: 'T1', ia: 0, split: [PRICES.T0, PRICES.T1], demand: 'T1' }
-  if (n === 18) return { stand: 'T1', ia: 1, price: PRICES.T1, demand: 'T1', away: true, vomFrac: 0.25 }
-  return { stand: 'T1', ia: 1, price: PRICES.T1, demand: 'T1', vomFrac: 0.75 } // sectorul 2 (colț NV)
+  if (n === 18) return { stand: 'T1', ia: 1, price: PRICES.T1, demand: 'T1', away: true, vomAbs: 13.75 }
+  return { stand: 'T1', ia: 1, price: PRICES.T1, demand: 'T1', vomAbs: 7.25 } // sectorul 2 (colț NV)
 }
 // zonele pentru persoane în scaun rulant: în fața Tribunei 2, la sectoarele 8–9 și 11–12
 export function wheelchairZones(B = BOUNDS) {
@@ -204,7 +227,7 @@ function defineSectors(B) {
   }
   CHAIN.forEach((key, k) => {
     const c = sectorCfg(key)
-    const base = { num: +key, group: key, stand: c.stand, u0: B.chain[k], u1: B.chain[k + 1], innerAisles: c.ia, demand: c.demand, awaySplit: c.awaySplit, vomFrac: c.vomFrac }
+    const base = { num: +key, group: key, stand: c.stand, u0: B.chain[k], u1: B.chain[k + 1], innerAisles: c.ia, demand: c.demand, awaySplit: c.awaySplit, vomFrac: c.vomFrac, vomAbs: c.vomAbs }
     if (c.split) {
       for (const ring of [1, 2]) add({ ...base, id: `${key}-${ring}`, ringLabel: ring, rings: [ring], price: c.split[ring - 1] })
     } else {
@@ -233,22 +256,16 @@ function defineSectors(B) {
     s.kind = s.kind || 'seat'
     s.ring1Vom = s.rings.includes(1) && s.kind !== 'vip'
   }
-  // granița din inelul de jos dintre peluză și colț: scara de la intrarea colțului
-  const near = (v, ref) => {
-    while (v > ref + 4) v -= 8
-    while (v < ref - 4) v += 8
-    return v
-  }
-  for (const [corner, pel, side] of [['2', '3', 'u1'], ['7', '6', 'u0'], ['13', '14', 'u1'], ['18', '17', 'u0']]) {
+  // în inelul de jos, peluza coboară până la deschiderea din colț (granița cu sectorul de colț)
+  for (const [corner, pel, side, cu] of [['2', '3', 'u1', 7.5], ['7', '6', 'u0', 9.5], ['13', '14', 'u1', 11.5], ['18', '17', 'u0', 13.5]]) {
     const c = S.find((s) => s.group === corner)
     const p = S.find((s) => s.group === pel)
-    const v = vomU(c)
     if (side === 'u1') {
-      c.r1u1 = v
-      p.r1u0 = near(v, p.u0)
+      c.r1u1 = nearU(cu, c.u1)
+      p.r1u0 = nearU(cu, p.u0)
     } else {
-      c.r1u0 = v
-      p.r1u1 = near(v, p.u1)
+      c.r1u0 = nearU(cu, c.u0)
+      p.r1u1 = nearU(cu, p.u1)
     }
   }
   return S
@@ -301,11 +318,21 @@ export function sectorBlocks(sector) {
 export const VOM_ROWS = [0, 5] // vomitoarele ies pe culoarul dintre inele (ca în fotografii)
 // un singur vomitor pe sector (fotografia Peluzei Nord: intrările 3, 4, 5, 6), sub primul bloc
 // poziția vomitorului ca fracțiune din lățimea sectorului; implicit centrul blocului din mijloc
-export const vomFrac = (s) => s.vomFrac ?? (Math.floor(s.innerAisles / 2) + 0.5) / (s.innerAisles + 1)
-export const vomBlock = (s) => Math.min(s.innerAisles, Math.floor(vomFrac(s) * (s.innerAisles + 1)))
-export function vomU(sector) {
-  return sector.u0 + (sector.u1 - sector.u0) * vomFrac(sector)
+const nearU = (v, ref) => {
+  while (v > ref + 4) v -= 8
+  while (v < ref - 4) v += 8
+  return v
 }
+const baseFrac = (s) => s.vomFrac ?? (Math.floor(s.innerAisles / 2) + 0.5) / (s.innerAisles + 1)
+// colțurile au intrarea la o poziție fixă pe colț (vomAbs), de partea tribunei, după deschidere
+export function vomU(s) {
+  if (s.vomAbs == null) return s.u0 + (s.u1 - s.u0) * baseFrac(s)
+  const v = nearU(s.vomAbs, (s.u0 + s.u1) / 2)
+  const m = (s.u1 - s.u0) * 0.12
+  return Math.min(s.u1 - m, Math.max(s.u0 + m, v))
+}
+export const vomFrac = (s) => (vomU(s) - s.u0) / (s.u1 - s.u0)
+export const vomBlock = (s) => Math.min(s.innerAisles, Math.floor(vomFrac(s) * (s.innerAisles + 1)))
 // scările inelului de jos: ca în fotografii, câte una pe sector, care urcă spre vomitor;
 // blocurile de jos trec peste granița dintre sectoare (doar VIP-ul are scări la margini)
 export const awaySplitU = (s) => (s.awaySplit != null ? s.u0 + (s.u1 - s.u0) * s.awaySplit : null)
@@ -373,6 +400,7 @@ function ring1Slots(sectors, zones) {
       for (let j = 0; j < n; j++) {
         const u = uAtLen(a, b, d, margin + (j + 0.5) * ms.seatW)
         if (i < 2 && zones.some((z) => inZone(u, z))) continue
+        if (inNotch(u, d)) continue
         const s = r1.find((x) => inSector1(x, u)) || ms
         const rel = wrap8(u - s.u0)
         const block = s.ring1Vom && rel >= wrap8(vomU(s) - s.u0) ? 1 : 0

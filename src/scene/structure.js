@@ -7,7 +7,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
-  G, D1, Y1, D2, Y2, WALK_D, WALK_Y, RING_TOP, pathPoint, pieceLen, sectorBlocks, ring2RowsAt, VOM_ROWS, vomBlock, vomU, pointU, uRanges, lenPerU, wrap8, ring1AisleUs,
+  G, D1, Y1, D2, Y2, WALK_D, WALK_Y, RING_TOP, pathPoint, pieceLen, sectorBlocks, ring2RowsAt, VOM_ROWS, vomBlock, vomU, pointU, ring1Ranges, notchRanges, uRanges, lenPerU, wrap8, ring1AisleUs,
 } from '../data/layout.js'
 import { Quads, strip, samples, P, ellipseBand, ellipseRing, beam, ellipseCurve } from './geom.js'
 import * as TX from './textures.js'
@@ -99,12 +99,21 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
 
   // ─── Inelul 1 (constant) și culoarul dintre inele ───
   const FULL = [0, 1, 2, 3, 4, 5, 6, 7].map((p) => [p, 0, 1])
-  strip(walls, FULL, 0, 0, 0, Y1(0))
+  strip(walls, ring1Ranges(0.3), 0, 0, 0, Y1(0))
+  const notchQ = new Quads()
   for (let i = 0; i < G.ring1.rows; i++) {
-    if (i > 0) strip(steps, FULL, D1(i), Y1(i - 1), D1(i), Y1(i))
-    strip(steps, FULL, D1(i), Y1(i), D1(i + 1), Y1(i))
+    const R = ring1Ranges(D1(i) + 0.4)
+    if (i > 0) strip(steps, R, D1(i), Y1(i - 1), D1(i), Y1(i))
+    strip(steps, R, D1(i), Y1(i), D1(i + 1), Y1(i))
+    // deschiderile din colțuri: podea la nivelul terenului și pereți laterali albi, în trepte
+    for (const [p, t0, t1] of notchRanges(D1(i) + 0.4)) {
+      strip(notchQ, [[p, t0, t1]], D1(i), 0.04, D1(i + 1), 0.04)
+      for (const t of [t0, t1]) walls.quad(P(p, t, D1(i), 0), P(p, t, D1(i), Y1(i)), P(p, t, D1(i + 1), Y1(i)), P(p, t, D1(i + 1), 0))
+    }
   }
-  strip(steps, FULL, WALK_D, Y1(G.ring1.rows - 1), WALK_D, WALK_Y)
+  // tunelul de sub culoar, în capătul fiecărei deschideri
+  for (const [p, t0, t1] of notchRanges(WALK_D)) darkQ.quad(P(p, t0, WALK_D - 0.02, 0), P(p, t0, WALK_D - 0.02, WALK_Y - 0.3), P(p, t1, WALK_D - 0.02, WALK_Y - 0.3), P(p, t1, WALK_D - 0.02, 0))
+  strip(steps, ring1Ranges(WALK_D), WALK_D, Y1(G.ring1.rows - 1), WALK_D, WALK_Y)
   strip(steps, FULL, WALK_D, WALK_Y, D2(0), WALK_Y)
   // balustrada de sticlă și mâna curentă de pe culoar
   strip(glassQ, FULL, WALK_D + 0.05, WALK_Y, WALK_D + 0.05, WALK_Y + 1.05)
@@ -222,7 +231,9 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   wallMesh.castShadow = !lowSpec
   const darkMesh = new THREE.Mesh(darkQ.geometry(), new THREE.MeshStandardMaterial({ color: 0x1b2129, roughness: 0.9, side: THREE.DoubleSide }))
   const glassMesh = new THREE.Mesh(glassQ.geometry(), glass)
-  root.add(stepsMesh, wallMesh, darkMesh, glassMesh)
+  const notchMesh = new THREE.Mesh(notchQ.geometry(), new THREE.MeshStandardMaterial({ color: 0x9c9f9e, roughness: 0.95, side: THREE.DoubleSide }))
+  notchMesh.receiveShadow = true
+  root.add(stepsMesh, wallMesh, darkMesh, glassMesh, notchMesh)
 
   // mâna curentă de pe scările inelului de sus
   const railByAisle = new Map()
