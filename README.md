@@ -93,6 +93,7 @@ Stack: Vite + three.js, fără framework. Se poate publica pe orice hosting stat
   - Colțul nord-vest se vinde ca Tribuna 1, iar colțul sud-vest e gri pe hartă, adică nu se vinde public.
   - Tribuna 1: VIP A–F la nivelul terenului, loje 101–120 (119 și 120 sunt duble) și 201–222, masa presei sus la mijloc, Tribuna 0 de o parte și de alta a ei, iar la capete Tribuna 0 jos și Tribuna 1 sus.
 - **Intrările în tribune:** fiecare sector are un singur vomitor, cu numărul sectorului deasupra, ca în fotografia Peluzei Nord (intrările 3, 4, 5, 6).
+- **Scările:** în inelul de jos fiecare sector are o singură scară, care urcă direct la vomitorul sectorului; blocurile de scaune trec peste granița dintre sectoare, ca în fotografii. Scările sunt late și deschise la culoare, cu o treaptă intermediară pe fiecare rând. `npm run verify` verifică și că niciun loc nu se suprapune cu altul.
 - **Porți:** poarta 6 servește Peluza Nord și poarta 8 Tribuna 2.
 - Terenul de 105 × 68 m, înălțimea de 50,14 m, bolul cu un singur inel de gradene acoperit integral, ecranele din colțurile NE și SV (stadiumdb.com, ucv1948.ro).
 

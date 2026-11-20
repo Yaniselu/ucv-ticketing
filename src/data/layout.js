@@ -15,7 +15,7 @@ export const G = {
   hz: 57.5,
   r: 10,
   depth: 0.8, // adâncimea unui rând
-  ring1: { rows: 16, y0: 1.9, rise: 0.4 },
+  ring1: { rows: 16, y0: 2.5, rise: 0.4 },
   walkway: 2.6, // culoarul dintre inele
   // inelul 2: numărul de rânduri variază după elipsa din spatele tribunelor
   // (multe rânduri la mijlocul laturilor, puține în colțuri, ca la stadionul real)
@@ -225,6 +225,7 @@ function defineSectors() {
     }
     s.gate = s.away ? 'P12' : STANDS[s.stand].gate
     s.kind = s.kind || 'seat'
+    s.ring1Vom = s.rings.includes(1) && s.kind !== 'vip'
   }
   return S
 }
@@ -234,6 +235,20 @@ function rowSlots(sector, row) {
   const d = row.front + G.seatInset
   const nb = sector.innerAisles + 1
   const slots = []
+  if (row.ring === 1 && sector.ring1Vom) {
+    const L = lenU(sector.u0, sector.u1, d)
+    const sv = lenU(sector.u0, vomU(sector), d)
+    const segs = [[0, sv - G.aisle / 2], [sv + G.aisle / 2, L]]
+    segs.forEach(([a, b], k) => {
+      const n = Math.max(0, Math.floor((b - a) / sector.seatW + 1e-6))
+      const margin = (b - a - n * sector.seatW) / 2
+      for (let i = 0; i < n; i++) {
+        const s = a + margin + (i + 0.5) * sector.seatW
+        slots.push({ block: k, s, u: uAtLen(sector.u0, sector.u1, d, s), blockCenter: (a + b) / 2, blockLen: b - a })
+      }
+    })
+    return { d, slots }
+  }
   for (let b = 0; b < nb; b++) {
     const bu0 = sector.u0 + ((sector.u1 - sector.u0) * b) / nb
     const bu1 = sector.u0 + ((sector.u1 - sector.u0) * (b + 1)) / nb
@@ -262,6 +277,18 @@ export function sectorBlocks(sector) {
 export const VOM_ROWS = [0, 5] // vomitoarele ies pe culoarul dintre inele (ca în fotografii)
 // un singur vomitor pe sector (fotografia Peluzei Nord: intrările 3, 4, 5, 6), sub primul bloc
 export const vomBlock = (sector) => Math.floor(sector.innerAisles / 2)
+// poziția vomitorului sectorului (centrul blocului vomBlock)
+export function vomU(sector) {
+  const nb = sector.innerAisles + 1
+  return sector.u0 + ((sector.u1 - sector.u0) * (vomBlock(sector) + 0.5)) / nb
+}
+// scările inelului de jos: ca în fotografii, câte una pe sector, care urcă spre vomitor;
+// blocurile de jos trec peste granița dintre sectoare (doar VIP-ul are scări la margini)
+export function ring1AisleUs(sector) {
+  if (sector.ring1Vom) return [vomU(sector)]
+  const nb = sector.innerAisles + 1
+  return Array.from({ length: nb + 1 }, (_, b) => sector.u0 + ((sector.u1 - sector.u0) * b) / nb)
+}
 
 function buildNaturalRows(sector) {
   const rows = []

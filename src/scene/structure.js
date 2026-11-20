@@ -7,7 +7,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
-  G, D1, Y1, D2, Y2, WALK_D, WALK_Y, RING_TOP, pathPoint, pieceLen, sectorBlocks, ring2RowsAt, VOM_ROWS, vomBlock, pointU, uRanges, lenPerU, wrap8,
+  G, D1, Y1, D2, Y2, WALK_D, WALK_Y, RING_TOP, pathPoint, pieceLen, sectorBlocks, ring2RowsAt, VOM_ROWS, vomBlock, pointU, uRanges, lenPerU, wrap8, ring1AisleUs,
 } from '../data/layout.js'
 import { Quads, strip, samples, P, ellipseBand, ellipseRing, beam, ellipseCurve } from './geom.js'
 import * as TX from './textures.js'
@@ -188,19 +188,24 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
       darkQ.quad(PU(uc - du, d0, yt), PU(uc - du, d1, yt), PU(uc + du, d1, yt), PU(uc + du, d0, yt))
       // rama albă a vomitorului
       const fw = 0.25 / lenPerU(uc, d0)
-      walls.quad(PU(uc - du - fw, d0 - 0.05, yt), PU(uc - du - fw, d0 - 0.05, yt + 0.55), PU(uc + du + fw, d0 - 0.05, yt + 0.55), PU(uc + du + fw, d0 - 0.05, yt))
-      vomGeo.push({ u: uc, d: d0 - 0.08, y: yt + 0.27, label: B.sector.num != null ? String(B.sector.num) : B.sector.letter || (B.sector.away ? 'OAS' : 'T1') })
+      const fw2 = 0.4 / lenPerU(uc, d0)
+      walls.quad(PU(uc - du - fw2, d0 - 0.25, yt), PU(uc - du - fw2, d0 - 0.25, yt + 0.85), PU(uc + du + fw2, d0 - 0.25, yt + 0.85), PU(uc + du + fw2, d0 - 0.25, yt))
+      // stâlpii albi ai portalului și fețele lui laterale (portalul iese puțin în față)
+      for (const side of [-1, 1]) {
+        const a = uc + side * du
+        const b = uc + side * (du + fw2)
+        walls.quad(PU(a, d0 - 0.25, yb), PU(a, d0 - 0.25, yt), PU(b, d0 - 0.25, yt), PU(b, d0 - 0.25, yb))
+        walls.quad(PU(b, d0 - 0.25, yb), PU(b, d0 - 0.25, yt + 0.85), PU(b, d0 + 0.2, yt + 0.85), PU(b, d0 + 0.2, yb))
+      }
+      walls.quad(PU(uc - du - fw2, d0 - 0.25, yt + 0.85), PU(uc - du - fw2, d0 + 0.2, yt + 0.85), PU(uc + du + fw2, d0 + 0.2, yt + 0.85), PU(uc + du + fw2, d0 - 0.25, yt + 0.85))
+      vomGeo.push({ u: uc, d: d0 - 0.28, y: yt + 0.43, label: B.sector.num != null ? String(B.sector.num) : B.sector.letter || (B.sector.away ? 'OAS' : 'T1') })
     }
   }
   // scările culoarelor din inelul 1
   const ring1Us = new Map()
   for (const s of layout.sectors) {
     if (!s.rings.includes(1)) continue
-    const nb = s.innerAisles + 1
-    for (let b = 0; b <= nb; b++) {
-      const u = s.u0 + ((s.u1 - s.u0) * b) / nb
-      ring1Us.set(wrap8(u).toFixed(5), u)
-    }
+    for (const u of ring1AisleUs(s)) ring1Us.set(wrap8(u).toFixed(5), u)
   }
   for (const u of ring1Us.values()) {
     for (let i = 0; i < G.ring1.rows; i++) aisleMarks.push([u, D1(i), Y1(i)])
@@ -237,7 +242,12 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   if (railGeo.length) root.add(new THREE.Mesh(mergeGeometries(railGeo), new THREE.MeshStandardMaterial({ color: 0xb8bec4, metalness: 0.7, roughness: 0.3 })))
 
   // scările culoarelor: beton gri cu muchia treptei mai deschisă (ca în fotografii)
-  const aisleMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1.05, 0.03, G.depth), new THREE.MeshStandardMaterial({ color: 0x9a9e9f, roughness: 0.9 }), aisleMarks.length)
+  // scările: beton deschis, late, cu o treaptă intermediară pe fiecare rând (ca în fotografii)
+  const stairGeo = mergeGeometries([
+    new THREE.BoxGeometry(G.aisle + 0.05, 0.04, G.depth).translate(0, 0, 0).toNonIndexed(),
+    new THREE.BoxGeometry(G.aisle + 0.05, 0.24, G.depth / 2).translate(0, 0.12, G.depth / 4).toNonIndexed(),
+  ])
+  const aisleMesh = new THREE.InstancedMesh(stairGeo, new THREE.MeshStandardMaterial({ color: 0xd2d5d4, roughness: 0.85 }), aisleMarks.length)
   const m4 = new THREE.Matrix4()
   const q4 = new THREE.Quaternion()
   const up = new THREE.Vector3(0, 1, 0)

@@ -27,3 +27,33 @@ for (const k of Object.keys(expect)) {
 }
 if (!ok) process.exit(1)
 console.log(`✓ Capacitate exactă: ${sum.total.toLocaleString('ro-RO')} locuri`)
+
+// fiecare loc trebuie să fie unic: niciun alt loc la mai puțin de 0,45 m (inclusiv la granița dintre sectoare)
+{
+  const cell = 1
+  const grid = new Map()
+  let clashes = 0
+  let example = null
+  for (const s of layout.seats) {
+    const k = `${Math.floor(s.x / cell)},${Math.floor(s.y / cell)},${Math.floor(s.z / cell)}`
+    if (!grid.has(k)) grid.set(k, [])
+    grid.get(k).push(s)
+  }
+  for (const s of layout.seats) {
+    const cx = Math.floor(s.x / cell), cy = Math.floor(s.y / cell), cz = Math.floor(s.z / cell)
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
+      for (const o of grid.get(`${cx + dx},${cy + dy},${cz + dz}`) || []) {
+        if (o.i <= s.i) continue
+        if (Math.hypot(o.x - s.x, o.y - s.y, o.z - s.z) < 0.45) {
+          clashes++
+          example ||= [s, o]
+        }
+      }
+    }
+  }
+  if (clashes) {
+    console.error(`✗ ${clashes} perechi de locuri suprapuse, ex.: ${example[0].sector} r${example[0].row} l${example[0].num} ↔ ${example[1].sector} r${example[1].row} l${example[1].num}`)
+    process.exit(1)
+  }
+  console.log('✓ Niciun loc suprapus: fiecare loc aparține unui singur sector')
+}

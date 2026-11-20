@@ -145,7 +145,7 @@ export function createUI(ctx) {
   function keysHTML() {
     return `<div class="keys">
       <span class="key"><i style="background:#22c55e"></i>Liber</span>
-      <span class="key"><i style="background:#4d5f7d"></i>Ocupat</span>
+      <span class="key"><i style="background:#4d6a99"></i>Ocupat</span>
       <span class="key"><i style="background:#f59e0b"></i>În coșul tău</span>
       <span class="key"><i style="background:#c7ccd3"></i>Nu se vinde online</span>
     </div>`

@@ -211,7 +211,7 @@ const natural = seats.map((s, i) => {
   const r = h - Math.floor(h)
   return C.blue.clone().multiplyScalar(0.93 + r * 0.12)
 })
-const TAKEN_C = new THREE.Color(0x46536a)
+const TAKEN_C = new THREE.Color(0x4d6a99)
 const takenCol = natural.map((c) => (c === C.leather ? c : TAKEN_C))
 const dimCol = natural.map((c) => c.clone().lerp(C.dim, 0.55))
 
