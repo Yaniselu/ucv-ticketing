@@ -7,8 +7,10 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import { buildLayout, G, D2, boxFloorY } from './data/layout.js'
-import { EVENT, STANDS, MAX_TICKETS, HOLD_SECONDS } from './data/stadium-data.js'
-import { computeAvailability, FREE, TAKEN, BLOCKED } from './data/availability.js'
+import { EVENT, STANDS, setEvent } from './data/stadium-data.js'
+import { applyConfig, defaultConfig, decodeBits, seatKey, seatGate, FREE, TAKEN, BLOCKED } from './data/sale.js'
+import { api, loadMe, getMe } from './net/api.js'
+import { createAccount } from './ui/account.js'
 import { buildStadium } from './scene/stadium.js'
 import { buildCrowd } from './scene/crowd.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
@@ -25,10 +27,53 @@ const params = new URLSearchParams(location.search)
 const lowSpec = params.has('lite') || isTouch || (navigator.hardwareConcurrency || 8) <= 4
 const useAO = !lowSpec && !params.has('noao')
 
-// ─── Date ───────────────────────────────────────────────────────────
+// ─── Date: meciul și locurile ocupate vin de la server ──────────────
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))])
+async function boot() {
+  try {
+    const [{ events }] = await withTimeout(Promise.all([api('GET', '/api/events'), loadMe()]), 9000)
+    if (!events.length) return { events, av: null }
+    const want = params.get('meci')
+    const ev = events.find((e) => e.id === want) || events.find((e) => e.saleState === 'open') || events[0]
+    const av = await withTimeout(api('GET', `/api/events/${encodeURIComponent(ev.id)}/availability`), 9000)
+    return { events, av }
+  } catch (e) {
+    console.warn('vânzarea online nu e disponibilă:', e.message)
+    return { events: [], av: null, offline: true }
+  }
+}
+const BOOT = await boot()
+setEvent(BOOT.av?.event)
 const layout = buildLayout()
 const seats = layout.seats
-const status = computeAvailability(layout, EVENT.id)
+const sale = {
+  online: !!BOOT.av,
+  state: BOOT.av?.event.saleState || 'offline',
+  event: BOOT.av?.event || null,
+  events: BOOT.events,
+  config: BOOT.av?.event.config || defaultConfig(layout),
+  hold: null, // rezervarea mea de pe server { id, code, total, expiresAt, seats }
+  skew: 0,
+}
+const baseStatus = applyConfig(layout, sale.config)
+const status = new Uint8Array(baseStatus)
+let MAX_TICKETS = sale.config.maxPerOrder
+// locurile vândute / rezervate de alții / blocate de administrator
+function applyAvailability(av) {
+  status.set(baseStatus)
+  for (const i of decodeBits(av.taken, seats.length)) if (status[i] === FREE) status[i] = TAKEN
+  for (const i of decodeBits(av.blocked, seats.length)) status[i] = BLOCKED
+  sale.skew = Date.now() - new Date(av.serverTime).getTime()
+  if (av.mine) sale.hold = { id: av.mine.orderId, code: av.mine.code, total: av.mine.total, expiresAt: av.mine.expiresAt, idx: av.mine.seats }
+  else sale.hold = null
+  if (sale.state !== 'open') for (let i = 0; i < status.length; i++) if (status[i] === FREE) status[i] = BLOCKED
+}
+if (BOOT.av) {
+  if (BOOT.av.seats !== seats.length) console.warn('numerotarea locurilor diferă de server; reîncarcă pagina')
+  applyAvailability(BOOT.av)
+} else {
+  for (let i = 0; i < status.length; i++) if (status[i] === FREE) status[i] = BLOCKED
+}
 const sectorById = new Map(layout.sectors.map((s) => [s.id, s]))
 const boxById = new Map(layout.boxes.map((b) => [b.id, b]))
 
@@ -489,7 +534,6 @@ function toggleSeat(i) {
     }
     cart.add(i)
     state.focusSeat = i
-    if (cart.size === 1) holdUntil = Date.now() + HOLD_SECONDS * 1000
     renderThumb(i)
   }
   if (!cart.size) holdUntil = 0
@@ -533,7 +577,6 @@ function autoPick(sectorId, qty) {
     ui.flash(`Mai poți adăuga ${room} ${room === 1 ? 'loc' : 'locuri'} (maximum ${MAX_TICKETS}).`)
     return
   }
-  if (!cart.size) holdUntil = Date.now() + HOLD_SECONDS * 1000
   for (const i of best.run) cart.add(i)
   state.focusSeat = best.run[0]
   renderThumb(best.run[0])
@@ -576,19 +619,74 @@ function renderThumb(i) {
   return url
 }
 
+// ─── Comanda: rezervarea pe server, apoi plata ──────────────────────
+const account = createAccount({ onChange: () => refreshAvailability() })
+async function refreshAvailability() {
+  if (!sale.online) return
+  try {
+    const av = await api('GET', `/api/events/${encodeURIComponent(sale.event.id)}/availability`)
+    applyAvailability(av)
+    // locurile din coș care între timp au fost luate de alții ies din coș
+    let dropped = 0
+    for (const i of [...cart]) if (status[i] !== FREE && !sale.hold?.idx.includes(i)) { cart.delete(i); dropped++ }
+    if (dropped) ui.flash(`${dropped === 1 ? 'Un loc din coș a fost luat' : `${dropped} locuri din coș au fost luate`} între timp.`)
+    refresh()
+  } catch {}
+}
+setInterval(() => { if (!document.hidden && !modalOpen()) refreshAvailability() }, 30000)
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshAvailability() })
+
+function seatLine(i) {
+  const s = seats[i]
+  if (s.kind === 'box') return { where: `Loja ${s.box} · Nivel ${s.level}`, what: `Rând ${s.row} · Fotoliul ${s.num}` }
+  return { where: sectorById.get(s.sector).title, what: `Rând ${s.row} · Loc ${s.num}` }
+}
+async function checkout() {
+  if (!sale.online) return ui.flash('Vânzarea online nu este disponibilă momentan.')
+  if (sale.state !== 'open') return ui.flash(sale.state === 'soon' ? 'Vânzarea nu a început încă.' : 'Vânzarea pentru acest meci s-a încheiat.')
+  if (!cart.size) return
+  if (!getMe()) return account.openAuth({ note: 'Intră în cont sau creează unul ca să finalizezi comanda. Biletele vin pe email și rămân în cont.', mode: 'register', then: checkout })
+  const list = [...cart]
+  let r
+  try {
+    r = await api('POST', '/api/checkout/hold', { eventId: sale.event.id, seats: list.map((i) => seatKey(seats[i])) })
+  } catch (e) {
+    if (e.data?.taken?.length) {
+      const bad = new Set(e.data.taken)
+      for (const i of list) if (bad.has(seatKey(seats[i]))) cart.delete(i)
+      await refreshAvailability()
+    }
+    ui.flash(e.message)
+    return
+  }
+  sale.hold = { ...r.order, idx: list }
+  holdUntil = new Date(r.order.expiresAt).getTime() + sale.skew
+  refresh()
+  const items = list.map((i) => ({ key: seatKey(seats[i]), ...seatLine(i), gate: seatGate(layout, seats[i]), price: seats[i].price }))
+  account.openCheckout({ ...r.order, skew: sale.skew }, items, {
+    onPaid: () => { cart.clear(); holdUntil = 0; sale.hold = null; state.focusSeat = null; refreshAvailability() },
+    onCancel: () => { holdUntil = 0; sale.hold = null; refreshAvailability() },
+    onExpired: () => { holdUntil = 0; sale.hold = null; cart.clear(); refreshAvailability() },
+  })
+}
+
 // ─── Interfața ──────────────────────────────────────────────────────
 const ui = createUI({
+  sale, maxTickets: () => MAX_TICKETS,
   layout, seats, status, cart, state, sectorById, boxById,
   freeCount, standSectors, standStats,
   actions: {
-    goOverview, goStand, goSector, goBox, goPov, exitPov, back, toggleSeat, removeSeat, autoPick,
+    goOverview, goStand, goSector, goBox, goPov, exitPov, back, toggleSeat, removeSeat, autoPick, checkout,
     hoverSector: (id) => { state.hoverSector = id; paint() },
     hoverBox: (id) => { state.hoverBox = id; paint() },
     hoverStand: (id) => { state.hoverStand = id; paint() },
     focusSeat: (i) => { state.focusSeat = i; refresh() },
     thumb: (i) => renderThumb(i),
     holdLeft: () => Math.max(0, Math.round((holdUntil - Date.now()) / 1000)),
-    clearCart: () => { cart.clear(); holdUntil = 0; state.focusSeat = null; refresh() },
+    clearCart: () => {
+      if (sale.hold) api('POST', '/api/checkout/release', { orderId: sale.hold.id }).catch(() => {})
+      cart.clear(); holdUntil = 0; sale.hold = null; state.focusSeat = null; refreshAvailability(); refresh()
+    },
   },
 })
 const modalOpen = () => document.getElementById('modal').classList.contains('on')
@@ -846,5 +944,15 @@ requestAnimationFrame((t) => {
   }, false), 1400)
 })
 
+// rezervarea începută înainte (ex. pagina reîncărcată): locurile revin în coș
+if (sale.hold) {
+  for (const i of sale.hold.idx) cart.add(i)
+  holdUntil = new Date(sale.hold.expiresAt).getTime() + sale.skew
+  refresh()
+}
+// linkuri din email: ?bilete=1 (biletele mele), ?reset=… (parolă nouă)
+if (params.get('reset')) account.openAuth({ resetToken: params.get('reset') })
+else if (params.has('bilete')) account.openTickets()
+
 // acces pentru testare din consolă
-window.__ucv = { layout, status, state, goStand, goSector, goBox, goPov, goOverview, toggleSeat, cart, flyTo, pickAt: (x, y) => { pointer = { x, y }; return pick() } }
+window.__ucv = { sale, account, checkout, refreshAvailability, layout, status, state, goStand, goSector, goBox, goPov, goOverview, toggleSeat, cart, flyTo, pickAt: (x, y) => { pointer = { x, y }; return pick() } }

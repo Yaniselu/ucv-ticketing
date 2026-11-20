@@ -8,7 +8,52 @@ Prototip de ticketing cu harta 3D a stadionului din Craiova, în stilul celor fo
 4. **Vederea din loc**: camera se pune la nivelul ochilor din scaun. Tragi cu mouse-ul ca să privești în jur.
 5. **Lojele VIP**: 40 de loje pe două niveluri. Intri în lojă și alegi un fotoliu.
 
-Coș cu maximum 4 bilete (regula clubului), rezervare temporară de 10 minute și un checkout demonstrativ.
+6. **Contul și biletele**: cont cu nume, email, telefon și parolă; rezervarea locurilor pe server pentru 10 minute, plata, biletele cu cod QR (în cont, în PDF și pe email), „Biletele mele”.
+7. **Administrarea** (`/admin`) și **scanarea la poartă** (`/scan`).
+
+## Vânzarea de bilete
+
+### Pentru cumpărători
+- Alegi locurile pe hartă și apeși „Continuă spre plată”. Dacă nu ai cont, ți se cere să intri sau să-ți faci unul: nume și prenume, email (aici primești biletele), telefon și parolă.
+- Serverul rezervă locurile pentru tine 10 minute. Nimeni altcineva nu le poate lua în acest timp; dacă timpul expiră, locurile se eliberează.
+- La plată completezi numele titularului fiecărui bilet (pentru meciurile UEFA biletele sunt nominale).
+- Biletele apar imediat în „Biletele mele” (meniul contului), se pot descărca în PDF și, când emailul e configurat, vin pe email cu PDF-ul atașat.
+- Biletul are grafica competiției (Superliga, Cupa României, Supercupa, Champions / Europa / Conference League): antet în culorile ei cu logoul, meciul, data, tribuna, sectorul, inelul, rândul, locul, accesul (poarta), prețul, titularul și codul QR.
+- Contul are: modificarea numelui și telefonului, schimbarea parolei (închide sesiunile de pe alte dispozitive), resetarea parolei prin email.
+
+### Pentru administrator (`/admin`)
+- **Meciuri**: adaugi și editezi meciuri (gazde, oaspeți, competiție, etapă, data și ora), starea (ciornă / publicat / arhivat) și perioada de vânzare. Un meci „ciornă” nu apare pe site. Dacă sunt mai multe meciuri publicate, pe site se poate alege meciul din antet.
+- **Vânzare și prețuri**: pentru fiecare sector alegi dacă e la vânzare și la ce preț (sau un preț pentru toată tribuna dintr-un clic); bifezi sectoarele oaspeților și dacă jumătatea sectorului 19 e a lor; alegi dacă sectoarele oaspeților se vând pe site; lojele (la vânzare, preț), locurile pentru scaun rulant, numărul maxim de bilete pe comandă și pe cont. Vezi locurile vândute, rezervate, blocate și încasările pe fiecare sector.
+- **Locuri blocate**: blochezi sau deblochezi un sector întreg, un interval de rânduri sau de locuri (protocol, sponsori, siguranță).
+- **Comenzi**: cauți după cod, email, nume, telefon sau numărul biletului; descarci PDF-ul, retrimiți emailul, anulezi o comandă (biletele nu mai sunt valabile, locurile revin la vânzare).
+- **Utilizatori**: dai rolul „Scanare” (personalul de la porți) sau „Administrator”.
+- **Jurnal**: ultimele acțiuni de administrare.
+- Primul administrator: intri în cont pe site, deschizi „Contul meu” → „Am un cod de administrator” (sau `/admin`) și introduci codul din variabila `ADMIN_SETUP_CODE`. Apoi poți da drepturi altor conturi din „Utilizatori”.
+
+### Scanarea la poartă (`/scan`)
+- Pe telefonul personalului (rol „Scanare” sau „Administrator”): alegi meciul, pornești camera și scanezi codurile QR. Ecranul devine verde („Acces permis”), portocaliu („Deja folosit”, „Alt meci”) sau roșu („Bilet anulat”, „Bilet invalid”), cu sunet și vibrație.
+- Modul „Intrare” marchează biletul ca folosit (a doua scanare e respinsă); „Doar verificare” nu îl marchează.
+
+### Securitate
+- Parolele sunt salvate doar ca hash scrypt; sesiunea e un token aleator într-un cookie `HttpOnly`, `Secure`, `SameSite=Lax` (în baza de date e salvat doar hash-ul tokenului).
+- Cererile care modifică date sunt acceptate doar de pe același site (verificarea `Origin` și un antet propriu), deci alt site nu poate cumpăra sau modifica ceva în numele tău.
+- Limitarea încercărilor la autentificare, înregistrare, resetarea parolei, rezervări și plăți.
+- Prețul, disponibilitatea, limitele de bilete și drepturile de administrator sunt verificate pe server; browserul nu poate schimba prețul sau lua un loc ocupat. Două persoane nu pot cumpăra același loc (constrângere unică în baza de date, testată cu cereri simultane).
+- Codul QR conține numărul biletului semnat cu HMAC-SHA256 (cheia `TICKET_SECRET` există doar pe server); un cod modificat sau inventat e respins, iar un bilet anulat sau deja folosit e respins la poartă.
+- Toate interogările sunt parametrizate; datele introduse sunt validate și curățate; acțiunile de administrare sunt jurnalizate.
+- Antete de securitate pe tot site-ul (HSTS, `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`).
+
+### Configurarea pe Vercel (variabile de mediu)
+| Variabilă | Ce face |
+| --- | --- |
+| `DATABASE_URL` | Baza de date Postgres. Cel mai simplu: Vercel → Storage → Create Database → **Neon** (regiunea Frankfurt), conectată la proiect; variabila se adaugă automat. |
+| `TICKET_SECRET` | Cheia secretă pentru semnarea codurilor QR (minimum 32 de caractere). |
+| `ADMIN_SETUP_CODE` | Codul cu care un cont devine primul administrator. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | Trimiterea email-urilor (bilete, resetarea parolei) prin orice server SMTP (ex. Resend, Brevo, SendGrid, Google Workspace, Microsoft 365). |
+| `PAYMENT_MODE` | `test` (implicit): comanda se confirmă fără încasare, iar biletele sunt marcate „bilet de test”. Plata reală cu cardul se conectează după alegerea procesatorului (ex. Netopia, Stripe). |
+| `SITE_URL` | Opțional: adresa publică folosită în linkurile din email-uri. |
+
+Fără `DATABASE_URL`, site-ul funcționează doar ca hartă: se pot explora locurile, dar vânzarea online e oprită (mesaj pe pagină).
 
 ## Împrejurimi reale, 1:1
 
@@ -68,9 +113,13 @@ npm run build    # build static în dist/
 npm run verify   # verifică locurile pe fiecare sector (30.803 în total)
 npm run osm      # regenerează datele OpenStreetMap din jurul stadionului
 npm run tune     # recalculează granițele sectoarelor după o schimbare de geometrie
+npm run api      # API-ul local pe :3001 (cu DATABASE_URL sau, fără ea, PGlite în .data/)
+npm run test:api # testele automate ale API-ului (conturi, securitate, concurență, plată, admin, scanare)
 ```
 
-Stack: Vite + three.js, fără framework. Se poate publica pe orice hosting static (Vercel detectează automat Vite).
+Local, `npm run dev` și `npm run preview` trimit cererile `/api` către `npm run api`.
+
+Stack: Vite + three.js, fără framework, pe trei pagini (harta, `/admin`, `/scan`). API-ul e o singură funcție Node pe Vercel (`api/index.js` → `server/`), cu Postgres. Același generator de locuri (`src/data/layout.js`) rulează în browser și pe server, deci fiecare loc are aceeași cheie, același sector și același preț în ambele.
 
 ## Capacitatea, exact la număr
 

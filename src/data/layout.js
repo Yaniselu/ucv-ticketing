@@ -307,8 +307,11 @@ function defineSectors(B) {
       s.legend = LEGENDS[s.num]
       s.title = s.ringLabel ? `Sector ${s.num} · Inel ${s.ringLabel}` : `Sector ${s.num}`
     }
+    s.baseTitle = s.title
+    s.baseGate = STANDS[s.stand].gate
     if (s.away) s.title = `Sector ${s.num} · Oaspeți`
-    s.gate = s.away ? 'Acces oaspeți' : STANDS[s.stand].gate
+    s.gate = s.away ? 'Acces oaspeți' : s.baseGate
+    s.basePrice = s.price
     s.kind = s.kind || 'seat'
     s.ring1Vom = s.rings.includes(1) && s.kind !== 'vip'
   }
@@ -646,6 +649,7 @@ export function buildLayout(opts) {
         const seat = push({
           sector: s.id, stand: s.stand, kind: s.kind, row: row.num, ring: row.ring, num: k + 1,
           away: s.away || (s.awaySplit != null && p.u < awaySplitU(s)),
+          awayHalf: s.awaySplit != null && p.u < awaySplitU(s),
           x: p.x, y: row.y, z: p.z, rot: Math.atan2(-p.nx, -p.nz), nx: p.nx, nz: p.nz,
           price: s.price, block: p.block,
         })

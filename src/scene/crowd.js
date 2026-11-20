@@ -2,7 +2,7 @@
 // ca imaginea să arate ca o fotografie reală din tribună în ziua meciului.
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
-import { TAKEN, BLOCKED } from '../data/availability.js'
+import { TAKEN, BLOCKED } from '../data/sale.js'
 
 function personGeometry() {
   const parts = []

@@ -25,15 +25,36 @@ export const EVENT = {
   phase: 'Faza principală · Meciul 3',
   dateLabel: 'Joi, 17 decembrie 2026',
   time: '22:00',
+  kickoff: '2026-12-17T20:00:00.000Z',
   venue: 'Stadionul „Ion Oblemenco”',
   city: 'Craiova',
 }
 
-// competiția meciului (în browser se poate previzualiza alta cu ?comp=superliga, cupa, europa ...)
+// meciul afișat: vine de la server (setEvent); EVENT de mai sus e meciul implicit, folosit și
+// când serverul nu răspunde. În browser se poate previzualiza altă competiție cu ?comp=superliga
 const compParam = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('comp') : null
-export const COMPETITION_ID = COMPETITIONS[compParam] ? compParam : EVENT.competitionId
-export const COMPETITION = COMPETITIONS[COMPETITION_ID]
-EVENT.competition = COMPETITION.name
+export let COMPETITION_ID = EVENT.competitionId
+export let COMPETITION = COMPETITIONS[COMPETITION_ID]
+const DATE_FMT = { timeZone: 'Europe/Bucharest', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }
+const TIME_FMT = { timeZone: 'Europe/Bucharest', hour: '2-digit', minute: '2-digit' }
+export function kickoffLabels(iso) {
+  const d = new Date(iso)
+  const date = new Intl.DateTimeFormat('ro-RO', DATE_FMT).format(d)
+  return { dateLabel: date.charAt(0).toUpperCase() + date.slice(1), time: new Intl.DateTimeFormat('ro-RO', TIME_FMT).format(d) }
+}
+export function setEvent(ev) {
+  if (ev) {
+    Object.assign(EVENT, {
+      id: ev.id, home: ev.home, away: ev.away, competitionId: ev.competitionId, phase: ev.phase || '',
+      kickoff: ev.kickoff, ...(ev.kickoff ? kickoffLabels(ev.kickoff) : {}),
+    })
+  }
+  const id = COMPETITIONS[compParam] ? compParam : COMPETITIONS[EVENT.competitionId] ? EVENT.competitionId : 'superliga'
+  COMPETITION_ID = id
+  COMPETITION = COMPETITIONS[id]
+  EVENT.competition = COMPETITION.name
+}
+setEvent(null)
 
 // Planul oficial al stadionului „Ion Oblemenco” (locuri pe sector): total 30.803.
 // Tribuna 1 = 5.072 (18, 19, G, I, 1, 2), VIP A–F = 1.944, loje = 440, presă (H) = 336,

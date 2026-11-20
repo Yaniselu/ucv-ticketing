@@ -1,5 +1,5 @@
-import { EVENT, STANDS, MAX_TICKETS, CAPACITY, PRICES } from '../data/stadium-data.js'
-import { FREE, BLOCKED } from '../data/availability.js'
+import { EVENT, STANDS, CAPACITY } from '../data/stadium-data.js'
+import { FREE, BLOCKED } from '../data/sale.js'
 
 const $ = (id) => document.getElementById(id)
 const fmt = (n) => n.toLocaleString('ro-RO')
@@ -16,7 +16,9 @@ const STAND_NOTES = {
 }
 
 export function createUI(ctx) {
-  const { layout, seats, status, cart, state, sectorById, boxById, freeCount, standSectors, standStats, actions } = ctx
+  const { layout, seats, status, cart, state, sectorById, boxById, freeCount, standSectors, standStats, actions, sale } = ctx
+  const maxT = () => ctx.maxTickets()
+  const fmtDate = (iso) => new Date(iso).toLocaleString('ro-RO', { timeZone: 'Europe/Bucharest', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
   const panel = $('panel')
   const tip = $('tip')
   const ticket = $('ticket')
@@ -30,9 +32,23 @@ export function createUI(ctx) {
   let lastMode = ''
   let povBar = null
 
+  // antetul cu meciul; dacă sunt mai multe meciuri la vânzare, se poate alege altul
+  const others = (sale.events || []).filter((e) => e.id !== sale.event?.id)
   $('match').innerHTML = `
-    <div class="match-teams">${esc(EVENT.home)} – ${esc(EVENT.away)}</div>
-    <div class="match-meta">${esc(EVENT.competition)} · ${esc(EVENT.dateLabel)}, ${esc(EVENT.time)} · ${esc(EVENT.venue)}</div>`
+    <div class="match-teams">${esc(EVENT.home)} – ${esc(EVENT.away)}${others.length ? ' <span class="match-more" aria-hidden="true">▾</span>' : ''}</div>
+    <div class="match-meta">${esc(EVENT.competition)} · ${esc(EVENT.dateLabel)}, ${esc(EVENT.time)} · ${esc(EVENT.venue)}</div>
+    ${others.length ? `<div class="match-list">${others.map((e) => `<a href="?meci=${encodeURIComponent(e.id)}"><b>${esc(e.home)} – ${esc(e.away)}</b><span>${esc(fmtDate(e.kickoff))}</span></a>`).join('')}</div>` : ''}`
+  if (others.length) {
+    $('match').classList.add('has-more')
+    $('match').onclick = (e) => { if (!e.target.closest('a')) $('match').classList.toggle('open') }
+  }
+  // starea vânzării (afișată pe primul ecran și în coș)
+  const saleNote = () => {
+    if (!sale.online) return 'Vânzarea online nu este disponibilă momentan. Poți explora stadionul și locurile.'
+    if (sale.state === 'soon') return `Vânzarea începe ${fmtDate(sale.event.saleStart)}.`
+    if (sale.state === 'closed') return 'Vânzarea online pentru acest meci s-a încheiat.'
+    return ''
+  }
 
   const seatLabel = (i) => {
     const s = seats[i]
@@ -97,6 +113,7 @@ export function createUI(ctx) {
     return `
       <div class="eyebrow">Pasul 1 din 3</div>
       <h2>Alege tribuna</h2>
+      ${saleNote() ? `<div class="sale-note">${esc(saleNote())}</div>` : ''}
       <p>Rotește stadionul și atinge o tribună sau alege din listă. Prețurile sunt pentru un bilet la meci.</p>
       <div class="facts">
         <div class="fact"><b>${fmt(CAPACITY.total)}</b><span>locuri</span></div>
@@ -111,12 +128,14 @@ export function createUI(ctx) {
     const secs = standSectors(id)
     const rows = secs.map((s) => {
       const f = freeCount(s.seatIdx)
-      const sub = s.away ? 'Sectorul oaspeților · vânzare prin clubul oaspete' : s.awaySplit != null ? `„${esc(s.legend)}” · jumătatea dinspre colț e a oaspeților` : s.legend ? `„${esc(s.legend)}”` : `${fmt(s.capacity)} locuri`
-      return `<button class="row-btn" data-sector="${s.id}" ${s.away ? 'disabled' : ''}>
+      const awayNo = s.away && !layout.awayOnline
+      const half = !s.away && s.awaySplit != null && s.seatIdx.some((i) => seats[i].away)
+      const sub = awayNo ? 'Sectorul oaspeților · vânzare prin clubul oaspete' : !s.onSale ? 'Nu se vinde online pentru acest meci' : half ? `„${esc(s.legend)}” · jumătatea dinspre colț e a oaspeților` : s.legend ? `„${esc(s.legend)}”` : `${fmt(s.capacity)} locuri`
+      return `<button class="row-btn" data-sector="${s.id}" ${awayNo || !s.onSale ? 'disabled' : ''}>
         <span class="row-title">${esc(s.title)}</span>
         <span class="row-price">${lei(s.price)}</span>
         <span class="row-sub">${sub}</span>
-        ${statusChip(f, s.away)}
+        ${!s.onSale && !awayNo ? '<span class="chip na">Indisponibil</span>' : statusChip(f, awayNo)}
       </button>`
     }).join('')
     let boxes = ''
@@ -126,7 +145,7 @@ export function createUI(ctx) {
         return `<button class="box-chip ${f ? '' : 'full'}" data-box="${b.id}" title="Loja ${b.num}: ${f ? `${f} locuri libere` : 'ocupată'}" ${f ? '' : 'aria-disabled="true"'}>${b.num}</button>`
       }).join('')
       boxes = `
-        <h3>Loje VIP · ${lei(PRICES.BOX)} / loc</h3>
+        <h3>Loje VIP · ${lei(layout.boxPrice)} / loc</h3>
         <p>10 locuri într-o lojă (20 în lojile duble 119 și 120). Verde = are locuri libere.</p>
         <div class="eyebrow">Nivelul 2</div><div class="boxes">${chips(2)}</div>
         <div class="eyebrow">Nivelul 1</div><div class="boxes">${chips(1)}</div>
@@ -186,7 +205,7 @@ export function createUI(ctx) {
       <h2>Loja ${b.num}</h2>
       <p>${b.seatIdx.length} fotolii pe două rânduri, pe terasa din fața lojei, cu acces separat prin intrarea VIP și catering în lojă.</p>
       <div class="facts">
-        <div class="fact"><b>${PRICES.BOX}</b><span>lei / loc</span></div>
+        <div class="fact"><b>${layout.boxPrice}</b><span>lei / loc</span></div>
         <div class="fact"><b>${f}</b><span>fotolii libere</span></div>
         <div class="fact"><b>${b.seatIdx.length}</b><span>locuri</span></div>
       </div>
@@ -206,10 +225,11 @@ export function createUI(ctx) {
     }).join('')
     const total = [...cart].reduce((a, i) => a + seats[i].price, 0)
     return `<div class="cart">
-      <div class="cart-head"><b>Coșul tău · ${cart.size}/${MAX_TICKETS}</b><span class="timer" id="timer"></span></div>
+      <div class="cart-head"><b>Coșul tău · ${cart.size}/${maxT()}</b><span class="timer" id="timer"></span></div>
       <div class="cart-items">${items}</div>
       <div class="total"><span>Total</span><b>${lei(total)}</b></div>
-      <button class="btn primary" data-act="checkout">Continuă spre plată</button>
+      ${saleNote() ? `<div class="sale-note small">${esc(saleNote())}</div>` : ''}
+      <button class="btn primary" data-act="checkout" ${sale.online && sale.state === 'open' ? '' : 'disabled'}>Continuă spre plată</button>
     </div>`
   }
 
@@ -233,9 +253,9 @@ export function createUI(ctx) {
     const act = (name, fn) => panel.querySelectorAll(`[data-act="${name}"]`).forEach((b) => (b.onclick = fn))
     act('back', () => actions.back())
     act('minus', () => { qty = Math.max(1, qty - 1); renderPanel() })
-    act('plus', () => { qty = Math.min(MAX_TICKETS, qty + 1); renderPanel() })
+    act('plus', () => { qty = Math.min(maxT(), qty + 1); renderPanel() })
     act('auto', () => actions.autoPick(state.sector, qty))
-    act('checkout', openCheckout)
+    act('checkout', () => actions.checkout())
     tickTimer()
   }
 
@@ -315,38 +335,6 @@ export function createUI(ctx) {
     hintTimer = setTimeout(() => hint.classList.remove('on'), ms)
   }
 
-  // ─── Checkout (demo) ───
-  function openCheckout() {
-    const list = [...cart]
-    const total = list.reduce((a, i) => a + seats[i].price, 0)
-    modal.innerHTML = `<div class="modal-card">
-      <div class="eyebrow">Rezumatul comenzii</div>
-      <h2>${esc(EVENT.home)} – ${esc(EVENT.away)}</h2>
-      <p>${esc(EVENT.dateLabel)}, ora ${esc(EVENT.time)} · ${esc(EVENT.venue)}</p>
-      <div class="cart-items" style="max-height:none">${list.map((i) => {
-        const l = seatLabel(i)
-        return `<div class="cart-item"><div><b>${esc(l.where)}</b><span>${esc(l.what)} · ${esc(gateOf(i))}</span></div><span class="p">${lei(seats[i].price)}</span><span></span></div>`
-      }).join('')}</div>
-      <div class="total"><span>Total de plată</span><b>${lei(total)}</b></div>
-      <p>Prototip: plata nu este conectată. Pasul următor ar fi integrarea cu platforma de ticketing a clubului.</p>
-      <div style="display:flex;gap:8px">
-        <button class="btn ghost" data-m="close" style="flex:1">Înapoi</button>
-        <button class="btn primary" data-m="ok" style="flex:1">Rezervă (demo)</button>
-      </div>
-    </div>`
-    modal.classList.add('on')
-    modal.querySelector('[data-m="close"]').onclick = closeModal
-    modal.querySelector('[data-m="ok"]').onclick = () => {
-      const code = `UCV-${Date.now().toString(36).toUpperCase().slice(-6)}`
-      modal.querySelector('.modal-card').innerHTML = `
-        <div class="eyebrow">Rezervare demo</div>
-        <h2>Locurile sunt ale tale</h2>
-        <p>Cod rezervare <b>${code}</b>. Într-o versiune reală ai primi biletele pe e-mail și în aplicație.</p>
-        <button class="btn primary" data-m="done">Gata</button>`
-      modal.querySelector('[data-m="done"]').onclick = () => { closeModal(); actions.clearCart() }
-    }
-    modal.querySelector('[data-m="ok"]').focus()
-  }
   function closeModal() {
     modal.classList.remove('on')
     modal.innerHTML = ''
@@ -385,13 +373,13 @@ export function createUI(ctx) {
     if (hit.sector) {
       const s = sectorById.get(hit.sector)
       const f = freeCount(s.seatIdx)
-      const st = s.away ? ['na', 'Rezervat fanilor oaspeți'] : f ? ['free', `${fmt(f)} locuri libere`] : ['sold', 'Epuizat']
+      const st = s.away && !layout.awayOnline ? ['na', 'Rezervat fanilor oaspeți'] : !s.onSale ? ['na', 'Nu se vinde online'] : f ? ['free', `${fmt(f)} locuri libere`] : ['sold', 'Epuizat']
       return box(STANDS[s.stand].name, s.title, s.legend ? `„${s.legend}”` : null, st, 'LEI', fmt(s.price))
     }
     if (hit.box) {
       const b = boxById.get(hit.box)
       const f = freeCount(b.seatIdx)
-      return box(`Loje VIP · Nivel ${b.level}`, `Loja ${b.num}`, `${b.seatIdx.length} fotolii`, f ? ['free', `${f} fotolii libere`] : ['sold', 'Ocupată'], 'LEI / LOC', fmt(PRICES.BOX))
+      return box(`Loje VIP · Nivel ${b.level}`, `Loja ${b.num}`, `${b.seatIdx.length} fotolii`, f ? ['free', `${f} fotolii libere`] : ['sold', 'Ocupată'], 'LEI / LOC', fmt(layout.boxPrice))
     }
     if (hit.seat != null) {
       const i = hit.seat
@@ -408,14 +396,19 @@ export function createUI(ctx) {
     panel.querySelectorAll('[data-box]').forEach((b) => b.classList.toggle('hot', b.dataset.box === state.hoverBox))
   }
 
+  // cronometrul rezervării de pe server (după „Continuă spre plată”)
   function tickTimer() {
     const el = document.getElementById('timer')
     if (!el) return
+    if (!sale.hold) {
+      el.textContent = ''
+      return
+    }
     const left = actions.holdLeft()
     el.textContent = `Rezervat ${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`
-    if (left <= 0 && cart.size) {
-      actions.clearCart()
-      showHint('Timpul de rezervare a expirat. Locurile au fost eliberate.', 4000)
+    if (left <= 0) {
+      sale.hold = null
+      showHint('Rezervarea a expirat. Locurile pot fi luate de alții; finalizează comanda din nou.', 4000)
     }
   }
   let lastTick = 0
