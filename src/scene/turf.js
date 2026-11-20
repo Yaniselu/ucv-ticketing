@@ -4,6 +4,8 @@
 import * as THREE from 'three'
 import { G } from '../data/layout.js'
 
+const stripe = 105 / 16 // lățimea unei dungi de tuns
+
 function rand(seed) {
   let s = seed >>> 0
   return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296)
@@ -49,7 +51,6 @@ export function createTurf({ lowSpec = false } = {}) {
   g.globalCompositeOperation = 'source-over'
   g.globalAlpha = 1
   // dungi foarte subtile coapte în textură (efectul principal e în shader)
-  const stripe = 105 / 16
   for (let k = 0; k * stripe < H; k++) {
     g.fillStyle = k % 2 ? 'rgba(0,0,0,0.035)' : 'rgba(255,255,255,0.03)'
     g.fillRect(0, Z(-52.5 + k * stripe), c.width, stripe * PX + 1)
@@ -145,7 +146,16 @@ export function createTurf({ lowSpec = false } = {}) {
   normalMap.anisotropy = 8
 
   const mat = new THREE.MeshStandardMaterial({ map, normalMap, normalScale: new THREE.Vector2(0.35, 0.35), roughness: 0.9, metalness: 0 })
-  // dungile de tuns: iarba culcată într-o parte reflectă diferit după direcția din care privești
+  mowStripes(mat)
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(W, H), mat)
+  mesh.rotation.x = -Math.PI / 2
+  mesh.receiveShadow = true
+  return mesh
+}
+
+// dungile de tuns: iarba culcată într-o parte reflectă diferit după direcția din care privești
+// (folosit și pentru emblema pictată pe gazon, ca vopseaua să aibă aceleași dungi)
+export function mowStripes(mat) {
   mat.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vTurfPos;')
@@ -161,8 +171,4 @@ export function createTurf({ lowSpec = false } = {}) {
         diffuseColor.rgb *= 1.0 + 0.12 * clamp(turfK, -1.0, 1.0);`,
       )
   }
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(W, H), mat)
-  mesh.rotation.x = -Math.PI / 2
-  mesh.receiveShadow = true
-  return mesh
 }

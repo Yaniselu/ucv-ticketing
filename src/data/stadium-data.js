@@ -3,10 +3,23 @@
 // (ex. numărul exact de locuri pe fiecare sector), valorile sunt estimate
 // din geometrie și marcate ca atare.
 
+// Competițiile în care poate juca Universitatea Craiova pe „Ion Oblemenco”. Pentru fiecare:
+// numele, textul de pe panourile LED / tabelă și emblema pictată pe gazon (variantă generică,
+// desenată de noi; fișierul oficial se pune în src/assets/logos/<id>.png și e folosit automat).
+export const COMPETITIONS = {
+  superliga: { name: 'Superliga', board: 'SUPERLIGA', lines: [['SUPERLIGA', 2.6], ['ROMÂNIA', 1.2]], mark: 'ball' },
+  cupa: { name: 'Cupa României', board: 'CUPA ROMÂNIEI', lines: [['CUPA', 2.1], ['ROMÂNIEI', 2.1]], mark: 'cup' },
+  supercupa: { name: 'Supercupa României', board: 'SUPERCUPA ROMÂNIEI', lines: [['SUPERCUPA', 2.1], ['ROMÂNIEI', 2.1]], mark: 'cup' },
+  champions: { name: 'UEFA Champions League', board: 'UEFA CHAMPIONS LEAGUE', lines: [['UEFA', 1.0], ['CHAMPIONS', 1.7], ['LEAGUE', 1.7]], mark: 'ring' },
+  europa: { name: 'UEFA Europa League', board: 'UEFA EUROPA LEAGUE', lines: [['UEFA', 1.0], ['EUROPA', 1.7], ['LEAGUE', 1.7]], mark: 'ring' },
+  conference: { name: 'UEFA Conference League', board: 'UEFA CONFERENCE LEAGUE', lines: [['UEFA', 1.0], ['CONFERENCE', 1.7], ['LEAGUE', 1.7]], mark: 'ring' },
+}
+
 export const EVENT = {
   id: 'ucv-fck-2026-12-17',
   home: 'Universitatea Craiova',
   away: 'FC Copenhaga',
+  competitionId: 'conference',
   competition: 'UEFA Conference League',
   phase: 'Faza principală · Meciul 3',
   dateLabel: 'Joi, 17 decembrie 2026',
@@ -14,6 +27,12 @@ export const EVENT = {
   venue: 'Stadionul „Ion Oblemenco”',
   city: 'Craiova',
 }
+
+// competiția meciului (în browser se poate previzualiza alta cu ?comp=superliga, cupa, europa ...)
+const compParam = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('comp') : null
+export const COMPETITION_ID = COMPETITIONS[compParam] ? compParam : EVENT.competitionId
+export const COMPETITION = COMPETITIONS[COMPETITION_ID]
+EVENT.competition = COMPETITION.name
 
 // Planul oficial al stadionului „Ion Oblemenco” (locuri pe sector): total 30.803.
 // Tribuna 1 = 5.072 (18, 19, G, I, 1, 2), VIP A–F = 1.944, loje = 440, presă (H) = 336,

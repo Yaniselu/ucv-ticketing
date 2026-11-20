@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { COMPETITION } from '../data/stadium-data.js'
 import { G } from '../data/layout.js'
 
 function canvas(w, h) {
@@ -236,7 +237,7 @@ export function ledTexture() {
   g.fillRect(0, 0, 2048, 64)
   g.font = '700 40px "Barlow Condensed", Arial Narrow, sans-serif'
   g.textBaseline = 'middle'
-  const items = ['UNIVERSITATEA CRAIOVA', 'UEFA CONFERENCE LEAGUE', 'ȘTIINȚA', 'ION OBLEMENCO']
+  const items = ['UNIVERSITATEA CRAIOVA', COMPETITION.board, 'ȘTIINȚA', 'ION OBLEMENCO']
   let x = 20
   let k = 0
   while (x < 2048) {
@@ -263,8 +264,7 @@ export function screenTexture(home, away) {
   g.fillStyle = '#0b4aa2'
   g.fillRect(0, 0, 1280, 120)
   g.fillStyle = '#ffffff'
-  g.font = F(800, 70)
-  g.fillText('UEFA CONFERENCE LEAGUE', 640, 62)
+  fitText(g, COMPETITION.board, 640, 62, 1180, 70)
   // stemele (cercuri) și numele echipelor
   const crest = (x, fill, letter) => {
     g.beginPath()

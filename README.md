@@ -29,6 +29,10 @@ Coș cu maximum 4 bilete (regula clubului), rezervare temporară de 10 minute ș
 ## Realism
 
 - **Gazonul** are variații de culoare la mai multe scări, zone tocite în careuri și pe linia de tușă, microrelief pentru firele de iarbă și dungi de tuns care se schimbă după unghiul din care privești, ca la un gazon real.
+- **Emblema competiției** e pictată pe gazon, câte una în fiecare jumătate, între cercul central și semicercul careului, și se citește din Tribuna 1, unde e camera TV principală. Vopseaua e albă, ușor transparentă, cu dungile de tuns peste ea.
+  - Emblema, panourile LED, tabela și antetul urmează competiția meciului: `EVENT.competitionId` din `src/data/stadium-data.js` (superliga, cupa, supercupa, champions, europa, conference).
+  - Pentru previzualizare se poate adăuga `?comp=superliga` (sau `cupa`, `europa` etc.) la adresă.
+  - Emblemele desenate acum sunt generice: numele competiției și un semn simplu (minge, cupă). Logoul oficial se pune ca `src/assets/logos/<id>.png` (sau `.svg`, `.webp`, cu fundal transparent), de exemplu `src/assets/logos/superliga.png`, și e pictat automat în locul celui generic.
 - **În vederea din scaun și în loje**, pe locurile deja vândute apar spectatori: fani în alb-albastru, cei din sectorul oaspeților, VIP-uri și jurnaliști.
 - **Imaginea satelit** folosește cel mai fin nivel pe care Esri îl are pentru Craiova (z18, ≈ 0,4 m/pixel). Nivelul z19 nu există pentru zonă.
 - **Copacii** au frunziș texturat în locul formelor pline.

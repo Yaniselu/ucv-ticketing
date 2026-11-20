@@ -8,6 +8,8 @@ import * as TX from './textures.js'
 import { Quads, strip } from './geom.js'
 import { buildStructure } from './structure.js'
 import { createTurf } from './turf.js'
+import { createPitchLogos } from './pitch-logo.js'
+import { COMPETITION, COMPETITION_ID } from '../data/stadium-data.js'
 
 
 
@@ -88,6 +90,8 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   // ─── Terenul ───
   const pitch = createTurf({ lowSpec })
   root.add(pitch)
+  // emblema competiției pictată pe gazon
+  root.add(createPitchLogos(COMPETITION_ID, COMPETITION, { lowSpec }))
 
   // steagurile de corner
   for (const [x, z] of [[-34, -52.5], [34, -52.5], [-34, 52.5], [34, 52.5]]) {
