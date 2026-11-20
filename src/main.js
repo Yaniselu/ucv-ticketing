@@ -90,12 +90,14 @@ function standStats(id) {
   let free = 0
   let total = 0
   let min = Infinity
+  let minAny = Infinity // cel mai mic preț afișat chiar dacă vânzarea online nu e deschisă
   for (const s of secs) {
     total += s.capacity
     if (s.away) continue
     const f = freeCount(s.seatIdx)
     free += f
     if (f > 0) min = Math.min(min, s.price)
+    if (s.onSale) minAny = Math.min(minAny, s.price)
   }
   if (id === 'VIP') {
     for (const b of layout.boxes) {
@@ -103,7 +105,7 @@ function standStats(id) {
       free += freeCount(b.seatIdx)
     }
   }
-  return { free, total, min: min === Infinity ? null : min }
+  return { free, total, min: min === Infinity ? null : min, minAny: minAny === Infinity ? null : minAny }
 }
 
 // ─── Scena ──────────────────────────────────────────────────────────
@@ -715,7 +717,8 @@ function buildLabels() {
     for (const id of ['PN', 'T2', 'PS', 'T1']) {
       const v = standLabelPos(id)
       const st = standStats(id)
-      add(v, `${STANDS[id].short}<small>${st.min ? `de la ${st.min} lei` : 'Epuizat'}</small>`)
+      const open = sale.online && sale.state === 'open'
+      add(v, `${STANDS[id].short}<small>${st.min ? `de la ${st.min} lei` : !open && st.minAny ? `de la ${st.minAny} lei` : 'Epuizat'}</small>`)
     }
   } else if (state.mode === 'stand') {
     for (const s of standSectors(state.stand)) {

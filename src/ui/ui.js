@@ -18,6 +18,7 @@ const STAND_NOTES = {
 export function createUI(ctx) {
   const { layout, seats, status, cart, state, sectorById, boxById, freeCount, standSectors, standStats, actions, sale } = ctx
   const maxT = () => ctx.maxTickets()
+  const saleOpen = () => sale.online && sale.state === 'open'
   const fmtDate = (iso) => new Date(iso).toLocaleString('ro-RO', { timeZone: 'Europe/Bucharest', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
   const panel = $('panel')
   const tip = $('tip')
@@ -63,6 +64,7 @@ export function createUI(ctx) {
   }
   const statusChip = (free, away) => {
     if (away) return '<span class="chip na">Doar oaspeți</span>'
+    if (!saleOpen()) return '<span class="chip na">Indisponibil online</span>'
     if (!free) return '<span class="chip sold">Epuizat</span>'
     if (free < 40) return `<span class="chip low">${fmt(free)} libere</span>`
     return `<span class="chip free">${fmt(free)} libere</span>`
@@ -104,8 +106,8 @@ export function createUI(ctx) {
       const pct = st.total ? Math.round((st.free / st.total) * 100) : 0
       return `<button class="row-btn" data-stand="${id}">
         <span class="row-title">${esc(STANDS[id].name)}</span>
-        <span class="row-price"><small>DE LA</small>${st.min ? lei(st.min) : '—'}</span>
-        <span class="row-sub">${st.free ? `${fmt(st.free)} locuri libere din ${fmt(st.total)}` : 'Epuizat'}</span>
+        <span class="row-price"><small>DE LA</small>${st.min ? lei(st.min) : !saleOpen() && st.minAny ? lei(st.minAny) : '—'}</span>
+        <span class="row-sub">${!saleOpen() ? `${fmt(st.total)} locuri` : st.free ? `${fmt(st.free)} locuri libere din ${fmt(st.total)}` : 'Epuizat'}</span>
         ${statusChip(st.free)}
         <span class="bar"><i style="width:${pct}%"></i></span>
       </button>`
@@ -368,12 +370,12 @@ export function createUI(ctx) {
       ${price != null ? `<div class="tip-price"><small>${priceLabel}</small><b>${price}</b></div>` : ''}`
     if (hit.stand) {
       const st = standStats(hit.stand)
-      return box('Tribună', STANDS[hit.stand].name, null, st.free ? ['free', `${fmt(st.free)} locuri libere`] : ['sold', 'Epuizat'], 'DE LA', st.min ? lei(st.min) : '—')
+      return box('Tribună', STANDS[hit.stand].name, null, !saleOpen() ? ['na', 'Indisponibil online'] : st.free ? ['free', `${fmt(st.free)} locuri libere`] : ['sold', 'Epuizat'], 'DE LA', st.min ? lei(st.min) : !saleOpen() && st.minAny ? lei(st.minAny) : '—')
     }
     if (hit.sector) {
       const s = sectorById.get(hit.sector)
       const f = freeCount(s.seatIdx)
-      const st = s.away && !layout.awayOnline ? ['na', 'Rezervat fanilor oaspeți'] : !s.onSale ? ['na', 'Nu se vinde online'] : f ? ['free', `${fmt(f)} locuri libere`] : ['sold', 'Epuizat']
+      const st = s.away && !layout.awayOnline ? ['na', 'Rezervat fanilor oaspeți'] : !s.onSale || !saleOpen() ? ['na', 'Nu se vinde online'] : f ? ['free', `${fmt(f)} locuri libere`] : ['sold', 'Epuizat']
       return box(STANDS[s.stand].name, s.title, s.legend ? `„${s.legend}”` : null, st, 'LEI', fmt(s.price))
     }
     if (hit.box) {
