@@ -392,3 +392,20 @@ export function ribNormalTexture() {
   t.anisotropy = 16
   return t
 }
+
+// marcajul unui loc pentru scaun rulant (simbolul internațional, alb pe albastru)
+export function wheelchairTexture() {
+  const [c, g] = canvas(128, 180)
+  g.fillStyle = '#d4d7d7'
+  g.fillRect(0, 0, 128, 180)
+  g.fillStyle = '#1f5fbf'
+  g.fillRect(14, 30, 100, 100)
+  g.strokeStyle = '#fff'
+  g.fillStyle = '#fff'
+  g.lineWidth = 8
+  g.beginPath(); g.arc(58, 96, 22, 0.4, Math.PI * 2 - 0.2); g.stroke()
+  g.beginPath(); g.arc(62, 46, 8, 0, Math.PI * 2); g.fill()
+  g.beginPath(); g.moveTo(60, 58); g.lineTo(62, 86); g.lineTo(84, 86); g.lineTo(94, 108); g.stroke()
+  g.beginPath(); g.moveTo(60, 70); g.lineTo(80, 70); g.stroke()
+  return tex(c)
+}

@@ -222,6 +222,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .ticket-grid { display: flex; gap: 18px; }
 .ticket-grid div small { display: block; font: 700 10.5px/1 var(--display); letter-spacing: 0.14em; color: var(--ink-2); }
 .ticket-grid div b { font: 800 26px/1.05 var(--display); color: var(--navy); font-variant-numeric: tabular-nums; }
+.ticket-grid div b.gate { font-size: 17px; line-height: 1.55; white-space: nowrap; }
 .ticket-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
 .ticket-actions .btn { padding: 10px 12px; font-size: 14px; }
 .ticket-stub { border-left: 2px dashed var(--line); padding: 14px 10px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; background: var(--paper-2); }

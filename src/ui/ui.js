@@ -8,11 +8,11 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 
 const STAND_ORDER = ['PN', 'T2', 'PS', 'T1', 'VIP']
 const STAND_NOTES = {
-  PN: 'Sectoarele 3–6, în spatele porții de nord: peluza galeriei. Cele mai accesibile bilete.',
-  T2: 'Tribuna de est, pe două inele. Sectorul 10 este la centrul terenului.',
-  PS: 'Sectoarele 14–17, în spatele porții de sud. Colțul sud-vest este rezervat fanilor oaspeți și nu se vinde public.',
-  T1: 'Tribuna principală (vest): la capete Tribuna 0 jos și Tribuna 1 sus, colțul nord-vest și Tribuna 0 de pe terasa de lângă masa presei.',
-  VIP: 'Centrul Tribunei 1: sectoarele VIP A–F, cu scaune tapițate, și 42 de loje pe două niveluri (101–120 și 201–222).',
+  PN: 'Peluza 2: sectoarele 3–6, în spatele porții de nord (6.053 de locuri). Peluza galeriei, cele mai accesibile bilete.',
+  T2: 'Sectoarele 7–13 (10.726 de locuri); 8–12 pe două inele, sectorul 10 la centrul terenului. În față sunt cele două zone pentru persoane în scaun rulant.',
+  PS: 'Peluza 1: sectoarele 14–17, în spatele porții de sud (6.170 de locuri).',
+  T1: 'Tribuna principală (vest): sectoarele 19 și 1 la capete, G și I pe terasa de lângă presă, colțurile 18 (sud-vest) și 2 (nord-vest, sectorul oaspeților).',
+  VIP: 'Centrul Tribunei 1: sectoarele VIP A–F (1.944 de locuri), 42 de loje (101–120 și 201–222, 440 de locuri) și presa (sectorul H).',
 }
 
 export function createUI(ctx) {
@@ -42,7 +42,7 @@ export function createUI(ctx) {
   }
   const gateOf = (i) => {
     const s = seats[i]
-    if (s.kind === 'box') return 'VIP'
+    if (s.kind === 'box') return 'VIP / Loje'
     return sectorById.get(s.sector).gate
   }
   const statusChip = (free, away) => {
@@ -100,7 +100,7 @@ export function createUI(ctx) {
       <p>Rotește stadionul și atinge o tribună sau alege din listă. Prețurile sunt pentru un bilet la meci.</p>
       <div class="facts">
         <div class="fact"><b>${fmt(CAPACITY.total)}</b><span>locuri</span></div>
-        <div class="fact"><b>18</b><span>sectoare + VIP</span></div>
+        <div class="fact"><b>28</b><span>sectoare</span></div>
         <div class="fact"><b>${layout.boxes.length}</b><span>loje</span></div>
       </div>
       <div class="list">${rows}</div>`
@@ -159,7 +159,7 @@ export function createUI(ctx) {
       <button class="back" data-act="back">← ${esc(STANDS[s.stand].name)}</button>
       <div class="eyebrow">Pasul 3 din 3 · ${esc(STANDS[s.stand].short)}</div>
       <h2>${esc(s.title)}</h2>
-      <p>${s.legend ? `Sectorul „${esc(s.legend)}”. ` : ''}Intrare pe poarta ${esc(s.gate.replace('P', ''))}.</p>
+      <p>${s.legend ? `Sectorul „${esc(s.legend)}”. ` : ''}Acces: ${esc(s.gate)}.</p>
       <div class="facts">
         <div class="fact"><b>${s.price}</b><span>lei / bilet</span></div>
         <div class="fact"><b>${fmt(f)}</b><span>locuri libere</span></div>
@@ -199,7 +199,7 @@ export function createUI(ctx) {
     const items = [...cart].map((i) => {
       const l = seatLabel(i)
       return `<div class="cart-item">
-        <div><b>${esc(l.where)}</b><span>${esc(l.what)} · Poarta ${esc(gateOf(i).replace('P', ''))}</span></div>
+        <div><b>${esc(l.where)}</b><span>${esc(l.what)} · ${esc(gateOf(i))}</span></div>
         <span class="p">${lei(seats[i].price)}</span>
         <button data-remove="${i}" aria-label="Elimină ${esc(l.what)}">×</button>
       </div>`
@@ -256,7 +256,7 @@ export function createUI(ctx) {
         ${l.sec?.legend ? `<div class="legend-name">„${esc(l.sec.legend)}”</div>` : ''}
         <div class="ticket-grid">
           ${s.kind === 'box' ? `<div><small>FOTOLIU</small><b>${s.num}</b></div><div><small>RÂND</small><b>${s.row}</b></div>` : `<div><small>RÂND</small><b>${s.row}</b></div><div><small>LOC</small><b>${s.num}</b></div>`}
-          <div><small>POARTA</small><b>${esc(gateOf(i).replace('P', ''))}</b></div>
+          <div><small>ACCES</small><b class="gate">${esc(gateOf(i))}</b></div>
         </div>
         <div class="ticket-actions">
           <button class="btn primary" data-t="pov">Vezi din loc</button>
@@ -325,7 +325,7 @@ export function createUI(ctx) {
       <p>${esc(EVENT.dateLabel)}, ora ${esc(EVENT.time)} · ${esc(EVENT.venue)}</p>
       <div class="cart-items" style="max-height:none">${list.map((i) => {
         const l = seatLabel(i)
-        return `<div class="cart-item"><div><b>${esc(l.where)}</b><span>${esc(l.what)} · Poarta ${esc(gateOf(i).replace('P', ''))}</span></div><span class="p">${lei(seats[i].price)}</span><span></span></div>`
+        return `<div class="cart-item"><div><b>${esc(l.where)}</b><span>${esc(l.what)} · ${esc(gateOf(i))}</span></div><span class="p">${lei(seats[i].price)}</span><span></span></div>`
       }).join('')}</div>
       <div class="total"><span>Total de plată</span><b>${lei(total)}</b></div>
       <p>Prototip: plata nu este conectată. Pasul următor ar fi integrarea cu platforma de ticketing a clubului.</p>

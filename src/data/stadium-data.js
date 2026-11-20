@@ -15,43 +15,37 @@ export const EVENT = {
   city: 'Craiova',
 }
 
-// Defalcarea capacității (bursa.ro, preluată și de Wikipedia: 30.983 locuri):
-// 28.033 public, 2.368 VIP (din care 440 în loje), 350 presă,
-// 232 persoane cu dizabilități + însoțitori.
+// Planul oficial al stadionului „Ion Oblemenco” (locuri pe sector): total 30.803.
+// Tribuna 1 = 5.072 (18, 19, G, I, 1, 2), VIP A–F = 1.944, loje = 440, presă (H) = 336,
+// Peluza 1 (sud) = 6.170, Peluza 2 (nord) = 6.053, Tribuna 2 = 10.726,
+// zone pentru persoane cu dizabilități = 2 × 31 (în fața Tribunei 2).
 export const CAPACITY = {
-  total: 30983,
-  public: 28033,
-  vip: 1928, // 2.368 VIP − 440 în loje
+  total: 30803,
+  public: 28021,
+  vip: 1944,
   boxes: 440,
-  press: 350,
-  wheelchair: 116,
-  companion: 116,
+  press: 336,
+  wheelchair: 62,
+  companion: 0,
 }
+export const SECTOR_SEATS = {
+  1: 1221, 2: 956, 3: 1338, 4: 1626, 5: 1762, 6: 1327, 7: 964, 8: 1367, 9: 1962, 10: 2112,
+  11: 1921, 12: 1437, 13: 963, 14: 1340, 15: 1734, 16: 1771, 17: 1325, 18: 929, 19: 1268,
+  A: 190, B: 399, C: 383, D: 383, E: 399, F: 190, G: 343, I: 355,
+}
+export const WHEELCHAIR_PER_ZONE = 31
 
 // Regula clubului: maximum 4 bilete / persoană / meci (ucv1948.ro).
 export const MAX_TICKETS = 4
 export const HOLD_SECONDS = 10 * 60
 
-// Numele sectoarelor, după legendele Craiovei Maxima (fanatik.ro, 09.09.2026).
+// Numele celor 19 sectoare, după legendele Craiovei Maxima, în ordinea numerelor de pe tricou
+// (anunțul clubului, fanatik.ro, 21.06.2025).
 export const LEGENDS = {
-  1: 'Silviu Lung',
-  2: 'Nicolae Negrilă',
-  3: 'Nicolae Tilihoi',
-  4: 'Nae Ungureanu',
-  5: 'Aurel Beldeanu',
-  6: 'Costică Ștefănescu',
-  7: 'Zoltan Crișan',
-  8: 'Ilie Balaci',
-  9: 'Rodion Cămătaru',
-  10: 'Costică Donose',
-  11: 'Sorin Cârțu',
-  12: 'Gabriel Boldici',
-  13: 'Ion Geolgău',
-  14: 'Grigore Ciupitu',
-  15: 'Aurel Țicleanu',
-  16: 'Adrian Popescu',
-  17: 'Florin Cioroianu',
-  18: 'Constantin Oțet',
+  1: 'Silviu Lung', 2: 'Nicolae Negrilă', 3: 'Nicolae Tilihoi', 4: 'Nicolae Ungureanu', 5: 'Aurel Beldeanu',
+  6: 'Costică Ștefănescu', 7: 'Zoltan Crișan', 8: 'Ilie Balaci', 9: 'Rodion Cămătaru', 10: 'Costică Donose',
+  11: 'Sorin Cârțu', 12: 'Gabriel Boldici', 13: 'Ion Geolgău', 14: 'Aurel Țicleanu', 15: 'Mircea Irimescu',
+  16: 'Grigori Ciupitu', 17: 'Florin Cioroianu', 18: 'Adrian Popescu', 19: 'Constantin Oțet',
 }
 
 // Prețuri bilet individual, meciurile UEFA Conference League 2026/27
@@ -74,14 +68,14 @@ export const PRICES = {
   BOX: 750,
 }
 
-// Porțile 6 (Peluza Nord) și 8 (Tribuna 2) sunt confirmate de club;
-// celelalte sunt orientative.
+// Accesul: porțile 6 (Peluza Nord) și 8 (Tribuna 2) sunt confirmate de club; pentru celelalte
+// zone afișăm intrarea după planul stadionului (turnichetele din dreptul tribunei).
 export const STANDS = {
-  PN: { id: 'PN', name: 'Peluza Nord', short: 'Peluza Nord', gate: 'P6', side: 'N' },
-  T2: { id: 'T2', name: 'Tribuna 2', short: 'Tribuna 2', gate: 'P8', side: 'E' },
-  PS: { id: 'PS', name: 'Peluza Sud', short: 'Peluza Sud', gate: 'P10', side: 'S' },
-  T1: { id: 'T1', name: 'Tribuna 1 & 0', short: 'Tribuna 1', gate: 'P3', side: 'W' },
-  VIP: { id: 'VIP', name: 'Tribuna VIP & Loje', short: 'VIP', gate: 'VIP', side: 'W' },
+  PN: { id: 'PN', name: 'Peluza Nord', short: 'Peluza Nord', alias: 'Peluza 2', gate: 'Poarta 6', side: 'N' },
+  T2: { id: 'T2', name: 'Tribuna 2', short: 'Tribuna 2', gate: 'Poarta 8', side: 'E' },
+  PS: { id: 'PS', name: 'Peluza Sud', short: 'Peluza Sud', alias: 'Peluza 1', gate: 'Peluza Sud', side: 'S' },
+  T1: { id: 'T1', name: 'Tribuna 1', short: 'Tribuna 1', gate: 'Tribuna 1', side: 'W' },
+  VIP: { id: 'VIP', name: 'Tribuna VIP & Loje', short: 'VIP', gate: 'VIP / Loje', side: 'W' },
 }
 
 // Cererea estimată pentru meci (probabilitatea ca un loc să fie deja vândut).
@@ -98,3 +92,12 @@ export const DEMAND = {
 }
 // Sectoare epuizate (galeria ocupă integral sectoarele 4 și 5 din Peluza Nord).
 export const SOLD_OUT = new Set(['4', '5'])
+
+// Accesele de pe planul stadionului: [x, y] = vârful săgeții pe plan (Tribuna 1 sus, Peluza 2 în dreapta),
+// n = numărul de turnichete, tip: spectatori / oaspeți / persoane cu handicap / VIP.
+export const ACCESS_MAP = { cx: 531.5, cy: 413.5, rx: 297.5, ry: 263.5 }
+export const ACCESS_POINTS = [
+  [370, 155, 2], [289, 212, 2], [231, 292, 2], [205, 374, 4], [207, 484, 4], [290, 617, 4], [333, 652, 0, 'handicap'],
+  [375, 672, 4], [456, 700, 4], [533, 709, 4], [612, 700, 4], [685, 675, 4], [727, 652, 0, 'handicap'], [772, 615, 2],
+  [834, 534, 2], [857, 457, 2], [857, 375, 2], [834, 295, 2], [777, 212, 2, 'oaspeti'], [694, 156, 2, 'oaspeti'], [533, 122, 4, 'vip'],
+]

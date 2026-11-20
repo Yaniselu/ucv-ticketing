@@ -11,6 +11,7 @@ import {
 } from '../data/layout.js'
 import { Quads, strip, samples, P, ellipseBand, ellipseRing, beam, ellipseCurve } from './geom.js'
 import * as TX from './textures.js'
+import { ACCESS_MAP, ACCESS_POINTS } from '../data/stadium-data.js'
 
 export const SHELL_TOP = 50.14 // înălțimea maximă (stadiumdb.com)
 // carcasa: semiaxele reale după conturul OSM (≈ 207 × 230 m)
@@ -596,4 +597,72 @@ function buildPodium(root, lowSpec) {
   const steps = new THREE.Mesh(mergeGeometries(sg), granite)
   steps.receiveShadow = true
   root.add(steps)
+
+  // accesele cu turnichete, după planul stadionului
+  const { cx, cy, rx, ry } = ACCESS_MAP
+  const tGeo = mergeGeometries([
+    new THREE.BoxGeometry(0.3, 1.0, 0.9).translate(0, 0.5, 0).toNonIndexed(),
+    new THREE.CylinderGeometry(0.03, 0.03, 0.5, 5).rotateZ(Math.PI / 2).translate(0.4, 0.85, 0).toNonIndexed(),
+  ])
+  const units = []
+  const signs = []
+  for (const [mx, my, n, kind] of ACCESS_POINTS) {
+    const a = Math.atan2(-(mx - cx) / rx, (my - cy) / ry)
+    const r = 0.965
+    const px = PODIUM.ax * r * Math.cos(a)
+    const pz = PODIUM.az * r * Math.sin(a)
+    const nrm = new THREE.Vector2(Math.cos(a) / PODIUM.ax, Math.sin(a) / PODIUM.az).normalize()
+    const tx = -nrm.y
+    const tz = nrm.x
+    const count = n || 1
+    for (let k = 0; k < count; k++) {
+      const o = (k - (count - 1) / 2) * 1.0
+      units.push([px + tx * o, pz + tz * o, Math.atan2(tx, tz)])
+    }
+    signs.push([px + nrm.x * 1.2, pz + nrm.y * 1.2, Math.atan2(nrm.x, nrm.y), kind || 'spectatori', n])
+  }
+  const tMesh = new THREE.InstancedMesh(tGeo, new THREE.MeshStandardMaterial({ color: 0x8d949a, metalness: 0.7, roughness: 0.35 }), units.length)
+  const m = new THREE.Matrix4()
+  const q = new THREE.Quaternion()
+  const Y = new THREE.Vector3(0, 1, 0)
+  units.forEach(([x, z, rot], k) => {
+    m.compose(new THREE.Vector3(x, PODIUM.h, z), q.setFromAxisAngle(Y, rot), new THREE.Vector3(1, 1, 1))
+    tMesh.setMatrixAt(k, m)
+  })
+  tMesh.castShadow = !lowSpec
+  root.add(tMesh)
+  const signColors = { spectatori: '#0b4aa2', oaspeti: '#c35aa6', handicap: '#1f5fbf', vip: '#9b1d4a' }
+  const signText = { spectatori: 'ACCES', oaspeti: 'OASPEȚI', handicap: 'ACCES ♿', vip: 'VIP / LOJE' }
+  const mats = {}
+  const signMat = (kind, n) => {
+    const key = kind + n
+    if (mats[key]) return mats[key]
+    const c = document.createElement('canvas')
+    c.width = 256
+    c.height = 96
+    const g = c.getContext('2d')
+    g.fillStyle = signColors[kind]
+    g.fillRect(0, 0, 256, 96)
+    g.fillStyle = '#fff'
+    g.textAlign = 'center'
+    g.font = '800 40px "Barlow Condensed", Arial Narrow, sans-serif'
+    g.fillText(signText[kind], 128, 46)
+    g.font = '600 26px "Barlow Condensed", Arial Narrow, sans-serif'
+    if (n) g.fillText(`${n} turnichete`, 128, 80)
+    const t = new THREE.CanvasTexture(c)
+    t.colorSpace = THREE.SRGBColorSpace
+    mats[key] = new THREE.MeshBasicMaterial({ map: t, side: THREE.DoubleSide })
+    return mats[key]
+  }
+  const pole = new THREE.CylinderGeometry(0.06, 0.06, 2.6, 6).translate(0, 1.3, 0)
+  const poleMat = new THREE.MeshStandardMaterial({ color: 0x9aa0a6, metalness: 0.6, roughness: 0.4 })
+  const board = new THREE.PlaneGeometry(1.6, 0.6)
+  for (const [x, z, rot, kind, n] of signs) {
+    const p = new THREE.Mesh(pole, poleMat)
+    p.position.set(x, PODIUM.h, z)
+    const b = new THREE.Mesh(board, signMat(kind, n))
+    b.position.set(x, PODIUM.h + 2.9, z)
+    b.rotation.y = rot
+    root.add(p, b)
+  }
 }

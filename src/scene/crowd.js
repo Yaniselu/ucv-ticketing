@@ -26,7 +26,7 @@ const SHIRTS_AWAY = ['#f4f4f4', '#ffffff', '#1d3e8a', '#232323', '#e6e6e6']
 const SKIN = ['#e3b896', '#cf9f7c', '#f0cba9', '#b07d5c', '#d9ab88']
 const HAIR = ['#2b2018', '#3b2a1d', '#151515', '#6b5137', '#8d8d8d', '#c9a46a']
 
-export function buildCrowd(layout, status, { lowSpec = false, awaySector = 'OAS' } = {}) {
+export function buildCrowd(layout, status, { lowSpec = false, awaySector = layout.sectors.find((s) => s.away)?.id } = {}) {
   const list = []
   let seed = 77
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)

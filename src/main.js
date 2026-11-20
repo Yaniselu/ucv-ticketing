@@ -43,8 +43,8 @@ function standStats(id) {
   let total = 0
   let min = Infinity
   for (const s of secs) {
-    if (s.away) continue
     total += s.capacity
+    if (s.away) continue
     const f = freeCount(s.seatIdx)
     free += f
     if (f > 0) min = Math.min(min, s.price)

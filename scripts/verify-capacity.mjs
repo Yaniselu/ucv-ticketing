@@ -1,25 +1,25 @@
 // Verifică faptul că harta generează exact capacitatea oficială a stadionului.
 import { buildLayout, summarize } from '../src/data/layout.js'
-import { CAPACITY } from '../src/data/stadium-data.js'
+import { CAPACITY, SECTOR_SEATS } from '../src/data/stadium-data.js'
 
 const t0 = performance.now()
 const layout = buildLayout()
 const sum = summarize(layout)
 const ms = (performance.now() - t0).toFixed(0)
 
-const rows = []
-for (const s of layout.sectors) rows.push([s.title, s.stand, s.natural, s.capacity, s.price + ' lei'])
-for (const k of ['PN', 'T2', 'PS', 'T1', 'VIP']) {
-  const n = layout.sectors.filter((s) => s.stand === k).reduce((a, s) => a + s.capacity, 0)
-  rows.push([`Σ ${k}`, '', '', n, ''])
-}
+// locurile pe sector, comparate cu planul oficial al stadionului
+const groups = new Map()
+for (const sec of layout.sectors) groups.set(sec.group, (groups.get(sec.group) || 0) + sec.capacity)
+const rows = Object.keys(SECTOR_SEATS).map((g) => ({ sector: g, oficial: SECTOR_SEATS[g], harta3D: groups.get(g), ok: groups.get(g) === SECTOR_SEATS[g] ? '✓' : '✗' }))
 console.table(rows)
+const wrong = rows.filter((r) => r.ok !== '✓')
 console.log(`Loje: ${layout.boxes.length} (${layout.boxes.map((b) => b.num).join(', ')}) = ${sum.boxes} locuri`)
 console.log('Rezumat:', sum, `(${ms} ms)`)
-console.log(`Ajustare finală: ${layout.trimmed.pub} locuri publice și ${layout.trimmed.vip} VIP scoase din ultimul rând`)
+console.log(`Locuri redistribuite (un loc mai puțin în câteva rânduri din spate): ${Object.values(layout.trimmed).reduce((a, b) => a + b, 0)}`)
 
 const expect = { ...CAPACITY }
-let ok = true
+let ok = !wrong.length
+if (wrong.length) console.error('✗ Sectoare cu alt număr de locuri decât planul oficial:', wrong.map((r) => r.sector).join(', '))
 for (const k of Object.keys(expect)) {
   if (sum[k] !== expect[k]) {
     console.error(`✗ ${k}: ${sum[k]} ≠ ${expect[k]}`)

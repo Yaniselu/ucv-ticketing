@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
-  G, D1, Y1, D2, Y2, WALK_D, WALK_Y, TOP_Y, sectorBlocks, uRanges, PRESS_D, PRESS_Y, PRESS_ROWS, PRESS_HALF,
+  G, D1, Y1, D2, Y2, WALK_D, WALK_Y, TOP_Y, sectorBlocks, uRanges, pointU, PRESS_D, PRESS_Y, PRESS_ROWS,
 } from '../data/layout.js'
 import * as TX from './textures.js'
 import { Quads, strip } from './geom.js'
@@ -153,8 +153,35 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
     out.seatMeshes.set(s.id, mesh)
   }
 
-  // Locurile pentru persoane în scaun rulant și însoțitori (116 + 116) sunt în capacitate,
-  // dar nu le desenăm: poziția lor reală pe stadion nu e publicată (nu sunt pe culoarul dintre inele).
+  // ─── Zonele pentru persoane în scaun rulant (planul stadionului: 2 × 31, în fața Tribunei 2) ───
+  {
+    const pq = new Quads()
+    const gq = new Quads()
+    const top = Y1(1) + 0.02
+    for (const z of layout.zones) {
+      const rg = uRanges(z[0], z[1]).map((r) => r.slice(0, 3))
+      strip(pq, rg, 0, top, D1(2), top)
+      strip(pq, rg, -0.01, Y1(0), -0.01, top)
+      strip(gq, rg, 0.06, top, 0.06, top + 1.05)
+      for (const u of z) {
+        const a = pointU(u, 0)
+        const b = pointU(u, D1(2))
+        pq.quad([a.x, Y1(0), a.z], [a.x, top, a.z], [b.x, top, b.z], [b.x, Y1(0), b.z])
+      }
+    }
+    const plat = new THREE.Mesh(pq.geometry(), new THREE.MeshStandardMaterial({ color: 0xc9cccc, roughness: 0.85, side: THREE.DoubleSide }))
+    plat.receiveShadow = true
+    root.add(plat)
+    root.add(new THREE.Mesh(gq.geometry(), glass))
+    const wcIdx = layout.accessibleIdx
+    const pad = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.85, 1.2).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: TX.wheelchairTexture(), roughness: 0.7 }), wcIdx.length)
+    wcIdx.forEach((i, k) => {
+      const s = layout.seats[i]
+      m4.compose(new THREE.Vector3(s.x, top + 0.01, s.z), q4.setFromAxisAngle(up, s.rot), new THREE.Vector3(1, 1, 1))
+      pad.setMatrixAt(k, m4)
+    })
+    root.add(pad)
+  }
 
   // ─── Tribuna 1: lojele, presa, tunelul ───
   const xFront = -(G.hx + D2(0))
@@ -253,8 +280,9 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   const rowsY = [...new Set(press.map((s) => s.y))]
   rowsY.forEach((y, r) => {
     const sx = press.find((s) => s.y === y).x
-    const g = new THREE.BoxGeometry(0.45, 0.06, 2 * PRESS_HALF - 0.4)
-    g.translate(sx + 0.55, y + 0.74, 0)
+    const [pz0, pz1] = layout.pressSpan
+    const g = new THREE.BoxGeometry(0.45, 0.06, pz1 - pz0 - 0.4)
+    g.translate(sx + 0.55, y + 0.74, (pz0 + pz1) / 2)
     deskGeo.push(g)
     const st = new THREE.BoxGeometry(1.0, 0.45 * (r + 1) + 0.3, 2 * bh)
     st.translate(sx, y - (0.45 * (r + 1) + 0.3) / 2, 0)
