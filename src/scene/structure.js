@@ -7,7 +7,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
-  G, D1, Y1, D2, Y2, WALK_D, WALK_Y, RING_TOP, pathPoint, pieceLen, sectorBlocks, ring2RowsAt, VOM_ROWS,
+  G, D1, Y1, D2, Y2, WALK_D, WALK_Y, RING_TOP, pathPoint, pieceLen, sectorBlocks, ring2RowsAt, VOM_ROWS, vomBlock, pointU, uRanges, lenPerU, wrap8,
 } from '../data/layout.js'
 import { Quads, strip, samples, P, ellipseBand, ellipseRing, beam, ellipseCurve } from './geom.js'
 import * as TX from './textures.js'
@@ -31,12 +31,12 @@ const PLINTH_Y = 5.5
 export const waveEdge = (u) => 24 + 7 * Math.sin(Math.PI * 4 * u + 0.3) + 3.5 * Math.sin(Math.PI * 10 * u + 1.1) + 1.6 * Math.sin(Math.PI * 22 * u)
 
 // distanța de la marginea gradenelor până la elipsa din spatele tribunelor
-function backOffset(p, t) {
+function backOffsetU(u) {
   let lo = 0
   let hi = 90
   for (let k = 0; k < 24; k++) {
     const m = (lo + hi) / 2
-    const q = pathPoint(p, t, m)
+    const q = pointU(u, m)
     if ((q.x / BB.ax) ** 2 + (q.z / BB.az) ** 2 > 1) hi = m
     else lo = m
   }
@@ -110,19 +110,35 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   strip(walls, FULL, WALK_D, WALK_Y + 1.05, WALK_D + 0.1, WALK_Y + 1.05)
 
   // ─── Inelul 2: blocuri cu număr variabil de rânduri ───
+  const PU = (u, d, y) => {
+    const q = pointU(u, d)
+    return [q.x, y, q.z]
+  }
+  const rangesOf = (u0, u1) => uRanges(u0, u1).map((r) => r.slice(0, 3))
+  const samplesU = (u0, u1) => {
+    const out = []
+    for (const [p, t0, t1, pa] of uRanges(u0, u1)) {
+      const ts = samples(p, t0, t1).map((t) => pa + t)
+      out.push(...(out.length ? ts.slice(1) : ts))
+    }
+    return out
+  }
   const blocks = []
   for (const s of layout.sectors) {
     if (!s.rings.includes(2)) continue
-    for (const bl of sectorBlocks(s)) blocks.push({ ...bl, piece: s.piece, sector: s })
+    for (const bl of sectorBlocks(s)) blocks.push({ ...bl, sector: s })
   }
-  blocks.sort((a, b) => a.piece + a.t0 - (b.piece + b.t0))
+  blocks.sort((a, b) => wrap8(a.u0) - wrap8(b.u0))
   const n = blocks.length
-  const shares = (a, b) => (a.piece === b.piece && Math.abs(a.t1 - b.t0) < 1e-6) || (a.t1 > 0.999 && b.t0 < 1e-6 && b.piece === (a.piece + 1) % 8)
+  const shares = (a, b) => {
+    const g = Math.abs(wrap8(a.u1) - wrap8(b.u0))
+    return g < 1e-6 || g > 8 - 1e-6
+  }
   const aisleMarks = []
   const vomGeo = []
   for (let k = 0; k < n; k++) {
     const B = blocks[k]
-    const rng = [[B.piece, B.t0, B.t1]]
+    const rng = rangesOf(B.u0, B.u1)
     strip(walls, rng, D2(0), WALK_Y, D2(0), Y2(0))
     for (let j = 0; j < B.rows; j++) {
       if (j > 0) strip(steps, rng, D2(j), Y2(j - 1), D2(j), Y2(j))
@@ -131,11 +147,11 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
     // peretele alb din spatele blocului, până la grinda inelară
     strip(walls, rng, D2(B.rows), Y2(B.rows - 1), D2(B.rows), RING_TOP)
     // acoperișul concourse-ului, din spatele blocului până la elipsă
-    const ts = samples(B.piece, B.t0, B.t1)
-    for (let i = 0; i < ts.length - 1; i++) {
-      const e0 = backOffset(B.piece, ts[i]) + 0.4
-      const e1 = backOffset(B.piece, ts[i + 1]) + 0.4
-      walls.quad(P(B.piece, ts[i], D2(B.rows), RING_TOP), P(B.piece, ts[i], e0, RING_TOP), P(B.piece, ts[i + 1], e1, RING_TOP), P(B.piece, ts[i + 1], D2(B.rows), RING_TOP))
+    const us = samplesU(B.u0, B.u1)
+    for (let i = 0; i < us.length - 1; i++) {
+      const e0 = Math.max(D2(B.rows), backOffsetU(us[i]) + 0.4)
+      const e1 = Math.max(D2(B.rows), backOffsetU(us[i + 1]) + 0.4)
+      walls.quad(PU(us[i], D2(B.rows), RING_TOP), PU(us[i], e0, RING_TOP), PU(us[i + 1], e1, RING_TOP), PU(us[i + 1], D2(B.rows), RING_TOP))
     }
     // pereții laterali în trepte, între blocuri de înălțimi diferite
     const prev = blocks[(k - 1 + n) % n]
@@ -144,48 +160,50 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
     if (hasPrev && prev.rows !== B.rows) {
       const lo = Math.min(prev.rows, B.rows)
       const hi = Math.max(prev.rows, B.rows)
-      for (let j = lo; j < hi; j++) walls.quad(P(B.piece, B.t0, D2(j), Y2(j)), P(B.piece, B.t0, D2(j + 1), Y2(j)), P(B.piece, B.t0, D2(j + 1), RING_TOP), P(B.piece, B.t0, D2(j), RING_TOP))
+      for (let j = lo; j < hi; j++) walls.quad(PU(B.u0, D2(j), Y2(j)), PU(B.u0, D2(j + 1), Y2(j)), PU(B.u0, D2(j + 1), RING_TOP), PU(B.u0, D2(j), RING_TOP))
     }
-    for (let j = 0; j < aisleRows; j++) aisleMarks.push([B.piece, B.t0, D2(j), Y2(j)])
+    for (let j = 0; j < aisleRows; j++) aisleMarks.push([B.u0, D2(j), Y2(j)])
     const next = blocks[(k + 1) % n]
     if (!shares(B, next)) {
-      for (let j = 0; j < B.rows; j++) aisleMarks.push([B.piece, B.t1, D2(j), Y2(j)])
+      for (let j = 0; j < B.rows; j++) aisleMarks.push([B.u1, D2(j), Y2(j)])
     }
-    // vomitoarele
-    if (B.sector.vomitories && B.rows >= 16) {
-      const tc = (B.t0 + B.t1) / 2
+    // vomitorul sectorului (unul singur, ca în fotografia Peluzei Nord)
+    if (B.sector.vomitories && B.b === vomBlock(B.sector) && B.rows >= 16) {
+      const uc = (B.u0 + B.u1) / 2
       const dm = (D2(VOM_ROWS[0]) + D2(VOM_ROWS[1])) / 2
-      const dt = 1.55 / pieceLen(B.piece, dm)
+      const du = 1.55 / lenPerU(uc, dm)
       const d0 = D2(VOM_ROWS[0])
       const d1 = D2(VOM_ROWS[1])
       const yb = VOM_ROWS[0] === 0 ? WALK_Y : Y2(VOM_ROWS[0]) - 0.25
       const yt = Y2(VOM_ROWS[1]) - 0.03
       for (const side of [-1, 1]) {
-        const t = tc + side * dt
-        const t2 = tc + side * (dt + 0.22 / pieceLen(B.piece, dm))
-        for (const tt of [t, t2]) walls.quad(P(B.piece, tt, d0, yb), P(B.piece, tt, d1, yb), P(B.piece, tt, d1, yt + 1.0), P(B.piece, tt, d0, yt + 1.0))
-        walls.quad(P(B.piece, t, d0, yt + 1.0), P(B.piece, t, d1, yt + 1.0), P(B.piece, t2, d1, yt + 1.0), P(B.piece, t2, d0, yt + 1.0))
-        walls.quad(P(B.piece, t, d0, yb), P(B.piece, t, d0, yt + 1.0), P(B.piece, t2, d0, yt + 1.0), P(B.piece, t2, d0, yb))
+        const u = uc + side * du
+        const u2 = uc + side * (du + 0.22 / lenPerU(uc, dm))
+        for (const uu of [u, u2]) walls.quad(PU(uu, d0, yb), PU(uu, d1, yb), PU(uu, d1, yt + 1.0), PU(uu, d0, yt + 1.0))
+        walls.quad(PU(u, d0, yt + 1.0), PU(u, d1, yt + 1.0), PU(u2, d1, yt + 1.0), PU(u2, d0, yt + 1.0))
+        walls.quad(PU(u, d0, yb), PU(u, d0, yt + 1.0), PU(u2, d0, yt + 1.0), PU(u2, d0, yb))
       }
       // golul tunelului (întunecat)
-      darkQ.quad(P(B.piece, tc - dt, d0 - 0.03, yb), P(B.piece, tc - dt, d0 - 0.03, yt), P(B.piece, tc + dt, d0 - 0.03, yt), P(B.piece, tc + dt, d0 - 0.03, yb))
-      darkQ.quad(P(B.piece, tc - dt, d0, yt), P(B.piece, tc - dt, d1, yt), P(B.piece, tc + dt, d1, yt), P(B.piece, tc + dt, d0, yt))
+      darkQ.quad(PU(uc - du, d0 - 0.03, yb), PU(uc - du, d0 - 0.03, yt), PU(uc + du, d0 - 0.03, yt), PU(uc + du, d0 - 0.03, yb))
+      darkQ.quad(PU(uc - du, d0, yt), PU(uc - du, d1, yt), PU(uc + du, d1, yt), PU(uc + du, d0, yt))
       // rama albă a vomitorului
-      const fw = 0.25 / pieceLen(B.piece, d0)
-      walls.quad(P(B.piece, tc - dt - fw, d0 - 0.05, yt), P(B.piece, tc - dt - fw, d0 - 0.05, yt + 0.55), P(B.piece, tc + dt + fw, d0 - 0.05, yt + 0.55), P(B.piece, tc + dt + fw, d0 - 0.05, yt))
-      vomGeo.push({ piece: B.piece, t: tc, d: d0 - 0.08, y: yt + 0.27, label: B.sector.num != null ? String(B.sector.num) : B.sector.letter || (B.sector.away ? 'OAS' : 'T1') })
+      const fw = 0.25 / lenPerU(uc, d0)
+      walls.quad(PU(uc - du - fw, d0 - 0.05, yt), PU(uc - du - fw, d0 - 0.05, yt + 0.55), PU(uc + du + fw, d0 - 0.05, yt + 0.55), PU(uc + du + fw, d0 - 0.05, yt))
+      vomGeo.push({ u: uc, d: d0 - 0.08, y: yt + 0.27, label: B.sector.num != null ? String(B.sector.num) : B.sector.letter || (B.sector.away ? 'OAS' : 'T1') })
     }
   }
   // scările culoarelor din inelul 1
-  const ring1Ts = new Set()
+  const ring1Us = new Map()
   for (const s of layout.sectors) {
     if (!s.rings.includes(1)) continue
     const nb = s.innerAisles + 1
-    for (let b = 0; b <= nb; b++) ring1Ts.add(`${s.piece}:${(s.t0 + ((s.t1 - s.t0) * b) / nb).toFixed(5)}`)
+    for (let b = 0; b <= nb; b++) {
+      const u = s.u0 + ((s.u1 - s.u0) * b) / nb
+      ring1Us.set(wrap8(u).toFixed(5), u)
+    }
   }
-  for (const key of ring1Ts) {
-    const [p, t] = key.split(':').map(Number)
-    for (let i = 0; i < G.ring1.rows; i++) aisleMarks.push([p, t, D1(i), Y1(i)])
+  for (const u of ring1Us.values()) {
+    for (let i = 0; i < G.ring1.rows; i++) aisleMarks.push([u, D1(i), Y1(i)])
   }
 
   const stepsMesh = new THREE.Mesh(steps.geometry(), concrete)
@@ -200,18 +218,18 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
 
   // mâna curentă de pe scările inelului de sus
   const railByAisle = new Map()
-  for (const [p, t, front, y] of aisleMarks) {
+  for (const [u, front, y] of aisleMarks) {
     if (front < D2(0) - 0.01) continue
-    const key = `${p}:${t.toFixed(5)}`
+    const key = wrap8(u).toFixed(5)
     if (!railByAisle.has(key)) railByAisle.set(key, [])
-    railByAisle.get(key).push([p, t, front, y])
+    railByAisle.get(key).push([u, front, y])
   }
   const railGeo = []
   for (const pts of railByAisle.values()) {
     if (pts.length < 8) continue
-    pts.sort((a, b) => a[2] - b[2])
-    const curve = new THREE.CatmullRomCurve3(pts.map(([p, t, front, y]) => {
-      const q = pathPoint(p, t, front + 0.4)
+    pts.sort((a, b) => a[1] - b[1])
+    const curve = new THREE.CatmullRomCurve3(pts.map(([u, front, y]) => {
+      const q = pointU(u, front + 0.4)
       return new THREE.Vector3(q.x, y + 0.95, q.z)
     }))
     railGeo.push(new THREE.TubeGeometry(curve, pts.length * 2, 0.03, 4, false).toNonIndexed())
@@ -224,8 +242,8 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   const q4 = new THREE.Quaternion()
   const up = new THREE.Vector3(0, 1, 0)
   const one = new THREE.Vector3(1, 1, 1)
-  aisleMarks.forEach(([p, t, front, y], k) => {
-    const q = pathPoint(p, t, front + G.depth / 2)
+  aisleMarks.forEach(([u, front, y], k) => {
+    const q = pointU(u, front + G.depth / 2)
     m4.compose(new THREE.Vector3(q.x, y + 0.015, q.z), q4.setFromAxisAngle(up, Math.atan2(-q.nx, -q.nz)), one)
     aisleMesh.setMatrixAt(k, m4)
   })
@@ -255,7 +273,7 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   }
   const signGeo = new THREE.PlaneGeometry(1.4, 0.7)
   for (const v of vomGeo) {
-    const q = pathPoint(v.piece, v.t, v.d)
+    const q = pointU(v.u, v.d)
     const sign = new THREE.Mesh(signGeo, signFor(v.label))
     sign.position.set(q.x, v.y, q.z)
     sign.rotation.y = Math.atan2(-q.nx, -q.nz)

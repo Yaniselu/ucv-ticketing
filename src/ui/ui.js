@@ -8,11 +8,11 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 
 const STAND_ORDER = ['PN', 'T2', 'PS', 'T1', 'VIP']
 const STAND_NOTES = {
-  PN: 'Peluza galeriei, în spatele porții de nord. Cele mai accesibile bilete.',
+  PN: 'Sectoarele 3–6, în spatele porții de nord: peluza galeriei. Cele mai accesibile bilete.',
   T2: 'Tribuna de est, pe două inele. Sectorul 10 este la centrul terenului.',
-  PS: 'Peluza din spatele porții de sud. Sectorul oaspeților este rezervat fanilor FC Copenhaga.',
-  T1: 'Tribuna principală (vest): Tribuna 0 pe inelul 1 și Tribuna 1 pe inelul 2, la capete.',
-  VIP: 'Centrul Tribunei 1: sectoarele VIP A–F, cu scaune tapițate, și 40 de loje pe două niveluri.',
+  PS: 'Sectoarele 14–17, în spatele porții de sud. Colțul sud-vest este rezervat fanilor oaspeți și nu se vinde public.',
+  T1: 'Tribuna principală (vest): la capete Tribuna 0 jos și Tribuna 1 sus, colțul nord-vest și Tribuna 0 de pe terasa de lângă masa presei.',
+  VIP: 'Centrul Tribunei 1: sectoarele VIP A–F, cu scaune tapițate, și 42 de loje pe două niveluri (101–120 și 201–222).',
 }
 
 export function createUI(ctx) {
@@ -127,7 +127,7 @@ export function createUI(ctx) {
       }).join('')
       boxes = `
         <h3>Loje VIP · ${lei(PRICES.BOX)} / loc</h3>
-        <p>11 fotolii din piele în fiecare lojă. Verde = are locuri libere.</p>
+        <p>10 locuri într-o lojă (20 în lojile duble 119 și 120). Verde = are locuri libere.</p>
         <div class="eyebrow">Nivelul 2</div><div class="boxes">${chips(2)}</div>
         <div class="eyebrow">Nivelul 1</div><div class="boxes">${chips(1)}</div>
         <p>Tribuna presei (${fmt(CAPACITY.press)} locuri) este rezervată jurnaliștilor acreditați.</p>`
@@ -184,11 +184,11 @@ export function createUI(ctx) {
       <button class="back" data-act="back">← Tribuna VIP</button>
       <div class="eyebrow">Loje VIP · Nivelul ${b.level}</div>
       <h2>Loja ${b.num}</h2>
-      <p>11 fotolii din piele pe două rânduri, cu fața spre teren, acces separat prin intrarea VIP și catering în lojă.</p>
+      <p>${b.seatIdx.length} fotolii pe două rânduri, pe terasa din fața lojei, cu acces separat prin intrarea VIP și catering în lojă.</p>
       <div class="facts">
         <div class="fact"><b>${PRICES.BOX}</b><span>lei / loc</span></div>
         <div class="fact"><b>${f}</b><span>fotolii libere</span></div>
-        <div class="fact"><b>11</b><span>locuri</span></div>
+        <div class="fact"><b>${b.seatIdx.length}</b><span>locuri</span></div>
       </div>
       ${keysHTML()}
       <p>Atinge un fotoliu verde ca să-l rezervi.</p>`
@@ -391,7 +391,7 @@ export function createUI(ctx) {
     if (hit.box) {
       const b = boxById.get(hit.box)
       const f = freeCount(b.seatIdx)
-      return box(`Loje VIP · Nivel ${b.level}`, `Loja ${b.num}`, '11 fotolii din piele', f ? ['free', `${f} fotolii libere`] : ['sold', 'Ocupată'], 'LEI / LOC', fmt(PRICES.BOX))
+      return box(`Loje VIP · Nivel ${b.level}`, `Loja ${b.num}`, `${b.seatIdx.length} fotolii`, f ? ['free', `${f} fotolii libere`] : ['sold', 'Ocupată'], 'LEI / LOC', fmt(PRICES.BOX))
     }
     if (hit.seat != null) {
       const i = hit.seat

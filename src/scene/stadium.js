@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
-  G, D1, Y1, D2, Y2, WALK_D, WALK_Y, TOP_Y, sectorBlocks,
+  G, D1, Y1, D2, Y2, WALK_D, WALK_Y, TOP_Y, sectorBlocks, uRanges, PRESS_D, PRESS_Y, PRESS_ROWS, PRESS_HALF,
 } from '../data/layout.js'
 import * as TX from './textures.js'
 import { Quads, strip } from './geom.js'
@@ -196,7 +196,7 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
       slabGeo.push(lo)
     }
     // treapta pentru rândul 2
-    const st = new THREE.BoxGeometry(2.2, 0.35, G.boxW - 0.2)
+    const st = new THREE.BoxGeometry(2.2, 0.35, b.z1 - b.z0 - 0.2)
     st.translate(xFront - 3.2, b.floorY + 0.175, b.zc)
     carpetGeo.push(st)
   }
@@ -269,10 +269,10 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   const rowsY = [...new Set(press.map((s) => s.y))]
   rowsY.forEach((y, r) => {
     const sx = press.find((s) => s.y === y).x
-    const g = new THREE.BoxGeometry(0.45, 0.06, 39)
+    const g = new THREE.BoxGeometry(0.45, 0.06, 2 * PRESS_HALF - 0.4)
     g.translate(sx + 0.55, y + 0.74, 0)
     deskGeo.push(g)
-    const st = new THREE.BoxGeometry(1.0, 0.45 * (r + 1) + 0.3, 40)
+    const st = new THREE.BoxGeometry(1.0, 0.45 * (r + 1) + 0.3, 2 * bh)
     st.translate(sx, y - (0.45 * (r + 1) + 0.3) / 2, 0)
     deskGeo.push(st)
   })
@@ -281,7 +281,7 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   block.add(deskMesh)
   // centrul media din spatele presei și pereții laterali ai blocului
   const mediaTop = TOP_Y + 1.4
-  const mediaX0 = xFront - 6.2
+  const mediaX0 = xFront - (PRESS_D(PRESS_ROWS - 1) - D2(0)) - 1.6
   // blocul media urmează elipsa din spatele tribunelor
   const ellX = (z) => -(G.bowlBack.ax * Math.sqrt(Math.max(0, 1 - (z / G.bowlBack.az) ** 2)) + 0.3)
   const mShape = new THREE.Shape()
@@ -359,12 +359,16 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
     const q = new Quads()
     const r2 = Math.max(...sectorBlocks(s).map((bl) => bl.rows))
     for (const ring of s.rings) {
+      if (ring === 3) {
+        strip(q, uRanges(s.u0, s.u1).map((r) => r.slice(0, 3)), PRESS_D(0) - 0.4, PRESS_Y(0) + 0.9, PRESS_D(PRESS_ROWS - 1) + 0.6, PRESS_Y(PRESS_ROWS - 1) + 1.1)
+        continue
+      }
       const n = ring === 1 ? G.ring1.rows : r2
       const f = ring === 1 ? D1(0) : D2(0)
       const b = ring === 1 ? D1(n) : D2(n)
       const y0 = (ring === 1 ? Y1(0) : Y2(0)) + 0.9
       const y1 = (ring === 1 ? Y1(n - 1) : Y2(n - 1)) + 1.1
-      strip(q, [[s.piece, s.t0, s.t1]], f, y0, b, y1)
+      strip(q, uRanges(s.u0, s.u1).map((r) => r.slice(0, 3)), f, y0, b, y1)
     }
     const mesh = new THREE.Mesh(q.geometry(), proxyMat)
     mesh.userData = { sector: s.id }
@@ -372,7 +376,7 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
     out.proxies.push(mesh)
   }
   for (const b of layout.boxes) {
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(G.boxW - 0.1, G.boxH - 0.1), proxyMat)
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(b.z1 - b.z0 - 0.1, G.boxH - 0.1), proxyMat)
     mesh.rotation.y = -Math.PI / 2
     mesh.position.set(xFront - 0.05, b.floorY + G.boxH / 2, b.zc)
     mesh.userData = { box: b.id }

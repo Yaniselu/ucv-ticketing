@@ -72,9 +72,9 @@ Stack: Vite + three.js, fără framework. Se poate publica pe orice hosting stat
 
 | Categorie | Locuri |
 |---|---:|
-| Public (sectoarele 1–18, oaspeți, Tribuna 0 și 1) | 28.033 |
+| Public (sectoarele 3–17, colțurile, Tribuna 0 și 1) | 28.033 |
 | VIP A–F | 1.928 |
-| Loje (40 × 11) | 440 |
+| Loje (42: 101–120 și 201–222) | 440 |
 | Presă | 350 |
 | Persoane în scaun rulant + însoțitori | 116 + 116 |
 | **Total** | **30.983** |
@@ -86,13 +86,20 @@ Stack: Vite + three.js, fără framework. Se poate publica pe orice hosting stat
 - Cele 4 zone: Tribuna 1 (vest, VIP, presă, loje), Tribuna 2 (est), Peluza Nord, Peluza Sud (ucv1948.ro/stadion).
 - Cele 18 sectoare și numele lor după legendele Craiovei Maxima (Fanatik, sept. 2026).
 - Structura de prețuri și sectoare: Tribuna 2 cu sectoarele 7–13, Inel 1 / Inel 2, Tribuna 0, Tribuna 1 și VIP A–F. Prețurile sunt cele pentru meciurile din UEFA Conference League 2026/27 (abonamente.ucv1948.ro).
-- Peluza Nord include sectoarele 4 și 5. Poarta 6 servește Peluza Nord și poarta 8 Tribuna 2.
+- **Așezarea sectoarelor după harta oficială „Bilete Superliga 2026–2027” a clubului:**
+  - Peluza Nord: sectoarele 3–6, de la vest la est.
+  - Tribuna 2: 7 (colț NE), apoi 8–12 pe Inel 1 și Inel 2, de la nord la sud, și 13 (colț SE).
+  - Peluza Sud: patru sectoare.
+  - Colțul nord-vest se vinde ca Tribuna 1, iar colțul sud-vest e gri pe hartă, adică nu se vinde public.
+  - Tribuna 1: VIP A–F la nivelul terenului, loje 101–120 (119 și 120 sunt duble) și 201–222, masa presei sus la mijloc, Tribuna 0 de o parte și de alta a ei, iar la capete Tribuna 0 jos și Tribuna 1 sus.
+- **Intrările în tribune:** fiecare sector are un singur vomitor, cu numărul sectorului deasupra, ca în fotografia Peluzei Nord (intrările 3, 4, 5, 6).
+- **Porți:** poarta 6 servește Peluza Nord și poarta 8 Tribuna 2.
 - Terenul de 105 × 68 m, înălțimea de 50,14 m, bolul cu un singur inel de gradene acoperit integral, ecranele din colțurile NE și SV (stadiumdb.com, ucv1948.ro).
 
 **Estimat** (nu există un plan public al locurilor):
 - Numărul de locuri pe fiecare sector și numărul de rânduri. Geometria e proporționată după fotografii, apoi locurile sunt distribuite exact pe totalurile oficiale.
-- Poziția exactă a sectoarelor 1 și 18 în colțurile de vest și a sectorului oaspeților în Peluza Sud.
-- Celelalte porți, prețul locurilor din loje și numărul de fotolii din fiecare lojă (11, astfel încât 40 de loje să dea 440 de locuri).
+- Numerele sectoarelor 1, 2 și 18 (harta nu le arată; presa menționează „Tribuna I sector 1”) și numerotarea 14–17 în Peluza Sud, dedusă din ordinea celorlalte. Colțul sud-vest e tratat ca zona fanilor oaspeți.
+- Celelalte porți, prețul locurilor din loje și numărul de locuri din fiecare lojă: 10, respectiv 20 în lojile duble, astfel încât cele 42 de loje să dea 440 de locuri.
 - Disponibilitatea locurilor: este simulată, dar deterministă (`src/data/availability.js`). Într-o integrare reală vine din API-ul de ticketing.
 
 Toate aceste valori sunt în `src/data/stadium-data.js` și se pot corecta pe măsură ce apar date oficiale.

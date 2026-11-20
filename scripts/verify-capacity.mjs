@@ -14,7 +14,7 @@ for (const k of ['PN', 'T2', 'PS', 'T1', 'VIP']) {
   rows.push([`Σ ${k}`, '', '', n, ''])
 }
 console.table(rows)
-console.log(`Loje: ${layout.boxes.length} × 11 = ${sum.boxes}`)
+console.log(`Loje: ${layout.boxes.length} (${layout.boxes.map((b) => b.num).join(', ')}) = ${sum.boxes} locuri`)
 console.log('Rezumat:', sum, `(${ms} ms)`)
 
 const expect = { ...CAPACITY }
