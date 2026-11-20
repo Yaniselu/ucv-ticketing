@@ -48,6 +48,7 @@ export function ticketsEmail({ user, order, tickets, link }) {
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef2f7;padding:24px 0"><tr><td align="center">
   <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:14px;overflow:hidden">
     <tr><td style="background:${th.bg};padding:24px 28px;color:${th.fg}">
+      <img src="${esc(new URL('/brand/ucv-crest-180.png', link).href)}" alt="Universitatea Craiova" width="44" style="float:right;margin-left:12px;height:auto" />
       <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:${th.accent};font-weight:bold">${esc(th.label)}${info.phase ? ` · ${esc(info.phase)}` : ''}</div>
       <div style="font-size:26px;font-weight:bold;margin-top:6px">${esc(title)}</div>
       <div style="font-size:15px;margin-top:6px">${esc(dateLabel)} · ora ${esc(time)}</div>

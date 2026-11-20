@@ -35,6 +35,8 @@ export async function ticketsPdf(tickets, { testMode = false } = {}) {
     md: await pdf.embedFont(await asset('server/assets/fonts/Barlow_500Medium.ttf'), { subset: true }),
     bd: await pdf.embedFont(await asset('server/assets/fonts/Barlow_700Bold.ttf'), { subset: true }),
   }
+  const crestPng = await asset('public/brand/ucv-crest-180.png')
+  const crest = crestPng ? await pdf.embedPng(crestPng) : null
   const logos = new Map()
   for (const t of tickets) {
     const id = t.info.competitionId
@@ -42,7 +44,7 @@ export async function ticketsPdf(tickets, { testMode = false } = {}) {
       const png = await asset(`src/assets/logos/${id}.png`)
       logos.set(id, png ? await pdf.embedPng(png) : null)
     }
-    await page(pdf, F, t, logos.get(id), testMode)
+    await page(pdf, F, t, logos.get(id), testMode, crest)
   }
   return Buffer.from(await pdf.save())
 }
@@ -55,7 +57,7 @@ function fit(p, text, font, size, maxW, opts) {
   return s
 }
 
-async function page(pdf, F, t, logo, testMode) {
+async function page(pdf, F, t, logo, testMode, crest) {
   const W = 595.28
   const H = 841.89
   const p = pdf.addPage([W, H])
@@ -88,18 +90,19 @@ async function page(pdf, F, t, logo, testMode) {
     tx = M + 18 + box + 18
   }
   const fg = hex(th.fg)
-  const textW = M + cw - 66 - tx
+  const textW = M + cw - 80 - tx
   p.drawText(`${th.label}${info.phase ? ` · ${info.phase}` : ''}`.toUpperCase(), { x: tx, y: top - 30, font: F.sb, size: 10, color: hex(th.accent) })
   fit(p, `${info.home} – ${info.away}`.toUpperCase(), F.xb, 26, textW, { x: tx, y: top - 58, color: fg })
   p.drawText(`${dateLabel} · ora ${time}`, { x: tx, y: top - 80, font: F.bd, size: 12, color: fg })
   p.drawText(info.venue, { x: tx, y: top - 97, font: F.md, size: 9.5, color: fg, opacity: 0.85 })
-  // stema clubului (U în cerc albastru)
-  const cx = M + cw - 34
-  const cy = top - 34
-  p.drawCircle({ x: cx, y: cy, size: 19, color: rgb(1, 1, 1) })
-  p.drawCircle({ x: cx, y: cy, size: 16, color: BLUE })
-  const uw = F.xb.widthOfTextAtSize('U', 22)
-  p.drawText('U', { x: cx - uw / 2, y: cy - 8, font: F.xb, size: 22, color: rgb(1, 1, 1) })
+  // stema Universității Craiova
+  if (crest) {
+    const ch2 = 62
+    const cw2 = (crest.width / crest.height) * ch2
+    p.drawImage(crest, { x: M + cw - 18 - cw2, y: top - 14 - ch2, width: cw2, height: ch2 })
+  } else {
+    p.drawCircle({ x: M + cw - 34, y: top - 34, size: 16, color: BLUE })
+  }
 
   // datele locului
   const bodyTop = top - HEAD - 4

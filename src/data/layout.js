@@ -87,6 +87,12 @@ export function ring2RowsAt(p, t) {
   return Math.max(6, n)
 }
 export const MAX_R2 = Math.max(ring2RowsAt(2, 0.5), ring2RowsAt(0, 0.5))
+// marginea din spate a inelului de sus e elipsa: un rând există în dreptul lui u doar dacă se
+// termină în interiorul ei, deci marginea de sus a tribunelor e o curbă continuă (ca pe stadion)
+export function insideBack(u, d) {
+  const q = pointU(u, d)
+  return (q.x / G.bowlBack.ax) ** 2 + (q.z / G.bowlBack.az) ** 2 <= 1
+}
 
 // ─── Parametrul continuu u ∈ [0, 8): u = piesă + t, în jurul bolului ───
 // Un sector poate trece de pe o porțiune dreaptă pe curba unui colț (ca pe harta oficială).
@@ -370,7 +376,10 @@ export function sectorBlocks(sector) {
   for (let b = 0; b < n; b++) {
     const u0 = sector.u0 + ((sector.u1 - sector.u0) * b) / n
     const u1 = sector.u0 + ((sector.u1 - sector.u0) * (b + 1)) / n
-    out.push({ b, u0, u1, rows: ring2RowsAtU((u0 + u1) / 2) })
+    // numărul maxim de rânduri din bloc (la capătul cel mai adânc)
+    let rows = 0
+    for (let k = 0; k <= 8; k++) rows = Math.max(rows, ring2RowsAtU(u0 + ((u1 - u0) * k) / 8))
+    out.push({ b, u0, u1, rows })
   }
   return out
 }
@@ -411,7 +420,7 @@ function buildNaturalRows(sector, r1) {
       const { d, slots } = ring === 1 && r1 ? { d: row.front + G.seatInset, slots: r1.get(sector.id)[row.idx] } : rowSlots(sector, row)
       const seats = []
       for (const sl of slots) {
-        if (ring === 2 && row.idx >= blocks[sl.block].rows) continue
+        if (ring === 2 && !insideBack(sl.u, D2(row.idx + 1))) continue
         // vomitoare: ieșiri din inelul 2, în mijlocul blocurilor înalte
         if (sector.vomitories && ring === 2 && sl.block === vomBlock(sector) && blocks[sl.block].rows >= 16 && row.idx >= VOM_ROWS[0] && row.idx < VOM_ROWS[1] && lenU(Math.min(sl.u, vomU(sector)), Math.max(sl.u, vomU(sector)), d) < 1.6) continue
         const p = pointU(sl.u, d)

@@ -30,7 +30,7 @@ export function ticketHTML(t, { orderId, orderCode, testMode = false, actions = 
         <div class="tk-when">${esc(dateLabel)} · ora ${esc(time)}</div>
         <div class="tk-venue">${esc(i.venue)}</div>
       </div>
-      <span class="tk-crest" aria-hidden="true">U</span>
+      <img class="tk-crest" src="/brand/ucv-crest-180.png" alt="Universitatea Craiova" />
     </header>
     <div class="tk-body">
       <div class="tk-main">

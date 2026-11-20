@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import { COMPETITION } from '../data/stadium-data.js'
+import { COMPETITION, EVENT } from '../data/stadium-data.js'
+import { brand, drawFit } from './brand.js'
 import { G } from '../data/layout.js'
 
 function canvas(w, h) {
@@ -232,88 +233,146 @@ export function parkingTexture() {
 }
 
 export function ledTexture() {
-  const [c, g] = canvas(2048, 64)
-  g.fillStyle = '#0a2a66'
-  g.fillRect(0, 0, 2048, 64)
-  g.font = '700 40px "Barlow Condensed", Arial Narrow, sans-serif'
+  // panourile LED de pe marginea terenului: stema clubului, numele competiției, mesajele clubului
+  const [c, g] = canvas(4096, 128)
+  const grd = g.createLinearGradient(0, 0, 0, 128)
+  grd.addColorStop(0, '#0a3b8f')
+  grd.addColorStop(1, '#062a6b')
+  g.fillStyle = grd
+  g.fillRect(0, 0, 4096, 128)
   g.textBaseline = 'middle'
-  const items = ['UNIVERSITATEA CRAIOVA', COMPETITION.board, 'ȘTIINȚA', 'ION OBLEMENCO']
-  let x = 20
+  const items = [['crest', 'UNIVERSITATEA CRAIOVA'], ['logo', COMPETITION.board], [null, 'ȘTIINȚA'], ['crest', 'ION OBLEMENCO'], [null, 'HAI ȘTIINȚA!']]
+  let x = 40
   let k = 0
-  while (x < 2048) {
-    const t = items[k % items.length]
-    g.fillStyle = k % 2 ? '#ffffff' : '#7fb6ff'
-    g.fillText(t, x, 34)
-    x += g.measureText(t).width + 70
+  while (x < 4096) {
+    const [ico, t] = items[k % items.length]
+    if (ico === 'crest' && brand.crest) {
+      drawFit(g, brand.crest, x, 10, 84, 108)
+      x += 104
+    } else if (ico === 'logo' && brand.compLogo) {
+      drawFit(g, brand.compLogo, x, 8, 110, 112)
+      x += 126
+    }
+    g.font = '800 72px "Barlow Condensed", Arial Narrow, sans-serif'
+    g.fillStyle = k % 2 ? '#ffffff' : '#9cc7ff'
+    g.fillText(t, x, 68)
+    x += g.measureText(t).width + 120
     k++
   }
+  // pixelii LED
+  g.fillStyle = 'rgba(0,0,0,0.28)'
+  for (let y = 0; y < 128; y += 3) g.fillRect(0, y, 4096, 1)
   const t = tex(c)
   t.wrapS = THREE.RepeatWrapping
   return t
 }
 
 export function screenTexture(home, away) {
-  // ecran LED: fundal negru, text alb / galben, grilă fină de pixeli
-  const [c, g] = canvas(1280, 720)
-  g.fillStyle = '#050607'
-  g.fillRect(0, 0, 1280, 720)
+  // tabela video, ca la transmisiile de meci: logoul competiției, stemele, scorul și cronometrul
+  const [c, g] = canvas(1600, 900)
+  const bg = g.createRadialGradient(800, 470, 80, 800, 470, 980)
+  bg.addColorStop(0, '#0c1c3c')
+  bg.addColorStop(1, '#03060c')
+  g.fillStyle = bg
+  g.fillRect(0, 0, 1600, 900)
   g.textAlign = 'center'
   g.textBaseline = 'middle'
   const F = (w, px) => `${w} ${px}px "Barlow Condensed", Arial Narrow, sans-serif`
-  // bara de sus
-  g.fillStyle = '#0b4aa2'
-  g.fillRect(0, 0, 1280, 120)
+  // bara de sus: competiția
+  const bar = g.createLinearGradient(0, 0, 1600, 0)
+  bar.addColorStop(0, '#0b3d91')
+  bar.addColorStop(1, '#06265e')
+  g.fillStyle = bar
+  g.fillRect(0, 0, 1600, 150)
+  g.fillStyle = '#ffd400'
+  g.fillRect(0, 150, 1600, 6)
+  if (brand.compLogo) drawFit(g, brand.compLogo, 30, 10, 170, 130)
   g.fillStyle = '#ffffff'
-  fitText(g, COMPETITION.board, 640, 62, 1180, 70)
-  // stemele (cercuri) și numele echipelor
-  const crest = (x, fill, letter) => {
+  g.textAlign = 'left'
+  g.font = F(800, 74)
+  g.fillText(COMPETITION.board, 225, 62)
+  g.font = F(600, 40)
+  g.fillStyle = '#b9d2ff'
+  g.fillText((EVENT.phase || 'STADIONUL ION OBLEMENCO').toUpperCase(), 228, 116)
+  g.textAlign = 'center'
+  // stemele
+  if (brand.crest) drawFit(g, brand.crest, 120, 205, 330, 400)
+  const awayCrest = (cx, cy, h) => {
+    const w = h * 0.8
+    g.save()
+    g.translate(cx, cy)
     g.beginPath()
-    g.arc(x, 300, 92, 0, Math.PI * 2)
-    g.fillStyle = fill
-    g.fill()
-    g.lineWidth = 10
-    g.strokeStyle = '#ffffff'
-    g.stroke()
+    g.moveTo(-w / 2, -h / 2)
+    g.lineTo(w / 2, -h / 2)
+    g.lineTo(w / 2, h * 0.05)
+    g.quadraticCurveTo(w / 2, h * 0.38, 0, h / 2)
+    g.quadraticCurveTo(-w / 2, h * 0.38, -w / 2, h * 0.05)
+    g.closePath()
     g.fillStyle = '#ffffff'
-    g.font = F(800, 110)
-    g.fillText(letter, x, 306)
+    g.fill()
+    g.lineWidth = 12
+    g.strokeStyle = '#c8102e'
+    g.stroke()
+    g.fillStyle = '#c8102e'
+    g.font = F(800, h * 0.32)
+    const ini = away.replace(/^(FC|CS|AFC|SC|CFR|FCSB)\s+/i, '').split(/\s+/).map((w) => w[0]).join('').slice(0, 3).toUpperCase()
+    g.fillText(ini || 'OAS', 0, h * 0.02)
+    g.restore()
   }
-  crest(190, '#0b4aa2', 'U')
-  crest(1090, '#c8102e', 'K')
+  awayCrest(1315, 405, 360)
   g.fillStyle = '#ffffff'
-  g.font = F(800, 60)
+  g.font = F(800, 68)
   const short = (n) => n.replace(/^Universitatea /i, 'U ').replace(/^FC /i, '').toUpperCase()
-  g.fillText(short(home), 190, 455)
-  g.fillText(short(away), 1090, 455)
+  g.fillText(short(home), 285, 660)
+  g.fillText(short(away), 1315, 660)
   // scorul
-  g.font = F(800, 250)
-  g.fillText('0', 520, 300)
-  g.fillText('0', 760, 300)
-  g.fillText('–', 640, 290)
+  g.font = F(800, 330)
+  g.fillText('0', 640, 420)
+  g.fillText('0', 960, 420)
+  g.fillStyle = '#7f93b8'
+  g.fillRect(770, 410, 60, 24)
   // cronometrul
+  g.fillStyle = '#0d1a33'
+  g.fillRect(620, 720, 360, 130)
+  g.strokeStyle = '#ffd400'
+  g.lineWidth = 4
+  g.strokeRect(620, 720, 360, 130)
   g.fillStyle = '#ffd400'
   g.font = F(800, 120)
-  g.fillText("00:00", 640, 610)
-  // grila de pixeli LED
-  g.fillStyle = 'rgba(0,0,0,0.55)'
-  for (let x = 0; x < 1280; x += 4) g.fillRect(x, 0, 1, 720)
-  for (let y = 0; y < 720; y += 4) g.fillRect(0, y, 1280, 1)
-  return tex(c)
+  g.fillText('00:00', 800, 790)
+  // grila de pixeli LED și o ușoară neuniformitate a modulelor
+  g.fillStyle = 'rgba(0,0,0,0.42)'
+  for (let x = 0; x < 1600; x += 4) g.fillRect(x, 0, 1, 900)
+  for (let y = 0; y < 900; y += 4) g.fillRect(0, y, 1600, 1)
+  for (let mx = 0; mx < 1600; mx += 200) {
+    for (let my = 0; my < 900; my += 150) {
+      g.fillStyle = `rgba(${Math.random() < 0.5 ? '255,255,255' : '0,0,0'},${0.012 + Math.random() * 0.02})`
+      g.fillRect(mx, my, 200, 150)
+    }
+  }
+  g.fillStyle = 'rgba(0,0,0,0.5)'
+  for (let mx = 0; mx <= 1600; mx += 200) g.fillRect(mx - 1, 0, 2, 900)
+  for (let my = 0; my <= 900; my += 150) g.fillRect(0, my - 1, 1600, 2)
+  return tex(c, { aniso: 16 })
 }
 
 export function tunnelTexture() {
-  const [c, g] = canvas(512, 256)
-  g.fillStyle = '#f4f6f8'
-  g.fillRect(0, 0, 512, 256)
+  // prelata tunelului jucătorilor: stema și numele clubului
+  const [c, g] = canvas(1024, 512)
+  const grd = g.createLinearGradient(0, 0, 0, 512)
+  grd.addColorStop(0, '#fbfcfd')
+  grd.addColorStop(1, '#e3e8ee')
+  g.fillStyle = grd
+  g.fillRect(0, 0, 1024, 512)
   g.fillStyle = '#0b4aa2'
-  g.beginPath()
-  g.ellipse(256, 128, 220, 92, 0, 0, Math.PI * 2)
-  g.fill()
-  g.fillStyle = '#fff'
+  g.fillRect(0, 0, 1024, 40)
+  g.fillRect(0, 472, 1024, 40)
+  if (brand.crest) drawFit(g, brand.crest, 60, 70, 300, 372)
+  g.fillStyle = '#0b4aa2'
   g.textAlign = 'center'
-  g.font = '800 44px "Barlow Condensed", Arial Narrow, sans-serif'
-  g.fillText('UNIVERSITATEA', 256, 118)
-  g.fillText('CRAIOVA', 256, 166)
+  g.textBaseline = 'middle'
+  fitText(g, 'UNIVERSITATEA', 660, 210, 560, 130)
+  fitText(g, 'CRAIOVA', 660, 330, 560, 130)
   return tex(c)
 }
 
@@ -340,10 +399,14 @@ export function coverTexture() {
   g.fillRect(0, 470, 2048, 42)
   g.fillStyle = '#ffffff'
   g.fillRect(0, 46, 2048, 6)
+  if (brand.crest) {
+    drawFit(g, brand.crest, 40, 70, 300, 380)
+    drawFit(g, brand.crest, 1708, 70, 300, 380)
+  }
   g.fillStyle = '#0b4aa2'
   g.textAlign = 'center'
   g.textBaseline = 'middle'
-  fitText(g, 'UNIVERSITATEA CRAIOVA', 1024, 262, 1880, 188)
+  fitText(g, 'UNIVERSITATEA CRAIOVA', 1024, 262, brand.crest ? 1300 : 1880, 188)
   // cusăturile prelatei
   g.fillStyle = 'rgba(120,130,145,0.25)'
   for (let x = 256; x < 2048; x += 512) g.fillRect(x, 52, 3, 418)
@@ -378,7 +441,11 @@ export function coverFrontTexture() {
   g.fillStyle = '#ffffff'
   g.textAlign = 'center'
   g.textBaseline = 'middle'
-  fitText(g, 'UNIVERSITATEA CRAIOVA', 256, 42, 470, 50)
+  if (brand.crest) {
+    drawFit(g, brand.crest, 8, 6, 52, 66)
+    drawFit(g, brand.crest, 452, 6, 52, 66)
+  }
+  fitText(g, 'UNIVERSITATEA CRAIOVA', 256, 42, brand.crest ? 370 : 470, 50)
   const grd = g.createLinearGradient(0, 96, 0, 384)
   grd.addColorStop(0, '#0d1116')
   grd.addColorStop(1, '#2a3038')

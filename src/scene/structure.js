@@ -8,11 +8,11 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
   G, D1, Y1, D2, Y2, WALK_D, WALK_Y, RING_TOP, pathPoint, pieceLen, sectorBlocks, ring2RowsAt, VOM_ROWS, vomBlock, vomU, pointU, notchEdges, inNotch, uRanges, lenPerU, wrap8, ring1AisleUs,
-  NOTCH_W, NOTCH_TUN_H, cornerAxis, t1CutT, T1_ROWS, zToTW, ring2RowsAtU,
+  NOTCH_W, NOTCH_TUN_H, cornerAxis, t1CutT, T1_ROWS, zToTW, ring2RowsAtU, insideBack,
 } from '../data/layout.js'
 import { Quads, strip, samples, P, ellipseBand, ellipseRing, beam, ellipseCurve } from './geom.js'
 import * as TX from './textures.js'
-import { ACCESS_MAP, ACCESS_POINTS } from '../data/stadium-data.js'
+import { ACCESS_MAP, ACCESS_POINTS, EVENT } from '../data/stadium-data.js'
 
 export const SHELL_TOP = 50.14 // înălțimea maximă (stadiumdb.com)
 // carcasa: semiaxele reale după conturul OSM (≈ 207 × 230 m)
@@ -26,7 +26,8 @@ export const ROOF_PROFILE = [
   [BB.ax + 1.8, BB.az + 1.8, SPRING_Y], [BB.ax + 0.8, BB.az - 0.6, SPRING_Y + 7.5], [84, 94, SHELL_TOP],
   [72, 82, 49.3], [60, 70, 47.2], [48, 62, 44.4], [40, 55, 41.6],
 ]
-const CONCOURSE = { ax: 91.5, az: 103 } // fațada vitrată din spatele grinzilor în X
+const CONCOURSE = { ax: 91.5, az: 103 }
+const beamGeo = (a, b, r) => beam(a.toArray(), b.toArray(), r, 6) // fațada vitrată din spatele grinzilor în X
 const PLINTH_Y = 5.5
 
 // valul de la marginea placajului (u ∈ [0,1) în jurul stadionului)
@@ -237,39 +238,73 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   }
   const aisleMarks = []
   const vomGeo = []
+  const backFloor = new Quads()
+  const topAt = [] // [u, înălțimea ultimei trepte] de-a lungul spatelui tribunelor
+  // puncte de-a lungul unui bloc: la ~1,5 m pe laturile drepte (marginea din spate e o curbă),
+  // plus capetele blocului de loje al Tribunei 1, ca tăieturile să fie exacte
+  const T1_EDGES = [40, 37, 34].flatMap((z) => [zToTW(z), zToTW(-z)])
+  const fineU = (u0, u1) => {
+    const set = new Set()
+    for (const [p, t0, t1, pa] of uRanges(u0, u1)) {
+      const L = pieceLen(p, 40) * (t1 - t0)
+      const nseg = Math.max(p % 2 ? 24 : 2, Math.ceil(L / 1.5))
+      for (let k = 0; k <= nseg; k++) set.add(+(pa + t0 + ((t1 - t0) * k) / nseg).toFixed(7))
+    }
+    for (const e of T1_EDGES) for (const off of [0, 8, -8]) if (e + off > u0 + 1e-6 && e + off < u1 - 1e-6) set.add(e + off)
+    return [...set].sort((a, b) => a - b)
+  }
+  const rise = G.ring2.rise
+  const rakeAt = (d) => Y2(0) + ((d - D2(0)) / G.depth - 0.5) * rise // înălțimea pantei la adâncimea d
   for (let k = 0; k < n; k++) {
     const B = blocks[k]
     const rng = rangesOf(B.u0, B.u1)
     strip(walls, cutT1(rng, 0), D2(0), WALK_Y, D2(0), Y2(0))
-    for (let j = 0; j < B.rows; j++) {
-      const rj = cutT1(rng, j)
-      // primul rând de deasupra unui nivel al blocului: contratreapta coboară până la acoperișul lui
-      if (j > 0) strip(steps, rj, D2(j), Y2(j - 1) - (T1_ROWS.includes(j) ? 0.4 : 0), D2(j), Y2(j))
-      strip(steps, rj, D2(j), Y2(j), D2(j + 1), Y2(j))
+    const us = fineU(B.u0, B.u1)
+    const E = us.map((u) => backOffsetU(u))
+    // treptele: fiecare rând se termină pe elipsa din spate (marginea de sus e o curbă continuă)
+    for (let j = 0; j < B.rows + 1; j++) {
+      for (let i = 0; i < us.length - 1; i++) {
+        const a = us[i]
+        const b = us[i + 1]
+        if (blockedAt((a + b) / 2, j)) continue
+        const ea = E[i]
+        const eb = E[i + 1]
+        if (Math.max(ea, eb) <= D2(j) + 0.02) continue
+        const ba = Math.max(D2(j), Math.min(D2(j + 1), ea))
+        const bb = Math.max(D2(j), Math.min(D2(j + 1), eb))
+        steps.quad(PU(a, D2(j), Y2(j)), PU(a, ba, Y2(j)), PU(b, bb, Y2(j)), PU(b, D2(j), Y2(j)))
+        if (j > 0) {
+          const y0 = Y2(j - 1) - (T1_ROWS.includes(j) ? 0.4 : 0)
+          steps.quad(PU(a, D2(j), y0), PU(a, D2(j), Y2(j)), PU(b, D2(j), Y2(j)), PU(b, D2(j), y0))
+        }
+      }
     }
-    // peretele alb din spatele blocului, până la grinda inelară
-    strip(walls, rng, D2(B.rows), Y2(B.rows - 1), D2(B.rows), RING_TOP)
-    // acoperișul concourse-ului, din spatele blocului până la elipsă
-    const us = samplesU(B.u0, B.u1)
+    // parapetul de pe elipsa din spate, platforma de sus din spatele lui
     for (let i = 0; i < us.length - 1; i++) {
-      const e0 = Math.max(D2(B.rows), backOffsetU(us[i]) + 0.4)
-      const e1 = Math.max(D2(B.rows), backOffsetU(us[i + 1]) + 0.4)
-      walls.quad(PU(us[i], D2(B.rows), RING_TOP), PU(us[i], e0, RING_TOP), PU(us[i + 1], e1, RING_TOP), PU(us[i + 1], D2(B.rows), RING_TOP))
+      const a = us[i]
+      const b = us[i + 1]
+      const ya = rakeAt(E[i])
+      const yb = rakeAt(E[i + 1])
+      walls.quad(PU(a, E[i], ya - 1.6), PU(a, E[i], ya + 1.15), PU(b, E[i + 1], yb + 1.15), PU(b, E[i + 1], yb - 1.6))
+      walls.quad(PU(a, E[i], ya + 1.15), PU(a, E[i] + 0.3, ya + 1.15), PU(b, E[i + 1] + 0.3, yb + 1.15), PU(b, E[i + 1], yb + 1.15))
+      walls.quad(PU(a, E[i] + 0.3, ya + 1.15), PU(a, E[i] + 0.3, ya + 0.02), PU(b, E[i + 1] + 0.3, yb + 0.02), PU(b, E[i + 1] + 0.3, yb + 1.15))
+      backFloor.quad(PU(a, E[i] + 0.3, ya + 0.02), PU(a, E[i] + 2.2, ya + 0.02), PU(b, E[i + 1] + 2.2, yb + 0.02), PU(b, E[i + 1] + 0.3, yb + 0.02))
+      topAt.push([a, ya])
     }
-    // pereții laterali în trepte, între blocuri de înălțimi diferite
+    // scările dintre blocuri urcă până la ultimul rând existent în dreptul lor
+    const rowsAt = (u) => {
+      let j = 0
+      while (j < G.ring2.rows && insideBack(u, D2(j + 1))) j++
+      return j
+    }
     const prev = blocks[(k - 1 + n) % n]
     const hasPrev = shares(prev, B)
-    const aisleRows = hasPrev ? Math.max(prev.rows, B.rows) : B.rows
-    if (hasPrev && prev.rows !== B.rows) {
-      const lo = Math.min(prev.rows, B.rows)
-      const hi = Math.max(prev.rows, B.rows)
-      for (let j = lo; j < hi; j++) walls.quad(PU(B.u0, D2(j), Y2(j)), PU(B.u0, D2(j + 1), Y2(j)), PU(B.u0, D2(j + 1), RING_TOP), PU(B.u0, D2(j), RING_TOP))
-    }
-    for (let j = 0; j < aisleRows; j++) if (!blockedAt(B.u0, j)) aisleMarks.push([B.u0, D2(j), Y2(j)])
+    for (let j = 0, r = rowsAt(B.u0); j < r; j++) if (!blockedAt(B.u0, j)) aisleMarks.push([B.u0, D2(j), Y2(j)])
     const next = blocks[(k + 1) % n]
     if (!shares(B, next)) {
-      for (let j = 0; j < B.rows; j++) if (!blockedAt(B.u1, j)) aisleMarks.push([B.u1, D2(j), Y2(j)])
+      for (let j = 0, r = rowsAt(B.u1); j < r; j++) if (!blockedAt(B.u1, j)) aisleMarks.push([B.u1, D2(j), Y2(j)])
     }
+    void hasPrev
     // vomitorul sectorului (unul singur, ca în fotografia Peluzei Nord)
     if (B.sector.vomitories && B.b === vomBlock(B.sector) && B.rows >= 16) {
       const uc = vomU(B.sector)
@@ -306,6 +341,31 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
       vomGeo.push({ u: uc, d: d0 - 0.28, y: yt + 0.43, label: B.sector.num != null ? String(B.sector.num) : B.sector.letter || (B.sector.away ? 'OAS' : 'T1') })
     }
   }
+  // înălțimea ultimei trepte în dreptul fiecărui unghi al elipsei din spate (pentru stâlpi și vitraj)
+  const NA = 720
+  const topByAngle = new Float32Array(NA).fill(NaN)
+  for (const [u, y] of topAt) {
+    const p = pointU(u, 0)
+    const t = (Math.atan2(p.z / BB.az, p.x / BB.ax) + Math.PI * 2) % (Math.PI * 2)
+    const b = Math.floor((t / (Math.PI * 2)) * NA) % NA
+    topByAngle[b] = Number.isNaN(topByAngle[b]) ? y : Math.min(topByAngle[b], y)
+  }
+  for (let pass = 0; pass < NA; pass++) {
+    let missing = 0
+    for (let b = 0; b < NA; b++) {
+      if (!Number.isNaN(topByAngle[b])) continue
+      const l = topByAngle[(b + NA - 1) % NA]
+      const r = topByAngle[(b + 1) % NA]
+      if (!Number.isNaN(l) || !Number.isNaN(r)) topByAngle[b] = Number.isNaN(l) ? r : Number.isNaN(r) ? l : Math.min(l, r)
+      else missing++
+    }
+    if (!missing) break
+  }
+  out.topAtAngle = (t) => topByAngle[Math.floor(((((t % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI * 2)) * NA) % NA]
+  const backFloorMesh = new THREE.Mesh(backFloor.geometry(), new THREE.MeshStandardMaterial({ color: 0x9aa1a6, roughness: 0.95, side: THREE.DoubleSide }))
+  backFloorMesh.receiveShadow = true
+  root.add(backFloorMesh)
+
   // scările culoarelor din inelul 1
   const ring1Us = new Map()
   for (const s of layout.sectors) {
@@ -471,20 +531,53 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   const ringMesh = new THREE.Mesh(ringQ.geometry(), white)
   ringMesh.castShadow = true
   root.add(ringMesh)
+  // stâlpii colonadei: pornesc de pe platforma din spatele tribunei (mai jos în colțuri) și se
+  // ramifică în V spre inelul acoperișului, ca „arborii” din fotografiile interioare
   const colN = 96
-  const cols = new THREE.InstancedMesh(new THREE.BoxGeometry(0.55, SPRING_Y - RING_TOP, 0.55).translate(0, (SPRING_Y - RING_TOP) / 2, 0), white, colN)
+  const colGeo = []
+  const colBase = (a) => out.topAtAngle(a) + 0.02
+  const colPt = (a, y) => new THREE.Vector3((BB.ax + 1.6) * Math.cos(a), y, (BB.az + 1.6) * Math.sin(a))
   for (let k = 0; k < colN; k++) {
     const a = (k / colN) * Math.PI * 2
-    m4.makeTranslation((BB.ax + 1.6) * Math.cos(a), RING_TOP, (BB.az + 1.6) * Math.sin(a))
-    cols.setMatrixAt(k, m4)
+    const y0 = Math.min(colBase(a), RING_TOP)
+    const yb = SPRING_Y - 5.2 // de aici pornesc ramurile
+    const p0 = colPt(a, y0)
+    const p1 = colPt(a, yb)
+    colGeo.push(beamGeo(p0, p1, 0.32))
+    const da = (Math.PI * 2) / colN / 2
+    for (const s of [-1, 1]) colGeo.push(beamGeo(p1, colPt(a + s * da, SPRING_Y), 0.16))
+    colGeo.push(beamGeo(p1, colPt(a, SPRING_Y), 0.2))
   }
+  const cols = new THREE.Mesh(mergeGeometries(colGeo), white)
   cols.castShadow = true
   root.add(cols)
-  // între stâlpi: grindă la jumătate și vitraj, ca în spatele tribunelor din fotografii
+  // în spatele stâlpilor: vitrajul fațadei (închis la culoare, cu montanți), de la platformă până sus
   {
-    const gq = new Quads()
-    ellipseBand(gq, BB.ax + 1.95, BB.az + 1.95, RING_TOP + 1.0, SPRING_Y, 192)
-    root.add(new THREE.Mesh(gq.geometry(), new THREE.MeshStandardMaterial({ color: 0xc7d3dc, roughness: 0.15, metalness: 0.2, transparent: true, opacity: 0.38, side: THREE.DoubleSide, depthWrite: false })))
+    const gq = []
+    const N = 384
+    const gTex = TX.glazingTexture()
+    gTex.wrapS = gTex.wrapT = THREE.RepeatWrapping
+    const pos = []
+    const uv = []
+    for (let k = 0; k < N; k++) {
+      const a0 = (k / N) * Math.PI * 2
+      const a1 = ((k + 1) / N) * Math.PI * 2
+      const r = [BB.ax + 2.1, BB.az + 2.1]
+      const y0a = colBase(a0)
+      const y0b = colBase(a1)
+      const P0 = [r[0] * Math.cos(a0), r[1] * Math.sin(a0)]
+      const P1 = [r[0] * Math.cos(a1), r[1] * Math.sin(a1)]
+      const u0 = (k / N) * 160
+      const u1 = ((k + 1) / N) * 160
+      pos.push(P0[0], y0a, P0[1], P1[0], y0b, P1[1], P1[0], SPRING_Y, P1[1], P0[0], y0a, P0[1], P1[0], SPRING_Y, P1[1], P0[0], SPRING_Y, P0[1])
+      uv.push(u0, y0a / 4, u1, y0b / 4, u1, SPRING_Y / 4, u0, y0a / 4, u1, SPRING_Y / 4, u0, SPRING_Y / 4)
+    }
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+    g.computeVertexNormals()
+    root.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: gTex, color: 0x5d6a78, roughness: 0.18, metalness: 0.55, side: THREE.DoubleSide })))
+    void gq
     const beamRing = new THREE.TubeGeometry(ellipseCurve(BB.ax + 1.6, BB.az + 1.6, (RING_TOP + SPRING_Y) / 2), 256, 0.22, 5, true)
     const topRing = new THREE.TubeGeometry(ellipseCurve(BB.ax + 1.6, BB.az + 1.6, SPRING_Y), 256, 0.45, 6, true)
     const rings = new THREE.Mesh(mergeGeometries([beamRing.toNonIndexed(), topRing.toNonIndexed()]), white)
@@ -697,34 +790,48 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   root.add(truss)
 
   // ─── Ecranele (tabelele) din colțurile NE și SV ───
-  // Ca pe stadion: ecran LED negru, plat, vertical, montat sus în colț, între stâlpii de sub
-  // acoperiș (deasupra grinzii inelare), cu cadru negru și tiranți spre structura acoperișului.
-  const screenTex = TX.screenTexture('Universitatea Craiova', 'FC Copenhaga')
-  const screenMat = new THREE.MeshBasicMaterial({ map: screenTex, toneMapped: false })
-  const steel = new THREE.MeshStandardMaterial({ color: 0x2a2e33, metalness: 0.6, roughness: 0.4 })
+  // Ca în fotografii: ecran video negru, plat, agățat sus în colonada din colț, între stâlpii
+  // acoperișului (marginea de sus aproape de inelul pe care stă acoperișul), cu carcasă adâncă,
+  // cadru de oțel prins de stâlpi și pasarelă de service dedesubt.
+  const screenTex = TX.screenTexture(EVENT.home, EVENT.away)
+  const screenMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: screenTex, emissiveIntensity: 1.15, roughness: 0.32, metalness: 0.1 })
+  const steel = new THREE.MeshStandardMaterial({ color: 0x23272c, metalness: 0.7, roughness: 0.45 })
+  const casing = new THREE.MeshStandardMaterial({ color: 0x0b0c0e, roughness: 0.75, metalness: 0.2 })
   for (const piece of [1, 5]) {
     const u = piece + 0.5
-    const q = pointU(u, backOffsetU(u) - 1.2)
-    const W = 13.5
-    const H = 7.6
+    const W = 13.6
+    const H = 7.65
+    const top = SPRING_Y - 0.7
+    const yc = top - H / 2
+    const q = pointU(u, backOffsetU(u) - 0.6)
     const scr = new THREE.Group()
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(W + 0.5, H + 0.5, 0.9), new THREE.MeshStandardMaterial({ color: 0x0d0f12, roughness: 0.6 }))
+    // carcasa (adâncă de 1,1 m) și rama
+    const box = new THREE.Mesh(new THREE.BoxGeometry(W + 0.36, H + 0.36, 1.1), casing)
+    box.position.z = -0.55
     const face = new THREE.Mesh(new THREE.PlaneGeometry(W, H), screenMat)
-    face.position.z = 0.46
-    // pasarela de service de sub ecran și tiranții de sus
-    const walk = new THREE.Mesh(new THREE.BoxGeometry(W + 1.2, 0.12, 1.4), steel)
-    walk.position.set(0, -H / 2 - 0.45, 0.2)
-    scr.add(frame, face, walk)
+    face.position.z = 0.012
+    scr.add(box, face)
+    // cadrul de oțel din spate, prins de cei doi stâlpi vecini
+    const fr = []
+    const z = -1.3
+    for (const y of [-H / 2 + 0.4, 0, H / 2 - 0.4]) fr.push(beam([-W / 2 - 1.8, y, z], [W / 2 + 1.8, y, z], 0.12, 6))
+    for (const x of [-W / 2 + 0.6, -W / 6, W / 6, W / 2 - 0.6]) fr.push(beam([x, -H / 2, z], [x, H / 2 + 0.7, z], 0.1, 6))
     for (const sx of [-1, 1]) {
-      const tie = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 4.2, 6), steel)
-      tie.position.set(sx * (W / 2 - 0.8), H / 2 + 2.0, -0.6)
-      tie.rotation.x = -0.35
-      scr.add(tie)
+      fr.push(beam([sx * (W / 2 + 1.8), -H / 2 - 0.4, z - 0.4], [sx * (W / 2 + 1.8), H / 2 + 0.7, z - 0.4], 0.16, 6))
+      fr.push(beam([sx * (W / 2 - 0.6), H / 2 + 0.7, z], [sx * (W / 2 + 1.8), -H / 2 + 0.4, z - 0.4], 0.07, 5))
     }
-    const yc = RING_TOP + 1.1 + H / 2
+    const frame = new THREE.Mesh(mergeGeometries(fr), steel)
+    // pasarela de service, cu balustradă
+    const walk = new THREE.Mesh(new THREE.BoxGeometry(W + 1.4, 0.1, 1.2), steel)
+    walk.position.set(0, -H / 2 - 0.35, -0.3)
+    const rail = new THREE.Mesh(mergeGeometries([
+      beam([-W / 2 - 0.7, -H / 2 + 0.75, 0.25], [W / 2 + 0.7, -H / 2 + 0.75, 0.25], 0.03, 5),
+      ...Array.from({ length: 9 }, (_, k) => beam([-W / 2 - 0.7 + (k * (W + 1.4)) / 8, -H / 2 - 0.3, 0.25], [-W / 2 - 0.7 + (k * (W + 1.4)) / 8, -H / 2 + 0.75, 0.25], 0.025, 4)),
+    ]), steel)
+    scr.add(frame, walk, rail)
     scr.position.set(q.x, yc, q.z)
-    scr.lookAt(0, yc - 3, 0)
-    scr.traverse((o) => (o.castShadow = o.isMesh))
+    scr.lookAt(0, yc - 6, 0)
+    scr.traverse((o) => { if (o.isMesh) o.castShadow = true })
     root.add(scr)
   }
   buildPodium(root, lowSpec)

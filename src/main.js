@@ -11,6 +11,7 @@ import { EVENT, STANDS, setEvent } from './data/stadium-data.js'
 import { applyConfig, defaultConfig, decodeBits, seatKey, seatGate, FREE, TAKEN, BLOCKED } from './data/sale.js'
 import { api, loadMe, getMe } from './net/api.js'
 import { createAccount } from './ui/account.js'
+import { loadBrand } from './scene/brand.js'
 import { buildStadium } from './scene/stadium.js'
 import { buildCrowd } from './scene/crowd.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
@@ -44,6 +45,7 @@ async function boot() {
 }
 const BOOT = await boot()
 setEvent(BOOT.av?.event)
+await loadBrand() // stema clubului și logoul competiției, pentru tabelă, panouri și prelate
 const layout = buildLayout()
 const seats = layout.seats
 const sale = {
