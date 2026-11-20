@@ -11,6 +11,20 @@ Prototip de ticketing cu harta 3D a stadionului din Craiova, în stilul celor fo
 6. **Contul și biletele**: cont cu nume, email, telefon și parolă; rezervarea locurilor pe server pentru 10 minute, plata, biletele cu cod QR (în cont, în PDF și pe email), „Biletele mele”.
 7. **Administrarea** (`/admin`) și **scanarea la poartă** (`/scan`).
 
+## Intro, stema și trofeele
+- **Intro-ul** depinde de competiția meciului. Fundalul e negru la Conference și Europa League, albastru cu stele la Champions League și roșu la Superliga și Cupa României. Logoul competiției stă în mijlocul unei porți cu două canaturi, care se deschide spre stadion.
+  - Se poate sări cu „Sari peste” sau cu un clic. E oprit cu `?nointro` sau dacă sistemul cere animații reduse.
+- **Tripla 2025–2026:** la competițiile interne, intro-ul arată stema Universității Craiova și cele trei trofee modelate 3D după fotografii: Cupa României (urna de argint oferită de Ion Țiriac), trofeul Superligii (LPF, 2023) și Supercupa României (cu mingea aurie).
+- **Stema clubului** e redesenată curat, la rezoluție mare, după afișul oficial al clubului (`public/brand/`). Apare în antet, la încărcare, ca favicon, pe bilete (web și PDF), în email, pe panourile LED, pe tabelă și pe prelatele tunelurilor.
+- **Tabelele** sunt ecrane video negre, agățate sus în colonada din colțurile NE și SV, ca în fotografii. Afișează logoul competiției, stemele, scorul și cronometrul.
+- În spatele tribunelor: parapet și platformă, stâlpii ramificați ai acoperișului și vitrajul închis la culoare. Marginea de sus a inelului de sus e o curbă continuă, ca pe stadion.
+
+## Împrejurimile pe 1 km
+- Clădirile din OpenStreetMap au fațade pe tipuri: blocuri cu panouri prefabricate, balcoane închise sau deschise și casa scării; case cu ferestre cu rame, obloane și soclu; birouri vitrate; hale. Parterul e separat de etaje. Geamurile reflectă cerul, iar relieful vine din hărți de normale.
+- Casele au acoperiș în patru sau două ape, cu streașină și țiglă. Blocurile au acoperiș plat cu atic și camere tehnice. Culoarea fiecărui acoperiș e luată din imaginea satelit.
+- Imaginea satelit se încarcă în patru niveluri de detaliu (până la nivelul 17 pe 1 km). De aproape se adaugă granulația solului.
+- Copacii sunt detectați din imaginea satelit. Coroanele sunt rotunjite, cu frunziș decupat și verdele real, iar de-a lungul străzilor apar și plopi.
+
 ## Vânzarea de bilete
 
 ### Pentru cumpărători

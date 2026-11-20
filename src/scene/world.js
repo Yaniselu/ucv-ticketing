@@ -3,6 +3,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { buildCity } from './city.js'
+import { buildBuildings as buildBuildings2 } from './buildings.js'
 
 const TILE_URL = (z, x, y) => `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`
 
@@ -33,6 +34,38 @@ const x2lon = (x, z) => (x / 2 ** z) * 360 - 180
 const y2lat = (y, z) => {
   const n = Math.PI - (2 * Math.PI * y) / 2 ** z
   return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)))
+}
+
+let _detail = null
+function detailTexture() {
+  if (_detail) return _detail
+  const c = document.createElement('canvas')
+  c.width = c.height = 256
+  const g = c.getContext('2d')
+  const img = g.createImageData(256, 256)
+  let seed = 41
+  const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+  // canalul R: granulație fină (pietriș, fire de iarbă); G: pete mai mari
+  const coarse = new Float32Array(32 * 32).map(() => r())
+  const cs = (x, y) => coarse[((y & 31) << 5) | (x & 31)]
+  for (let y = 0; y < 256; y++) {
+    for (let x = 0; x < 256; x++) {
+      const fx = x / 8, fy = y / 8
+      const ix = Math.floor(fx), iy = Math.floor(fy)
+      const tx = fx - ix, ty = fy - iy
+      const v = cs(ix, iy) * (1 - tx) * (1 - ty) + cs(ix + 1, iy) * tx * (1 - ty) + cs(ix, iy + 1) * (1 - tx) * ty + cs(ix + 1, iy + 1) * tx * ty
+      const o = (y * 256 + x) * 4
+      img.data[o] = 128 + (r() - 0.5) * 150
+      img.data[o + 1] = v * 255
+      img.data[o + 2] = 128
+      img.data[o + 3] = 255
+    }
+  }
+  g.putImageData(img, 0, 0)
+  _detail = new THREE.CanvasTexture(c)
+  _detail.wrapS = _detail.wrapT = THREE.RepeatWrapping
+  _detail.anisotropy = 8
+  return _detail
 }
 
 function loadImage(url) {
@@ -76,8 +109,27 @@ function satelliteLayer(proj, z, radius, y, maxPx, onProgress) {
   geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 1, 1, 1, 1, 0, 0, 0], 2))
   geo.setAttribute('normal', new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0], 3))
   geo.setIndex([0, 3, 1, 1, 3, 2])
-  // imaginea satelit are deja lumina și umbrele reale: o afișăm fără iluminare suplimentară
+  // imaginea satelit are deja lumina și umbrele reale: o afișăm fără iluminare suplimentară;
+  // de aproape adăugăm un detaliu fin (granulația solului), ca imaginea să nu pară neclară
   const mat = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false, polygonOffset: true, polygonOffsetFactor: 4 - z / 6, polygonOffsetUnits: 4 })
+  if (z >= 16) {
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.detailMap = { value: detailTexture() }
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vGroundPos;')
+        .replace('#include <project_vertex>', '#include <project_vertex>\nvGroundPos = (modelMatrix * vec4(transformed, 1.0)).xyz;')
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vGroundPos;\nuniform sampler2D detailMap;')
+        .replace('#include <map_fragment>', `#include <map_fragment>
+          float gd = distance(cameraPosition, vGroundPos);
+          float fade = 1.0 - smoothstep(60.0, 520.0, gd);
+          float d1 = texture2D(detailMap, vGroundPos.xz / 2.3).r;
+          float d2 = texture2D(detailMap, vGroundPos.xz / 9.1 + 0.37).g;
+          float d = (d1 - 0.5) * 0.55 + (d2 - 0.5) * 0.45;
+          diffuseColor.rgb *= 1.0 + d * 0.55 * fade;`)
+    }
+    mat.customProgramCacheKey = () => 'ground-detail-v1'
+  }
   const mesh = new THREE.Mesh(geo, mat)
   // conversii coordonate scenă ↔ pixeli în mozaic
   const toPx = (lx, lz) => {
@@ -135,226 +187,33 @@ function paintPolygon(layer, pts, color) {
   g.fill()
 }
 
-// ─── Clădiri ─────────────────────────────────────────────────────────
-function facadeTile(kind) {
-  const c = document.createElement('canvas')
-  c.width = 128
-  c.height = 128
-  const g = c.getContext('2d')
-  g.fillStyle = '#ffffff'
-  g.fillRect(0, 0, 128, 128)
-  const glass = (x, y, w, h) => {
-    const grd = g.createLinearGradient(0, y, 0, y + h)
-    grd.addColorStop(0, '#6b7c8c')
-    grd.addColorStop(1, '#3a4653')
-    g.fillStyle = grd
-    g.fillRect(x, y, w, h)
-    g.fillStyle = 'rgba(255,255,255,0.16)'
-    g.fillRect(x, y, w, 5)
-  }
-  if (kind === 'block') {
-    // bloc de locuințe: panou prefabricat, fereastră și balcon cu parapet
-    g.fillStyle = '#ecebe7'
-    g.fillRect(0, 0, 128, 128)
-    g.fillStyle = 'rgba(0,0,0,0.08)'
-    g.fillRect(0, 0, 2, 128); g.fillRect(0, 126, 128, 2)
-    glass(14, 26, 44, 56)
-    glass(72, 22, 40, 76)
-    g.fillStyle = '#d8d5cd'
-    g.fillRect(64, 88, 56, 30)
-    g.fillStyle = 'rgba(0,0,0,0.18)'
-    g.fillRect(64, 86, 56, 3)
-  } else if (kind === 'office') {
-    g.fillStyle = '#e8ecef'
-    g.fillRect(0, 0, 128, 128)
-    glass(0, 18, 128, 92)
-    g.fillStyle = 'rgba(220,226,230,0.9)'
-    for (let x = 0; x < 128; x += 32) g.fillRect(x, 18, 3, 92)
-  } else {
-    // casă: tencuială, fereastră cu ramă și pervaz
-    g.fillStyle = '#f4f2ec'
-    g.fillRect(0, 0, 128, 128)
-    glass(40, 34, 48, 54)
-    g.strokeStyle = '#ffffff'
-    g.lineWidth = 5
-    g.strokeRect(40, 34, 48, 54)
-    g.beginPath(); g.moveTo(64, 34); g.lineTo(64, 88); g.stroke()
-    g.fillStyle = '#cfcac0'
-    g.fillRect(36, 88, 56, 5)
-    g.fillStyle = '#d7d1c4'
-    g.fillRect(0, 118, 128, 10)
-  }
-  const t = new THREE.CanvasTexture(c)
-  t.colorSpace = THREE.SRGBColorSpace
-  t.wrapS = t.wrapT = THREE.RepeatWrapping
-  t.anisotropy = 4
-  return t
-}
-
-function windowTexture() {
-  const c = document.createElement('canvas')
-  c.width = 128
-  c.height = 128
-  const g = c.getContext('2d')
-  g.fillStyle = '#ffffff'
-  g.fillRect(0, 0, 128, 128)
-  g.fillStyle = '#f2f2f2'
-  g.fillRect(0, 116, 128, 12)
-  const grd = g.createLinearGradient(0, 30, 0, 92)
-  grd.addColorStop(0, '#5f6e7c')
-  grd.addColorStop(1, '#3b4652')
-  g.fillStyle = grd
-  g.fillRect(34, 30, 60, 62)
-  g.fillStyle = 'rgba(255,255,255,0.18)'
-  g.fillRect(34, 30, 60, 6)
-  g.strokeStyle = '#e9e6df'
-  g.lineWidth = 4
-  g.strokeRect(34, 30, 60, 62)
-  g.beginPath(); g.moveTo(64, 30); g.lineTo(64, 92); g.stroke()
-  const t = new THREE.CanvasTexture(c)
-  t.colorSpace = THREE.SRGBColorSpace
-  t.wrapS = t.wrapT = THREE.RepeatWrapping
-  t.anisotropy = 4
-  return t
-}
-
-const WALLS = {
-  0: ['#efe7d6', '#f3f1ea', '#eadfbf', '#e9d2b6', '#dedbd3', '#f1e3c8'],
-  1: ['#ddd8cd', '#d3d6d8', '#e4dccd', '#cfcac0'],
-  2: ['#e3ded4', '#d9dcdf', '#ece6da'],
-  3: ['#f2ede2'],
-  4: ['#bdb7ad', '#c9c2b6'],
-  5: ['#e9ecef'],
-}
-
-function buildBuildings(data, layers) {
-  const pitchCentres = data.areas.filter((a) => a[0] === 2).map((a) => {
-    let x = 0, z = 0
-    const n = a[1].length / 2
-    for (let i = 0; i < a[1].length; i += 2) { x += a[1][i]; z += a[1][i + 1] }
-    return [x / n, z / n]
-  })
-  const buckets = { house: { pos: [], uv: [], col: [] }, block: { pos: [], uv: [], col: [] }, office: { pos: [], uv: [], col: [] } }
-  let wallPos, wallUV, wallCol
-  const roofSets = layers.map(() => ({ pos: [], uv: [] }))
-  const col = new THREE.Color()
-  let seed = 7
-  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
-  for (const [h, kind, flat, bname] of data.buildings) {
-    if (bname === 'Sala Polivalentă') continue // modelată separat în city.js
-    const pts = []
-    for (let i = 0; i < flat.length; i += 2) pts.push([flat[i], flat[i + 1]])
-    const n = pts.length
-    if (n < 3) continue
-    let cx = 0, cz = 0
-    for (const p of pts) { cx += p[0]; cz += p[1] }
-    cx /= n; cz /= n
-    let area = 0
-    for (let i = 0; i < n; i++) {
-      const a = pts[i], b = pts[(i + 1) % n]
-      area += a[0] * b[1] - b[0] * a[1]
-    }
-    area = Math.abs(area / 2)
-    const hip = kind === 0 && n <= 10
-    const roofH = hip ? Math.min(3.4, 0.32 * Math.sqrt(area)) : 0
-    const wallH = Math.max(2.6, h - roofH)
-    // tribună (fără nume, tip sport): gradenele urcă dinspre teren spre spate
-    let hv = null
-    if (kind === 5 && area > 1500 && pitchCentres.length) {
-      const pc = pitchCentres.reduce((best, c) => (Math.hypot(c[0] - cx, c[1] - cz) < Math.hypot(best[0] - cx, best[1] - cz) ? c : best))
-      const ds = pts.map(([x, z]) => Math.hypot(x - pc[0], z - pc[1]))
-      const dmin = Math.min(...ds)
-      const dmax = Math.max(...ds)
-      if (dmax - dmin > 8) hv = ds.map((d) => 1.2 + (h + 3 - 1.2) * ((d - dmin) / (dmax - dmin)))
-    }
-    const H = (i) => (hv ? hv[i] : wallH)
-    const bk = buckets[kind === 1 ? 'block' : kind === 2 && h > 14 ? 'office' : 'house']
-    wallPos = bk.pos
-    wallUV = bk.uv
-    wallCol = bk.col
-    const palette = WALLS[kind] || WALLS[2]
-    col.set(palette[Math.floor(rnd() * palette.length)])
-    const shade = 0.78 + rnd() * 0.1
-    let u = 0
-    for (let i = 0; i < n; i++) {
-      const a = pts[i]
-      const b = pts[(i + 1) % n]
-      const len = Math.hypot(b[0] - a[0], b[1] - a[1])
-      const u0 = u / 3.3
-      const u1 = (u + len) / 3.3
-      u += len
-      const v1 = wallH / 3
-      const ha = H(i)
-      const hb = H((i + 1) % n)
-      wallPos.push(a[0], 0, a[1], b[0], 0, b[1], b[0], hb, b[1], a[0], 0, a[1], b[0], hb, b[1], a[0], ha, a[1])
-      wallUV.push(u0, 0, u1, 0, u1, hb / 3, u0, 0, u1, hb / 3, u0, ha / 3)
-      for (let k = 0; k < 6; k++) wallCol.push(col.r * shade, col.g * shade, col.b * shade)
-    }
-    // acoperișul: texturat din imaginea satelit
-    const li = layers.findIndex((L) => L.covers(cx, cz))
-    if (li < 0) continue
-    const L = layers[li]
-    const R = roofSets[li]
-    const push = (x, y, z) => {
-      R.pos.push(x, y, z)
-      R.uv.push(...L.toUV(x, z))
-    }
-    if (hip) {
-      const top = wallH + roofH
-      const inner = pts.map(([x, z]) => [cx + (x - cx) * 0.28, cz + (z - cz) * 0.28])
-      for (let i = 0; i < n; i++) {
-        const a = pts[i], b = pts[(i + 1) % n], c = inner[(i + 1) % n], d = inner[i]
-        push(a[0], wallH, a[1]); push(c[0], top, c[1]); push(b[0], wallH, b[1])
-        push(a[0], wallH, a[1]); push(d[0], top, d[1]); push(c[0], top, c[1])
-      }
-      const tri = THREE.ShapeUtils.triangulateShape(inner.map(([x, z]) => new THREE.Vector2(x, z)), [])
-      for (const [i0, i1, i2] of tri) {
-        push(inner[i0][0], top, inner[i0][1]); push(inner[i2][0], top, inner[i2][1]); push(inner[i1][0], top, inner[i1][1])
-      }
-    } else {
-      const tri = THREE.ShapeUtils.triangulateShape(pts.map(([x, z]) => new THREE.Vector2(x, z)), [])
-      for (const [i0, i1, i2] of tri) {
-        push(pts[i0][0], H(i0), pts[i0][1]); push(pts[i2][0], H(i2), pts[i2][1]); push(pts[i1][0], H(i1), pts[i1][1])
-      }
-    }
-  }
-  const group = new THREE.Group()
-  for (const [name, bk] of Object.entries(buckets)) {
-    if (!bk.pos.length) continue
-    const wg = new THREE.BufferGeometry()
-    wg.setAttribute('position', new THREE.Float32BufferAttribute(bk.pos, 3))
-    wg.setAttribute('uv', new THREE.Float32BufferAttribute(bk.uv, 2))
-    wg.setAttribute('color', new THREE.Float32BufferAttribute(bk.col, 3))
-    wg.computeVertexNormals()
-    group.add(new THREE.Mesh(wg, new THREE.MeshStandardMaterial({ map: facadeTile(name), vertexColors: true, roughness: 0.85, side: THREE.DoubleSide })))
-  }
-  roofSets.forEach((R, i) => {
-    if (!R.pos.length) return
-    const rg = new THREE.BufferGeometry()
-    rg.setAttribute('position', new THREE.Float32BufferAttribute(R.pos, 3))
-    rg.setAttribute('uv', new THREE.Float32BufferAttribute(R.uv, 2))
-    rg.computeVertexNormals()
-    const m = new THREE.Mesh(rg, new THREE.MeshBasicMaterial({ map: layers[i].tex, toneMapped: false, side: THREE.DoubleSide }))
-    group.add(m)
-  })
-  return group
-}
-
 // ─── Copaci: coroanele detectate pe imaginea satelit ─────────────────
-function treeGeometry() {
-  const g = new THREE.IcosahedronGeometry(1, 2)
-  const p = g.attributes.position
-  const v = new THREE.Vector3()
-  for (let i = 0; i < p.count; i++) {
-    v.fromBufferAttribute(p, i)
-    const n = 1 + 0.16 * Math.sin(v.x * 5.1 + v.y * 3.7) * Math.cos(v.z * 4.3 - v.y * 2.1) + 0.08 * Math.sin(v.x * 11 + v.z * 9)
-    v.multiplyScalar(n)
-    v.y *= 0.82
-    p.setXYZ(i, v.x, v.y, v.z)
+// coroana: 6 volume rotunjite, deformate cu zgomot (miezul) și un strat exterior puțin mai mare,
+// cu frunziș decupat (alphaTest), ca silueta să fie neregulată și să treacă lumina pe margini
+function crownGeometry(shell = 1) {
+  const parts = []
+  const blobs = [[0, 1.05, 0, 1.0], [0.55, 0.85, 0.2, 0.72], [-0.5, 0.9, -0.25, 0.75], [0.15, 1.5, -0.35, 0.68], [-0.2, 1.45, 0.45, 0.66], [0.35, 0.55, -0.45, 0.6]]
+  for (const [x, y, z, r] of blobs) {
+    const g = new THREE.IcosahedronGeometry(r * shell, 4)
+    const p = g.attributes.position
+    const v = new THREE.Vector3()
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i)
+      const n = 1 + 0.12 * Math.sin(v.x * 7.1 + v.y * 4.7 + x) * Math.cos(v.z * 6.3 - v.y * 3.1 + z) + 0.06 * Math.sin(v.x * 17 + v.z * 13)
+      v.multiplyScalar(n)
+      p.setXYZ(i, v.x + x, v.y * 0.92 + y, v.z + z)
+    }
+    // UV sferice pentru textura de frunziș
+    const uv = g.attributes.uv
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i).sub(new THREE.Vector3(x, y, z)).normalize()
+      uv.setXY(i, (Math.atan2(v.z, v.x) / (Math.PI * 2) + 0.5) * 3, Math.acos(v.y) / Math.PI * 2)
+    }
+    parts.push(g.toNonIndexed())
   }
-  g.computeVertexNormals()
-  g.translate(0, 1.25, 0)
-  return g
+  const m = mergeGeometries(parts)
+  m.computeVertexNormals()
+  return m
 }
 
 function detectTrees(layer, data, radius, maxTrees) {
@@ -422,68 +281,79 @@ function detectTrees(layer, data, radius, maxTrees) {
 }
 
 function leafTexture() {
+  // frunziș: pete de frunze deschise pe fond transparent, cu goluri
   const c = document.createElement('canvas')
-  c.width = c.height = 256
+  c.width = c.height = 512
   const g = c.getContext('2d')
+  g.clearRect(0, 0, 512, 512)
   let seed = 3
   const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
-  for (let k = 0; k < 1500; k++) {
-    // grupuri de frunze într-un contur neregulat, mai întunecate jos
-    const a = r() * Math.PI * 2
-    const rad = Math.sqrt(r()) * (100 + 18 * Math.sin(a * 5 + 1))
-    const x = 128 + Math.cos(a) * rad
-    const y = 128 + Math.sin(a) * rad * 0.92
-    const shade = 150 + (1 - y / 256) * 80 + r() * 25
-    g.fillStyle = `rgb(${shade},${shade},${shade})`
+  for (let k = 0; k < 5200; k++) {
+    const x = r() * 512
+    const y = r() * 512
+    const v = 120 + r() * 135
+    g.fillStyle = `rgb(${v},${v},${v})`
     g.beginPath()
-    g.ellipse(x, y, 4 + r() * 5, 2.5 + r() * 3, r() * Math.PI, 0, Math.PI * 2)
+    g.ellipse(x, y, 3 + r() * 6, 2 + r() * 3.5, r() * Math.PI, 0, Math.PI * 2)
     g.fill()
   }
   const t = new THREE.CanvasTexture(c)
   t.colorSpace = THREE.SRGBColorSpace
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.anisotropy = 4
   return t
 }
 
 function buildTrees(trees) {
-  const geo = treeGeometry()
-  geo.scale(0.82, 0.82, 0.82)
-  const crown = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: 0xb9b9b9, roughness: 0.95 }), trees.length)
-  // frunzișul: trei planuri încrucișate cu textură de frunze, nuanțate cu culoarea din satelit
-  const planes = []
-  for (let k = 0; k < 3; k++) {
-    const pl = new THREE.PlaneGeometry(2.5, 2.3)
-    pl.rotateY((k * Math.PI) / 3)
-    pl.translate(0, 1.2, 0)
-    planes.push(pl)
+  const core = crownGeometry(0.86)
+  const shell = crownGeometry(1.0)
+  // plopi: coroane înalte și înguste (de-a lungul străzilor din jurul stadionului)
+  const leaf = leafTexture()
+  const coreMat = new THREE.MeshStandardMaterial({ color: 0xa8a8a8, roughness: 0.95, flatShading: false })
+  const shellMat = new THREE.MeshStandardMaterial({ map: leaf, alphaTest: 0.42, side: THREE.DoubleSide, roughness: 0.85 })
+  // întunecăm baza coroanei (umbra proprie), ca la copacii reali
+  for (const m of [coreMat, shellMat]) {
+    m.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vCrownY;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvCrownY = position.y;')
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vCrownY;').replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= 0.7 + 0.42 * smoothstep(0.2, 1.9, vCrownY);')
+    }
+    m.customProgramCacheKey = () => 'crown-v2'
   }
-  const top = new THREE.PlaneGeometry(2.3, 2.3)
-  top.rotateX(-Math.PI / 2)
-  top.translate(0, 1.55, 0)
-  planes.push(top)
-  const foliage = new THREE.InstancedMesh(mergeGeometries(planes), new THREE.MeshStandardMaterial({ map: leafTexture(), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.9 }), trees.length)
-  const trunkGeo = new THREE.CylinderGeometry(0.16, 0.26, 1, 6).translate(0, 0.5, 0)
-  const trunk = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardMaterial({ color: 0x5b4a3a, roughness: 1 }), trees.length)
+  const crownCore = new THREE.InstancedMesh(core, coreMat, trees.length)
+  const crownShell = new THREE.InstancedMesh(shell, shellMat, trees.length)
+  const trunkGeo = new THREE.CylinderGeometry(0.11, 0.24, 1, 7).translate(0, 0.5, 0)
+  coreMat.vertexColors = false
+  const trunk = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardMaterial({ color: 0x5a4a3c, roughness: 1 }), trees.length)
   const m4 = new THREE.Matrix4()
   const q = new THREE.Quaternion()
   const up = new THREE.Vector3(0, 1, 0)
   const c = new THREE.Color()
+  const c2 = new THREE.Color()
   let seed = 5
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
   trees.forEach(([x, z, r, g, b, lum], k) => {
-    const s = 2.3 + rnd() * 1.6 + (lum < 55 ? 0.6 : 0)
-    const trunkH = s * 0.9 + 1.2
-    m4.compose(new THREE.Vector3(x, trunkH - 0.6, z), q.setFromAxisAngle(up, rnd() * 6.28), new THREE.Vector3(s, s * (0.9 + rnd() * 0.35), s))
-    crown.setMatrixAt(k, m4)
-    // culoarea reală a coroanei, ușor luminată (imaginea satelit conține umbre)
-    c.setRGB((r / 255) ** 2.2, (g / 255) ** 2.2, (b / 255) ** 2.2).multiplyScalar(1.7)
-    crown.setColorAt(k, c)
-    foliage.setMatrixAt(k, m4)
-    foliage.setColorAt(k, c)
-    m4.compose(new THREE.Vector3(x, 0, z), q.identity(), new THREE.Vector3(1, trunkH, 1))
+    const poplar = rnd() < 0.07
+    const s = (2.1 + rnd() * 1.7 + (lum < 55 ? 0.6 : 0)) * (poplar ? 0.85 : 1)
+    const sy = poplar ? s * 2.6 : s * (0.85 + rnd() * 0.3)
+    const sx = poplar ? s * 0.5 : s
+    const trunkH = poplar ? s * 0.9 : s * 0.7 + 1.2
+    m4.compose(new THREE.Vector3(x, trunkH - 0.5 * (poplar ? 1.6 : 1), z), q.setFromAxisAngle(up, rnd() * 6.28), new THREE.Vector3(sx, sy * 0.62, sx))
+    crownCore.setMatrixAt(k, m4)
+    crownShell.setMatrixAt(k, m4)
+    // culoarea reală a coroanei (din satelit), luminată: imaginea conține umbre
+    // culoarea frunzișului: din satelit, dar ținută în gama verdelui real (fără negru, fără gri)
+    c.setRGB(r / 255, g / 255, b / 255, THREE.SRGBColorSpace)
+    const hsl = {}
+    c.getHSL(hsl)
+    c.setHSL(0.2 + Math.min(0.09, Math.max(0, hsl.h - 0.2)) + (rnd() - 0.5) * 0.03, 0.38 + rnd() * 0.18, 0.2 + Math.min(0.12, hsl.l * 0.35) + rnd() * 0.06)
+    c2.copy(c).multiplyScalar(0.62)
+    crownShell.setColorAt(k, c)
+    crownCore.setColorAt(k, c2)
+    m4.compose(new THREE.Vector3(x, 0, z), q.identity(), new THREE.Vector3(poplar ? 0.8 : 1, trunkH, poplar ? 0.8 : 1))
     trunk.setMatrixAt(k, m4)
   })
   const g = new THREE.Group()
-  g.add(trunk, crown, foliage)
+  g.add(trunk, crownCore, crownShell)
   return g
 }
 
@@ -562,7 +432,10 @@ export async function buildWorld(scene, { lowSpec = false, onProgress } = {}) {
   const far = satelliteLayer(proj, 13, 6500, -1.2, 1024, prog(0))
   const mid = satelliteLayer(proj, 16, lowSpec ? 1100 : 1500, -0.6, lowSpec ? 1536 : 2304, prog(1))
   const near = satelliteLayer(proj, 18, lowSpec ? 330 : 480, -0.15, lowSpec ? 1536 : 2560, prog(2))
+  // nivelul 17 (≈ 0,9 m/pixel) până la 1 km de stadion, între nivelul 16 și 18
+  const ring = lowSpec ? null : satelliteLayer(proj, 17, 1000, -0.4, 2560, () => {})
   group.add(far.mesh, mid.mesh, near.mesh)
+  if (ring) group.add(ring.mesh)
   // Notă: Esri nu are nivelul 19 pentru Craiova (dalele sunt „Map data not yet available”),
   // deci nivelul 18 (≈ 0,4 m/pixel) este cel mai detaliat disponibil.
   const close = null
@@ -570,26 +443,28 @@ export async function buildWorld(scene, { lowSpec = false, onProgress } = {}) {
   const midR = lowSpec ? 1100 : 1500
   near.covers = (x, z) => Math.abs(x) < nearR - 20 && Math.abs(z) < nearR - 20
   mid.covers = (x, z) => Math.abs(x) < midR && Math.abs(z) < midR
+  if (ring) ring.covers = (x, z) => Math.abs(x) < 980 && Math.abs(z) < 980
 
   // sub carcasa stadionului pictăm betonul promenadei (imaginea are acoperișul real)
   const footprint = []
   for (let k = 0; k < 72; k++) footprint.push([100 * Math.cos((k / 72) * Math.PI * 2), 111.5 * Math.sin((k / 72) * Math.PI * 2)])
   const cover = () => {
-    for (const L of [mid, near, close].filter(Boolean)) {
+    for (const L of [mid, ring, near, close].filter(Boolean)) {
       paintPolygon(L, footprint, '#b9bab4')
       L.tex.needsUpdate = true
     }
   }
   cover()
-  const buildings = buildBuildings(data, [close, near, mid].filter(Boolean))
-  group.add(buildings)
+  const buildings = buildBuildings2(data, { lowSpec })
+  group.add(buildings.group)
   group.add(buildStreetLights(data))
   group.add(buildCity(data, { lowSpec }))
 
   const labels = streetLabels(data)
   const ready = (async () => {
-    await Promise.all([near.done, mid.done, close ? close.done : null])
+    await Promise.all([near.done, mid.done, ring ? ring.done : null, close ? close.done : null])
     cover()
+    buildings.applyRoofColors([near, ring, mid].filter(Boolean))
     const trees = detectTrees(near, data, nearR - 10, lowSpec ? 2500 : 6500)
     group.add(buildTrees(trees))
     return trees.length
