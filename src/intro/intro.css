@@ -1,0 +1,66 @@
+/* Intro-ul competiției: poartă cu două canaturi care se deschide spre stadion */
+.intro { position: absolute; inset: 0; z-index: 6; perspective: 1600px; overflow: hidden; cursor: pointer; background: transparent; }
+.intro-door { position: absolute; top: 0; bottom: 0; width: 50%; overflow: hidden; transition: transform 1.45s cubic-bezier(0.7, 0, 0.22, 1), filter 1.45s ease; backface-visibility: hidden; will-change: transform; }
+.intro-door.left { left: 0; transform-origin: left center; }
+.intro-door.right { right: 0; transform-origin: right center; }
+.intro-face { position: absolute; top: 0; bottom: 0; width: 100vw; display: grid; place-items: center; background: var(--intro-bg); }
+.intro-door.right .intro-face { left: -50vw; }
+.intro-door::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 1.45s ease; }
+.intro-door.left::after { background: linear-gradient(90deg, rgba(0, 0, 0, 0) 40%, rgba(0, 0, 0, 0.65)); }
+.intro-door.right::after { background: linear-gradient(270deg, rgba(0, 0, 0, 0) 40%, rgba(0, 0, 0, 0.65)); }
+.intro.opening .intro-door.left { transform: rotateY(-104deg); }
+.intro.opening .intro-door.right { transform: rotateY(104deg); }
+.intro.opening .intro-door::after { opacity: 1; }
+.intro.gone { opacity: 0; transition: opacity 0.5s ease; }
+
+.intro-logo { position: relative; width: min(46vmin, 420px); aspect-ratio: 1; display: grid; place-items: center; opacity: 0; transform: scale(0.82); transition: opacity 0.9s ease, transform 1.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.intro-logo img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 0 28px var(--intro-glow)); }
+.intro-logo-text { font: 800 clamp(34px, 7vmin, 72px) / 1 'Barlow Condensed', sans-serif; color: #fff; text-align: center; letter-spacing: 0.03em; }
+.intro.logo-in .intro-logo { opacity: 1; transform: scale(1); }
+.intro-shine {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 42%, rgba(255, 255, 255, 0.9) 50%, transparent 58%) no-repeat;
+  background-size: 300% 100%; background-position: 120% 0;
+  -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center;
+}
+.intro.logo-in .intro-shine { animation: intro-shine 1.5s 0.55s ease-in-out forwards; }
+@keyframes intro-shine { from { background-position: 120% 0; } to { background-position: -20% 0; } }
+.intro.treble .intro-logo { opacity: 0; transform: scale(1.12); transition-duration: 0.6s; }
+
+.intro-seam { position: absolute; left: 50%; top: 0; bottom: 0; width: 3px; margin-left: -1.5px; background: #fff; box-shadow: 0 0 18px 6px var(--intro-glow), 0 0 60px 18px var(--intro-glow); transform: scaleY(0); opacity: 0; transition: transform 0.38s ease-out, opacity 0.2s; pointer-events: none; }
+.intro.seam-on .intro-seam { transform: scaleY(1); opacity: 1; }
+.intro.opening .intro-seam { opacity: 0; transition: opacity 0.5s; }
+
+.intro-skip { position: absolute; right: 18px; bottom: max(18px, env(safe-area-inset-bottom)); border: 1px solid rgba(255, 255, 255, 0.45); background: rgba(0, 0, 0, 0.25); color: #fff; border-radius: 999px; padding: 9px 16px; font: 700 14px/1 'Barlow Condensed', sans-serif; letter-spacing: 0.06em; text-transform: uppercase; }
+.intro.opening .intro-skip { opacity: 0; }
+
+/* trofeele triplei */
+.intro-treble { position: absolute; inset: 0; display: grid; grid-template-rows: auto 1fr auto auto; justify-items: center; padding: max(26px, env(safe-area-inset-top)) 16px 64px; opacity: 0; transition: opacity 0.7s ease; pointer-events: none; }
+.intro.treble .intro-treble { opacity: 1; }
+.intro.treble-out .intro-treble { opacity: 0; transition-duration: 0.4s; }
+.intro-club { display: flex; align-items: center; gap: 12px; color: #fff; font: 800 clamp(20px, 3.4vmin, 32px) / 1 'Barlow Condensed', sans-serif; letter-spacing: 0.06em; text-transform: uppercase; transform: translateY(-14px); transition: transform 0.9s ease; }
+.intro.treble .intro-club { transform: none; }
+.intro-club img { height: clamp(44px, 8vmin, 74px); filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4)); }
+.intro-trophies { width: min(100%, 1100px); height: 100%; min-height: 0; }
+.intro-labels { display: grid; grid-template-columns: repeat(3, 1fr); width: min(100%, 860px); text-align: center; color: #fff; font: 800 clamp(14px, 2.3vmin, 22px) / 1.1 'Barlow Condensed', sans-serif; letter-spacing: 0.05em; text-transform: uppercase; }
+.intro-labels small { display: block; font-weight: 600; font-size: 0.72em; opacity: 0.8; margin-top: 3px; }
+.intro-title { margin-top: 14px; color: #fff; font: 800 clamp(30px, 6.4vmin, 64px) / 1 'Barlow Condensed', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; text-shadow: 0 4px 24px rgba(0, 0, 0, 0.35); transform: scale(0.94); opacity: 0; transition: opacity 0.8s 0.5s, transform 1.2s 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.intro.treble .intro-title { opacity: 1; transform: none; }
+
+/* fundalurile competițiilor */
+.intro-conference { --intro-bg: radial-gradient(ellipse at 50% 46%, #0d2a17 0%, #040806 45%, #000 75%); --intro-glow: rgba(43, 211, 91, 0.55); }
+.intro-europa { --intro-bg: radial-gradient(ellipse at 50% 46%, #2c1504 0%, #070402 45%, #000 75%); --intro-glow: rgba(255, 105, 0, 0.55); }
+.intro-champions { --intro-bg: radial-gradient(ellipse at 50% 40%, #1d46c8 0%, #0a237a 38%, #030c3c 75%, #01061f 100%); --intro-glow: rgba(120, 170, 255, 0.6); }
+.intro-superliga { --intro-bg: radial-gradient(ellipse at 50% 40%, #ff3434 0%, #e30613 42%, #9a0009 100%); --intro-glow: rgba(255, 255, 255, 0.5); }
+.intro-cupa { --intro-bg: radial-gradient(ellipse at 50% 40%, #ff3b30 0%, #cf1018 45%, #7d0510 100%); --intro-glow: rgba(255, 210, 0, 0.55); }
+.intro-supercupa { --intro-bg: radial-gradient(ellipse at 50% 40%, #1c58c8 0%, #0b3a91 45%, #04194a 100%); --intro-glow: rgba(255, 210, 0, 0.55); }
+.intro-stars { position: absolute; inset: 0; background-size: cover; opacity: 0.9; }
+.intro-champions .intro-face::before, .intro-cupa .intro-face::before, .intro-superliga .intro-face::before {
+  content: ''; position: absolute; inset: 0;
+  background: repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.035) 0 2px, transparent 2px 46px);
+}
+.intro-cupa .intro-face::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 8px; background: linear-gradient(90deg, #0b3a91 33.3%, #ffd200 33.3% 66.6%, #ce1126 66.6%); }
+
+@media (prefers-reduced-motion: reduce) {
+  .intro { display: none; }
+}

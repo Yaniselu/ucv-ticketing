@@ -7,7 +7,8 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import { buildLayout, G, D2, boxFloorY } from './data/layout.js'
-import { EVENT, STANDS, setEvent } from './data/stadium-data.js'
+import { EVENT, STANDS, setEvent, COMPETITION_ID } from './data/stadium-data.js'
+import { playIntro } from './intro/intro.js'
 import { applyConfig, defaultConfig, decodeBits, seatKey, seatGate, FREE, TAKEN, BLOCKED } from './data/sale.js'
 import { api, loadMe, getMe } from './net/api.js'
 import { createAccount } from './ui/account.js'
@@ -941,12 +942,14 @@ requestAnimationFrame((t) => {
   last = t
   frame(t)
   document.getElementById('loader').classList.add('done')
-  // o clipă de sus, ca pe hartă, apoi coborâm și ne înclinăm spre stadion
+  // intro-ul competiției (poarta care se deschide); apoi coborâm de sus și ne înclinăm spre stadion
   controls.maxDistance = 2000
-  setTimeout(() => flyTo(OVERVIEW.pos, OVERVIEW.target, 4.2, () => {
-    applyControls('overview')
-    idleSince = performance.now()
-  }, false), 1400)
+  playIntro(COMPETITION_ID, {
+    onOpen: () => setTimeout(() => flyTo(OVERVIEW.pos, OVERVIEW.target, 4.2, () => {
+      applyControls('overview')
+      idleSince = performance.now()
+    }, false), 250),
+  })
 })
 
 // rezervarea începută înainte (ex. pagina reîncărcată): locurile revin în coș
