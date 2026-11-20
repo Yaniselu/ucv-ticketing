@@ -16,6 +16,7 @@ for (const k of ['PN', 'T2', 'PS', 'T1', 'VIP']) {
 console.table(rows)
 console.log(`Loje: ${layout.boxes.length} (${layout.boxes.map((b) => b.num).join(', ')}) = ${sum.boxes} locuri`)
 console.log('Rezumat:', sum, `(${ms} ms)`)
+console.log(`Ajustare finală: ${layout.trimmed.pub} locuri publice și ${layout.trimmed.vip} VIP scoase din ultimul rând`)
 
 const expect = { ...CAPACITY }
 let ok = true

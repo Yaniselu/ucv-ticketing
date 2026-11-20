@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "verify": "node scripts/verify-capacity.mjs",
-    "osm": "node scripts/build-osm.mjs"
+    "osm": "node scripts/build-osm.mjs",
+    "tune": "node scripts/tune-seats.mjs"
   },
   "dependencies": {
     "3d-tiles-renderer": "^0.5.4",

@@ -21,8 +21,9 @@ export const G = {
   // (multe rânduri la mijlocul laturilor, puține în colțuri, ca la stadionul real)
   ring2: { rows: 42, wall: 1.1, rise: 0.52 },
   bowlBack: { ax: 86.7, az: 100.7 },
-  seatW: 0.5,
-  vipSeatW: 0.52,
+  // distanța dintre axele scaunelor, reglată cu scripts/tune-seats.mjs
+  seatW: 0.5333,
+  vipSeatW: 0.5516,
   aisle: 1.2,
   seatInset: 0.42,
   // blocul de loje + presă din Tribuna 1 (z între -40 și 40)
@@ -144,6 +145,10 @@ function ringRows(ring) {
   return rows
 }
 
+// lățimea unui loc (distanța dintre axele scaunelor); valorile din G sunt reglate
+// de scripts/tune-seats.mjs astfel încât totalul să iasă exact cu cât mai puține ajustări
+let SW = { pub: G.seatW, vip: G.vipSeatW }
+
 // ─── Definirea sectoarelor ───────────────────────────────────────────
 // După harta oficială „Bilete Superliga 2026–2027” a clubului:
 // Tribuna 1 (vest) sus pe hartă, Tribuna 2 (est) jos, Peluza Sud stânga, Peluza Nord dreapta.
@@ -154,7 +159,7 @@ function defineSectors() {
       o.u0 = o.piece + o.t0
       o.u1 = o.piece + o.t1
     }
-    S.push({ innerAisles: 0, seatW: G.seatW, vomitories: true, ...o })
+    S.push({ innerAisles: 0, seatW: SW.pub, vomitories: true, ...o })
   }
   // peluzele se împart în 4 sectoare de lungime egală (măsurată la mijlocul gradenelor)
   const DREF = D2(8)
@@ -206,7 +211,7 @@ function defineSectors() {
   'ABCDEF'.split('').forEach((L, k) => {
     add({
       id: `VIP-${L}`, letter: L, stand: 'VIP', title: `VIP · Sector ${L}`, piece: 6,
-      t0: T_BLOCK_A + k * w, t1: T_BLOCK_A + (k + 1) * w, rings: [1], seatW: G.vipSeatW,
+      t0: T_BLOCK_A + k * w, t1: T_BLOCK_A + (k + 1) * w, rings: [1], seatW: SW.vip,
       price: vipPrice[L], demand: 'VIP', kind: 'vip', vomitories: false,
     })
   })
@@ -290,7 +295,7 @@ export function ring1AisleUs(sector) {
   return Array.from({ length: nb + 1 }, (_, b) => sector.u0 + ((sector.u1 - sector.u0) * b) / nb)
 }
 
-function buildNaturalRows(sector) {
+function buildNaturalRows(sector, r1) {
   const rows = []
   let rowNum = 0
   const blocks = sectorBlocks(sector)
@@ -298,7 +303,7 @@ function buildNaturalRows(sector) {
     for (const row of ringRows(ring)) {
       if (ring === 2 && !blocks.some((bl) => row.idx < bl.rows)) continue
       rowNum++
-      const { d, slots } = rowSlots(sector, row)
+      const { d, slots } = ring === 1 && r1 ? { d: row.front + G.seatInset, slots: r1.get(sector.id)[row.idx] } : rowSlots(sector, row)
       const seats = []
       for (const sl of slots) {
         if (ring === 2 && row.idx >= blocks[sl.block].rows) continue
@@ -313,6 +318,43 @@ function buildNaturalRows(sector) {
     }
   }
   return rows
+}
+
+// ─── Inelul de jos: rânduri continue de la o scară la alta ───────────
+// Ca pe stadion, între două scări rândul e neîntrerupt, chiar dacă trece granița dintre
+// două sectoare; fiecare loc aparține sectorului în dreptul căruia se află.
+const inSector = (s, u) => {
+  const w = wrap8(u)
+  return (w >= s.u0 - 1e-9 && w < s.u1 - 1e-9) || (w + 8 >= s.u0 - 1e-9 && w + 8 < s.u1 - 1e-9)
+}
+function ring1Slots(sectors) {
+  const r1 = sectors.filter((s) => s.rings.includes(1))
+  const aisles = new Map()
+  for (const s of r1) for (const u of ring1AisleUs(s)) aisles.set(wrap8(u).toFixed(5), wrap8(u))
+  const A = [...aisles.values()].sort((a, b) => a - b)
+  const out = new Map(r1.map((s) => [s.id, Array.from({ length: G.ring1.rows }, () => [])]))
+  for (let k = 0; k < A.length; k++) {
+    const a = A[k]
+    const b = k + 1 < A.length ? A[k + 1] : A[0] + 8
+    const ms = r1.find((s) => inSector(s, (a + b) / 2))
+    if (!ms) continue
+    for (let i = 0; i < G.ring1.rows; i++) {
+      const d = D1(i) + G.seatInset
+      const L = lenU(a, b, d)
+      const n = Math.max(0, Math.floor((L - G.aisle) / ms.seatW + 1e-6))
+      const margin = (L - n * ms.seatW) / 2
+      for (let j = 0; j < n; j++) {
+        const u = uAtLen(a, b, d, margin + (j + 0.5) * ms.seatW)
+        const s = r1.find((x) => inSector(x, u)) || ms
+        const rel = wrap8(u - s.u0)
+        const block = s.ring1Vom && rel >= wrap8(vomU(s) - s.u0) ? 1 : 0
+        out.get(s.id)[i].push({ u, rel, block })
+      }
+    }
+  }
+  // numerotarea locurilor merge de la începutul sectorului spre capăt
+  for (const rows of out.values()) for (const r of rows) r.sort((x, y) => x.rel - y.rel)
+  return out
 }
 
 function countRows(rows) {
@@ -330,20 +372,29 @@ function apportion(total, weights) {
   return out
 }
 
-// elimină locuri de la capetele rândurilor, uniform, începând din spate
-function trimRows(rows, excess) {
+// Ajustarea finală la totalul oficial: câteva locuri scoase de la capătul ultimului rând
+// al blocurilor celor mai înalte, lângă scară (rândurile din față rămân drepte și întregi).
+function trimBack(list, excess) {
+  const cands = []
+  for (const s of list) {
+    const top = new Map()
+    for (const r of s.rows) for (const p of r.seats) top.set(`${r.ring}:${p.block}`, r)
+    for (const [key, r] of top) cands.push({ r, block: +key.split(':')[1], h: r.ringRow + (r.ring === 2 ? 100 : 0) })
+  }
+  cands.sort((a, b) => b.h - a.h)
   let side = 0
   while (excess > 0) {
     let removed = 0
-    for (let r = rows.length - 1; r >= 0 && excess > 0; r--) {
-      const seats = rows[r].seats
-      if (seats.length <= 4) continue
-      if (side % 2 === 0) seats.pop()
-      else seats.shift()
-      side++
+    for (const c of cands) {
+      if (excess <= 0) break
+      const idx = []
+      c.r.seats.forEach((p, i) => p.block === c.block && idx.push(i))
+      if (idx.length <= 6) continue
+      c.r.seats.splice(side % 2 === 0 ? idx[idx.length - 1] : idx[0], 1)
       excess--
       removed++
     }
+    side++
     if (!removed) throw new Error('Nu se pot elimina suficiente locuri')
   }
 }
@@ -416,25 +467,35 @@ function buildAccessible(sectors) {
 }
 
 // ─── Layout complet ──────────────────────────────────────────────────
-export function buildLayout() {
+function naturalSectors(opts = {}) {
+  SW = { pub: opts.seatW ?? G.seatW, vip: opts.vipSeatW ?? G.vipSeatW }
   const sectors = defineSectors()
-  for (const s of sectors) s.rows = buildNaturalRows(s)
+  const r1 = ring1Slots(sectors)
+  for (const s of sectors) s.rows = buildNaturalRows(s, r1)
+  return sectors
+}
+const isPublic = (s) => s.stand !== 'VIP'
 
-  const isPublic = (s) => s.stand !== 'VIP'
-  const pub = sectors.filter(isPublic)
-  const vip = sectors.filter((s) => !isPublic(s))
-  const check = (list, target, label) => {
-    const nat = list.map((s) => countRows(s.rows))
-    const sum = nat.reduce((a, b) => a + b, 0)
-    if (sum < target) throw new Error(`${label}: geometria are ${sum} locuri, sub ținta ${target}`)
-    const targets = apportion(target, nat)
-    list.forEach((s, i) => {
-      s.natural = nat[i]
-      trimRows(s.rows, nat[i] - targets[i])
-    })
+// numărul de locuri înainte de ajustarea finală (folosit de scripts/tune-seats.mjs)
+export function countNatural(opts) {
+  const sectors = naturalSectors(opts)
+  const sum = (list) => list.reduce((a, s) => a + countRows(s.rows), 0)
+  return { pub: sum(sectors.filter(isPublic)), vip: sum(sectors.filter((s) => !isPublic(s))) }
+}
+
+export function buildLayout(opts) {
+  const sectors = naturalSectors(opts)
+  const fit = (list, target, label) => {
+    const nat = list.reduce((a, s) => a + countRows(s.rows), 0)
+    if (nat < target) throw new Error(`${label}: geometria are ${nat} locuri, sub ținta ${target}`)
+    for (const s of list) s.natural = countRows(s.rows)
+    trimBack(list, nat - target)
+    return nat - target
   }
-  check(pub, CAPACITY.public, 'Public')
-  check(vip, CAPACITY.vip, 'VIP')
+  const trimmed = {
+    pub: fit(sectors.filter(isPublic), CAPACITY.public, 'Public'),
+    vip: fit(sectors.filter((s) => !isPublic(s)), CAPACITY.vip, 'VIP'),
+  }
 
   const seats = []
   const push = (o) => {
@@ -496,7 +557,7 @@ export function buildLayout() {
     s.normal = { x: nx / nl, z: nz / nl }
   }
 
-  return { sectors, boxes, seats, pressIdx, accessibleIdx }
+  return { sectors, boxes, seats, pressIdx, accessibleIdx, trimmed }
 }
 
 function sectorStand(sectors, id) {

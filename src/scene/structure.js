@@ -198,6 +198,8 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
         walls.quad(PU(b, d0 - 0.25, yb), PU(b, d0 - 0.25, yt + 0.85), PU(b, d0 + 0.2, yt + 0.85), PU(b, d0 + 0.2, yb))
       }
       walls.quad(PU(uc - du - fw2, d0 - 0.25, yt + 0.85), PU(uc - du - fw2, d0 + 0.2, yt + 0.85), PU(uc + du + fw2, d0 + 0.2, yt + 0.85), PU(uc + du + fw2, d0 - 0.25, yt + 0.85))
+      // acoperișul alb al vomitorului (de sus se vede o cutie albă, nu golul tunelului)
+      walls.quad(PU(uc - du, d0 + 0.2, yt + 1.0), PU(uc - du, d1, yt + 1.0), PU(uc + du, d1, yt + 1.0), PU(uc + du, d0 + 0.2, yt + 1.0))
       vomGeo.push({ u: uc, d: d0 - 0.28, y: yt + 0.43, label: B.sector.num != null ? String(B.sector.num) : B.sector.letter || (B.sector.away ? 'OAS' : 'T1') })
     }
   }

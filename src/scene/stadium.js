@@ -153,24 +153,8 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
     out.seatMeshes.set(s.id, mesh)
   }
 
-  // locurile pentru persoane cu dizabilități
-  const wcIdx = layout.accessibleIdx.filter((i) => layout.seats[i].kind === 'wheelchair')
-  const coIdx = layout.accessibleIdx.filter((i) => layout.seats[i].kind === 'companion')
-  const wcMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.85, 0.03, 1.2), new THREE.MeshStandardMaterial({ color: 0x1f5fbf, roughness: 0.6 }), wcIdx.length)
-  wcIdx.forEach((i, k) => {
-    const s = layout.seats[i]
-    place(wcMesh, k, { ...s, y: s.y + 0.02 })
-    out.seatRef[i] = { mesh: wcMesh, k }
-  })
-  root.add(wcMesh)
-  const coMesh = new THREE.InstancedMesh(chair, seatMat, coIdx.length)
-  coIdx.forEach((i, k) => {
-    place(coMesh, k, layout.seats[i])
-    coMesh.setColorAt(k, new THREE.Color(0x2a6fd1))
-    out.seatRef[i] = { mesh: coMesh, k }
-  })
-  root.add(coMesh)
-  out.companionMesh = coMesh
+  // Locurile pentru persoane în scaun rulant și însoțitori (116 + 116) sunt în capacitate,
+  // dar nu le desenăm: poziția lor reală pe stadion nu e publicată (nu sunt pe culoarul dintre inele).
 
   // ─── Tribuna 1: lojele, presa, tunelul ───
   const xFront = -(G.hx + D2(0))

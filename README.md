@@ -79,6 +79,12 @@ Stack: Vite + three.js, fără framework. Se poate publica pe orice hosting stat
 | Persoane în scaun rulant + însoțitori | 116 + 116 |
 | **Total** | **30.983** |
 
+### Cum iese totalul exact
+
+Locurile nu se mai taie zimțat de la capetele rândurilor. Lățimea unui loc (0,533 m public, 0,552 m VIP) e reglată cu `npm run tune`, astfel încât geometria să dea aproape exact capacitatea oficială. Diferența rămasă (33 de locuri publice și 32 VIP) se scoate de la capătul ultimului rând al blocurilor celor mai înalte.
+
+Locurile pentru persoane în scaun rulant și însoțitori (116 + 116) sunt incluse în capacitate, dar nu sunt desenate. Poziția lor reală pe stadion nu e publicată, iar pe culoarul dintre inele nu există.
+
 ## Ce este real și ce este estimat
 
 **Din surse publice:**
@@ -93,7 +99,7 @@ Stack: Vite + three.js, fără framework. Se poate publica pe orice hosting stat
   - Colțul nord-vest se vinde ca Tribuna 1, iar colțul sud-vest e gri pe hartă, adică nu se vinde public.
   - Tribuna 1: VIP A–F la nivelul terenului, loje 101–120 (119 și 120 sunt duble) și 201–222, masa presei sus la mijloc, Tribuna 0 de o parte și de alta a ei, iar la capete Tribuna 0 jos și Tribuna 1 sus.
 - **Intrările în tribune:** fiecare sector are un singur vomitor, cu numărul sectorului deasupra, ca în fotografia Peluzei Nord (intrările 3, 4, 5, 6).
-- **Scările:** în inelul de jos fiecare sector are o singură scară, care urcă direct la vomitorul sectorului; blocurile de scaune trec peste granița dintre sectoare, ca în fotografii. Scările sunt late și deschise la culoare, cu o treaptă intermediară pe fiecare rând. `npm run verify` verifică și că niciun loc nu se suprapune cu altul.
+- **Scările:** în inelul de jos fiecare sector are o singură scară, care urcă direct la vomitorul sectorului. Între două scări, rândul e continuu chiar dacă trece granița dintre sectoare, iar fiecare loc aparține sectorului în dreptul căruia se află. Scările sunt late și deschise la culoare, cu o treaptă intermediară pe fiecare rând. `npm run verify` verifică și că niciun loc nu se suprapune cu altul.
 - **Porți:** poarta 6 servește Peluza Nord și poarta 8 Tribuna 2.
 - Terenul de 105 × 68 m, înălțimea de 50,14 m, bolul cu un singur inel de gradene acoperit integral, ecranele din colțurile NE și SV (stadiumdb.com, ucv1948.ro).
 
