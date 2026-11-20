@@ -4,7 +4,7 @@
 //   npm run tune
 import fs from 'node:fs'
 import path from 'node:path'
-import { countNatural, CHAIN, CHAIN_START, CHAIN_END, VIP_LETTERS, ring2RowsAtU, lenU, D2, G, T_BLOCK_A, T_BLOCK_B } from '../src/data/layout.js'
+import { countNatural, CHAIN, CHAIN_START, CHAIN_END, VIP_LETTERS, ring2RowsAtU, lenU, D2, G, T_BLOCK_A, T_BLOCK_B, T1_TOP_HALF } from '../src/data/layout.js'
 import { SECTOR_SEATS } from '../src/data/stadium-data.js'
 
 const OUT = path.join(path.dirname(path.dirname(new URL(import.meta.url).pathname)), 'src', 'data', 'sector-bounds.js')
@@ -81,8 +81,8 @@ function solveTerrace(bounds) {
     const [zG, zI] = bounds.terrace
     const eG = nat.G - (SECTOR_SEATS.G + PAD.terrace)
     const eI = nat.I - (SECTOR_SEATS.I + PAD.terrace)
-    const dG = nat.G / (G.blockHalf - zG)
-    const dI = nat.I / (zI + G.blockHalf)
+    const dG = nat.G / (T1_TOP_HALF - zG)
+    const dI = nat.I / (zI + T1_TOP_HALF)
     bounds.terrace = [+(zG + (0.6 * eG) / dG).toFixed(4), +(zI - (0.6 * eI) / dI).toFixed(4)]
   }
   bounds.terrace = best.t
@@ -99,7 +99,7 @@ function calibrate(bounds, keys, field, pad) {
 }
 
 const t0 = performance.now()
-const bounds = { seatW: 0.5333, vipSeatW: 0.59, chain: initialChain(), vip: [], terrace: [12.5, -12.5] }
+const bounds = { seatW: 0.5333, vipSeatW: 0.59, chain: initialChain(), vip: [], terrace: [20, -20] }
 bounds.vip = Array.from({ length: 7 }, (_, k) => 6 + T_BLOCK_A + ((T_BLOCK_B - T_BLOCK_A) * k) / 6)
 
 for (let pass = 0; pass < 3; pass++) {

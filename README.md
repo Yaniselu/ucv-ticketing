@@ -109,11 +109,12 @@ Surplusul (sub 40 de locuri pe sector) se scoate astfel: în câteva rânduri di
     - VIP A–F, la nivelul terenului;
     - un nivel lounge vitrat de la podea la tavan, fără locuri în față;
     - lojele 101–120 (119 și 120 sunt duble) și 201–222, fiecare cu balcon și scaune în fața geamului; nivelurile se retrag ușor în trepte;
-    - sus, G, presa H și I, cu fațada vitrată în spate.
+    - fiecare nivel e mai scurt decât cel de dedesubt (lounge-ul ±40 m, lojele 1 ±37 m, lojele 2 ±34 m), iar rândurile sectoarelor 19 și 1 din inelul de sus coboară în trepte pe lângă capete, ca în fotografie;
+    - deasupra lojelor, după un parapet alb, G, presa H și I sunt pe aceeași pantă și la aceeași înălțime ca rândurile vecine ale sectoarelor 19 și 1 (de la rândul 22 al inelului de sus până sus). Presa are 7 rânduri cu pupitre, din două în două rânduri ale pantei.
   - Colțurile interioare sunt aproape drepte, ca pe plan, deci laturile au lungimea reală (Tribuna 1 are ~109 m). Sectoarele de peluză și de tribună stau pe porțiunile drepte, iar colțurile aparțin sectoarelor de colț 2, 7, 13 și 18.
   - În fiecare colț e o deschidere diagonală prin inelul de jos, care se termină într-un tunel sub culoar, ca pe plan. În inelul de jos, sectoarele de peluză (3, 6, 14, 17) ajung până la deschidere. Intrarea fiecărui colț e de partea tribunei.
-  - Capetele blocului central al Tribunei 1 nu mai au un perete înalt: capătul urmează nivelurile blocului și coboară până la scaunele sectoarelor 1 și 19.
-  - Accesul pentru ambulanță / vehicule din fiecare colț e o deschidere dreaptă de ~5 m, paralelă cu diagonala colțului: pereți albi netezi pe panta tribunei, balustradă metalică, pavaj la nivelul terenului și tunel sub culoar (după planul stadionului și fotografii).
+  - Capetele blocului central al Tribunei 1 nu au un perete înalt: fiecare nivel se termină cu un perete alb care coboară până la scaunele sectoarelor 1 și 19.
+  - Accesul pentru ambulanță / vehicule din fiecare colț e o tranșee dreaptă de 7 m, paralelă cu diagonala colțului, prin tot inelul de jos: pereți albi netezi pe panta tribunei, balustradă metalică, pavaj la nivelul terenului și un portal de 3,4 m sub culoar. Peste tranșee e un tunel acoperit alb (4,4 m la coamă), cu „UNIVERSITATEA CRAIOVA” pe capăt, pe laterale și pe acoperiș (după fotografii).
   - Tabelele din colțurile NE și SV sunt ecrane LED negre, plate și verticale, montate sus în colț, pe grinda inelară dintre stâlpii de sub acoperiș, cu pasarelă de service și tiranți.
   - Antetul afișează data versiunii, ca să se vadă dacă pagina e la zi.
   - Bolul e unul singur: „inelul 1” și „inelul 2” sunt partea de jos și cea de sus, legate de culoarul cu vomitoare și de scări.

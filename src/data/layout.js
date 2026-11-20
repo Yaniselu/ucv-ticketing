@@ -117,27 +117,52 @@ export function uAtLen(u0, u1, d, s) {
   }
   return u1
 }
-// ─── Deschiderile din colțuri (planul oficial: o fantă diagonală prin inelul de jos) ───
-export const NOTCH_W = 5.2 // accesul pentru ambulanță / vehicule din fiecare colț
+// ─── Deschiderile din colțuri (accesul pentru ambulanță) ───
+// O tranșee dreaptă, de lățime constantă, paralelă cu diagonala colțului, prin tot inelul de jos
+// (ca în fotografii); la capăt intră într-un tunel sub culoar, iar peste ea e un tunel acoperit
+// alb cu „UNIVERSITATEA CRAIOVA”.
+export const NOTCH_W = 7.0
+export const NOTCH_TUN_H = 4.4 // înălțimea tunelului acoperit, la coamă (pereții drepți au 3,4 m)
 const CORNER_PIECES = [1, 3, 5, 7]
-// jumătatea deschiderii, ca fracțiune din arcul colțului, la distanța d de marginea gradenelor
-export const notchHalfT = (d) => Math.min(0.5, Math.asin(Math.min(1, NOTCH_W / 2 / (G.r + d))) / (Math.PI / 2))
-export function inNotch(u, d) {
-  const w = wrap8(u)
-  const h = notchHalfT(d)
-  return CORNER_PIECES.some((p) => Math.abs(w - (p + 0.5)) < h)
+// diagonala colțului: pornește din centrul arcului, spre exterior
+export function cornerAxis(p) {
+  const [cx, cz, a0] = CORNERS[p]
+  const a = a0 + Math.PI / 4
+  return { cx, cz, vx: Math.cos(a), vz: Math.sin(a) }
 }
-// porțiunile conturului din inelul de jos, fără deschiderile din colțuri
-export function ring1Ranges(d) {
-  const h = notchHalfT(d)
-  const out = []
-  for (let p = 0; p < 8; p++) {
-    if (p % 2 === 0) out.push([p, 0, 1])
-    else if (h < 0.5) out.push([p, 0, 0.5 - h], [p, 0.5 + h, 1])
+const notchPerp = (p, x, z) => {
+  const { cx, cz, vx, vz } = cornerAxis(p)
+  const rx = x - cx
+  const rz = z - cz
+  return { along: rx * vx + rz * vz, perp: rx * vz - rz * vx }
+}
+export function inNotch(u, d, pad = 0) {
+  const q = pointU(u, d)
+  return CORNER_PIECES.some((p) => {
+    const { along, perp } = notchPerp(p, q.x, q.z)
+    return along > 0 && Math.abs(perp) < NOTCH_W / 2 + pad
+  })
+}
+// marginile tranșeei (în u) la distanța d de marginea gradenelor: [înainte de colț, după colț]
+const edgeCache = new Map()
+export function notchEdges(p, d) {
+  const key = `${p}:${d.toFixed(4)}`
+  if (edgeCache.has(key)) return edgeCache.get(key)
+  const solve = (lo, hi, sign) => {
+    // |perp| scade spre diagonala colțului (u = p + 0.5)
+    for (let k = 0; k < 40; k++) {
+      const m = (lo + hi) / 2
+      const q = pointU(m, d)
+      const inside = Math.abs(notchPerp(p, q.x, q.z).perp) < NOTCH_W / 2
+      if (sign < 0 ? inside : !inside) hi = m
+      else lo = m
+    }
+    return (lo + hi) / 2
   }
+  const out = [solve(p - 0.5, p + 0.5, -1), solve(p + 0.5, p + 1.5, 1)]
+  edgeCache.set(key, out)
   return out
 }
-export const notchRanges = (d) => CORNER_PIECES.map((p) => [p, 0.5 - notchHalfT(d), 0.5 + notchHalfT(d)])
 
 // lungimea pe unitate de u în dreptul lui u (pentru deschideri de lățime fixă, ex. vomitoare)
 export const lenPerU = (u, d) => pieceLen(Math.min(7, Math.floor(wrap8(u) + 1e-9)), d)
@@ -154,25 +179,50 @@ const zToT = (z) => (AZ - z) / (2 * AZ) // tronsonul vest (W)
 export const T_BLOCK_A = zToT(G.blockHalf)
 export const T_BLOCK_B = zToT(-G.blockHalf)
 
-// terasa de deasupra lojelor (masa presei + Tribuna 0 de sus): 7 rânduri în trepte
 // Tribuna 1, după fotografia tribunei principale: VIP A–F jos (inelul de jos), deasupra lor
-// un nivel lounge vitrat (fără locuri în față), apoi lojele 101–120 și 201–222 cu balcoane,
-// retrase ușor în trepte, iar deasupra lojelor G, presa (H) și I.
+// un nivel lounge vitrat (fără locuri în față), apoi lojele 101–120 și 201–222 cu balcoane.
+// Nivelurile se termină în trepte (lounge-ul cel mai lung, nivelul 2 cel mai scurt), iar rândurile
+// sectoarelor 19 și 1 din inelul de sus coboară pe lângă capete. Deasupra lojelor (după un parapet)
+// G, presa (H) și I continuă exact panta inelului de sus: aceleași rânduri, la aceeași înălțime.
 export const LOUNGE_H = 4.2
 export const BOX_SETBACK = [0, 1.4]
 export const boxFloorY = (level) => WALK_Y + LOUNGE_H + (level - 1) * G.boxH
 export const boxFrontD = (level) => D2(0) + BOX_SETBACK[level - 1]
-export const UPPER_Y0 = WALK_Y + LOUNGE_H + 2 * G.boxH
+export const UPPER_Y0 = WALK_Y + LOUNGE_H + 2 * G.boxH // acoperișul lojelor de la nivelul 2
+// jumătatea lungimii fiecărui nivel: lounge, loje nivel 1, loje nivel 2
+export const T1_HALF = [G.blockHalf, G.blockHalf - 3, G.blockHalf - 6]
+export const T1_TOP_HALF = T1_HALF[2]
+// primul rând al inelului de sus care trece peste fiecare nivel (după capătul lui)
+const firstRowAbove = (y) => {
+  let j = 0
+  while (Y2(j) < y + 0.25) j++
+  return j
+}
+export const T1_ROWS = [firstRowAbove(boxFloorY(1)), firstRowAbove(boxFloorY(2)), firstRowAbove(UPPER_Y0)]
+export const J0 = T1_ROWS[2] // primul rând al sectoarelor G, H, I
+// pe latura de vest, rândul j al inelului de sus e întrerupt de bloc pentru |z| < t1EdgeZ(j)
+export const t1EdgeZ = (j) => (j < T1_ROWS[0] ? T1_HALF[0] : j < T1_ROWS[1] ? T1_HALF[1] : j < T1_ROWS[2] ? T1_HALF[2] : 0)
+export function t1Blocked(u, j, d, pad = 0) {
+  const w = wrap8(u)
+  if (w < 6 || w >= 7) return false
+  const e = t1EdgeZ(j)
+  return e > 0 && Math.abs(pointU(u, d).z) < e + pad
+}
+// presa (H): 7 rânduri cu pupitre, din două în două rânduri ale pantei (pupitrul pe rândul din față)
 export const PRESS_ROWS = 7
-export const PRESS_D = (k) => D2(0) + BOX_SETBACK[1] + 1.0 + k * 0.95
-export const PRESS_Y = (k) => UPPER_Y0 + 0.45 + k * 0.48
-// pe terasă, de la sud la nord: sectorul G | presa (H) | sectorul I (după planul stadionului)
+export const PRESS_J = (k) => J0 + 1 + 2 * k
+export const PRESS_D = (k) => D2(PRESS_J(k)) + G.seatInset
+export const PRESS_Y = (k) => Y2(PRESS_J(k))
 export const zToTW = (z) => 6 + (AZ - z) / (2 * AZ)
+// intervalul (în t, pe latura de vest) ocupat de bloc pentru rândul j al inelului de sus
+export const t1CutT = (j) => {
+  const e = t1EdgeZ(j)
+  return e > 0 ? [zToT(e), zToT(-e)] : null
+}
 
 function ringRows(ring) {
   const rows = []
   if (ring === 1) for (let i = 0; i < G.ring1.rows; i++) rows.push({ ring: 1, idx: i, front: D1(i), y: Y1(i) })
-  else if (ring === 3) for (let k = 0; k < PRESS_ROWS; k++) rows.push({ ring: 3, idx: k, front: PRESS_D(k) - G.seatInset, y: PRESS_Y(k) })
   else for (let j = 0; j < G.ring2.rows; j++) rows.push({ ring: 2, idx: j, front: D2(j), y: Y2(j) })
   return rows
 }
@@ -229,7 +279,13 @@ function defineSectors(B) {
     const c = sectorCfg(key)
     const base = { num: +key, group: key, stand: c.stand, u0: B.chain[k], u1: B.chain[k + 1], innerAisles: c.ia, demand: c.demand, awaySplit: c.awaySplit, vomFrac: c.vomFrac, vomAbs: c.vomAbs }
     if (c.split) {
-      for (const ring of [1, 2]) add({ ...base, id: `${key}-${ring}`, ringLabel: ring, rings: [ring], price: c.split[ring - 1] })
+      for (const ring of [1, 2]) {
+        const o = { ...base, id: `${key}-${ring}`, ringLabel: ring, rings: [ring], price: c.split[ring - 1] }
+        // în inelul de sus, sectoarele 19 și 1 trec pe lângă capetele în trepte ale blocului de loje
+        if (ring === 2 && key === '19') o.u1 = base.u1 + zToTW(T1_TOP_HALF) - zToTW(G.blockHalf)
+        if (ring === 2 && key === '1') o.u0 = base.u0 + zToTW(-T1_TOP_HALF) - zToTW(-G.blockHalf)
+        add(o)
+      }
     } else {
       add({ ...base, id: key, rings: [1, 2], price: c.price, away: !!c.away })
     }
@@ -241,10 +297,10 @@ function defineSectors(B) {
       rings: [1], seatW: SW.vip, price: vipPrice[L], demand: 'VIP', kind: 'vip', vomitories: false,
     })
   })
-  // terasa de deasupra lojelor: G (sud) și I (nord), de o parte și de alta a presei
+  // deasupra lojelor, pe aceeași pantă cu inelul de sus: G (sud) și I (nord), de o parte și de alta a presei
   const [zG, zI] = B.terrace
-  add({ id: 'G', letter: 'G', group: 'G', stand: 'T1', title: 'Sector G', u0: zToTW(G.blockHalf), u1: zToTW(zG), rings: [3], price: PRICES.T0, demand: 'T0', vomitories: false })
-  add({ id: 'I', letter: 'I', group: 'I', stand: 'T1', title: 'Sector I', u0: zToTW(zI), u1: zToTW(-G.blockHalf), rings: [3], price: PRICES.T0, demand: 'T0', vomitories: false })
+  add({ id: 'G', letter: 'G', group: 'G', stand: 'T1', title: 'Sector G', u0: zToTW(T1_TOP_HALF), u1: zToTW(zG), rings: [2], minRow: J0, price: PRICES.T0, demand: 'T0', vomitories: false })
+  add({ id: 'I', letter: 'I', group: 'I', stand: 'T1', title: 'Sector I', u0: zToTW(zI), u1: zToTW(-T1_TOP_HALF), rings: [2], minRow: J0, price: PRICES.T0, demand: 'T0', vomitories: false })
 
   for (const s of S) {
     if (s.num != null) {
@@ -349,7 +405,6 @@ function buildNaturalRows(sector, r1) {
   for (const ring of sector.rings) {
     for (const row of ringRows(ring)) {
       if (ring === 2 && !blocks.some((bl) => row.idx < bl.rows)) continue
-      rowNum++
       const { d, slots } = ring === 1 && r1 ? { d: row.front + G.seatInset, slots: r1.get(sector.id)[row.idx] } : rowSlots(sector, row)
       const seats = []
       for (const sl of slots) {
@@ -357,11 +412,14 @@ function buildNaturalRows(sector, r1) {
         // vomitoare: ieșiri din inelul 2, în mijlocul blocurilor înalte
         if (sector.vomitories && ring === 2 && sl.block === vomBlock(sector) && blocks[sl.block].rows >= 16 && row.idx >= VOM_ROWS[0] && row.idx < VOM_ROWS[1] && lenU(Math.min(sl.u, vomU(sector)), Math.max(sl.u, vomU(sector)), d) < 1.6) continue
         const p = pointU(sl.u, d)
+        // blocul de loje al Tribunei 1 (capetele în trepte)
+        if (ring === 2 && t1Blocked(sl.u, row.idx, d, 0.45)) continue
         // tunelul jucătorilor, sub Tribuna VIP (între sectoarele C și D)
         if (sector.kind === 'vip' && row.idx < 7 && Math.abs(p.z) < 3.2) continue
         seats.push({ u: sl.u, block: sl.block, x: p.x, z: p.z, nx: p.nx, nz: p.nz, y: row.y })
       }
-      rows.push({ num: rowNum, ring, ringRow: row.idx + 1, d, y: row.y, seats })
+      if (!seats.length) continue
+      rows.push({ num: ++rowNum, ring, ringRow: row.idx + 1, d, y: row.y, seats })
     }
   }
   return rows
@@ -400,7 +458,7 @@ function ring1Slots(sectors, zones) {
       for (let j = 0; j < n; j++) {
         const u = uAtLen(a, b, d, margin + (j + 0.5) * ms.seatW)
         if (i < 2 && zones.some((z) => inZone(u, z))) continue
-        if (inNotch(u, d)) continue
+        if (inNotch(u, d, 0.3)) continue
         const s = r1.find((x) => inSector1(x, u)) || ms
         const rel = wrap8(u - s.u0)
         const block = s.ring1Vom && rel >= wrap8(vomU(s) - s.u0) ? 1 : 0
@@ -477,13 +535,15 @@ function trimBack(list, excess) {
 // 20 într-una dublă (2 rânduri) → 18×10 + 2×20 + 22×10 = 440.
 function buildBoxes() {
   const boxes = []
-  const cell = (2 * G.blockHalf) / 22
   const levels = [
     [1, [...Array.from({ length: 18 }, (_, i) => [101 + i, 1]), [119, 2], [120, 2]]],
     [2, Array.from({ length: 22 }, (_, i) => [201 + i, 1])],
   ]
   for (const [level, list] of levels) {
-    let z1 = G.blockHalf
+    const half = T1_HALF[level]
+    const cell = (2 * half) / 22
+    const pitch = Math.min(0.62, (cell - 0.75) / 4)
+    let z1 = half
     for (const [num, wcells] of list) {
       const z0 = z1 - wcells * cell
       const zc = (z0 + z1) / 2
@@ -493,7 +553,7 @@ function buildBoxes() {
       const seats = []
       for (const [row, dx, dy] of [[1, 1.15, 0], [2, 2.45, 0.35]]) {
         for (let i = 0; i < per; i++) {
-          seats.push({ row, num: (row - 1) * per + i + 1, x: -(G.hx + frontD + dx), y: floorY + dy, z: zc + ((per - 1) / 2 - i) * 0.62 })
+          seats.push({ row, num: (row - 1) * per + i + 1, x: -(G.hx + frontD + dx), y: floorY + dy, z: zc + ((per - 1) / 2 - i) * pitch })
         }
       }
       boxes.push({ id: `L${num}`, num, level, z0, z1, zc, floorY, frontD, seats })
@@ -508,11 +568,11 @@ function buildPress(B) {
   const [zG, zI] = B.terrace
   const seats = []
   const perRow = CAPACITY.press / PRESS_ROWS
-  const spacing = (zG - zI - 1.2) / perRow
+  const spacing = (zG - zI - 1.6) / perRow
   for (let k = 0; k < PRESS_ROWS; k++) {
     for (let i = 0; i < perRow; i++) {
       const z = (zG + zI) / 2 + ((perRow - 1) / 2 - i) * spacing
-      seats.push({ row: k + 1, num: i + 1, x: -(G.hx + PRESS_D(k)), y: PRESS_Y(k), z })
+      seats.push({ row: k + 1, num: i + 1, x: -(G.hx + PRESS_D(k)), y: PRESS_Y(k) + 0.02, z })
     }
   }
   return seats

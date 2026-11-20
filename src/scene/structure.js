@@ -7,7 +7,8 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
-  G, D1, Y1, D2, Y2, WALK_D, WALK_Y, RING_TOP, pathPoint, pieceLen, sectorBlocks, ring2RowsAt, VOM_ROWS, vomBlock, vomU, pointU, notchHalfT, inNotch, uRanges, lenPerU, wrap8, ring1AisleUs,
+  G, D1, Y1, D2, Y2, WALK_D, WALK_Y, RING_TOP, pathPoint, pieceLen, sectorBlocks, ring2RowsAt, VOM_ROWS, vomBlock, vomU, pointU, notchEdges, inNotch, uRanges, lenPerU, wrap8, ring1AisleUs,
+  NOTCH_W, NOTCH_TUN_H, cornerAxis, t1CutT, T1_ROWS, zToTW, ring2RowsAtU,
 } from '../data/layout.js'
 import { Quads, strip, samples, P, ellipseBand, ellipseRing, beam, ellipseCurve } from './geom.js'
 import * as TX from './textures.js'
@@ -100,26 +101,50 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   // ─── Inelul 1 (constant) și culoarul dintre inele ───
   const FULL = [0, 1, 2, 3, 4, 5, 6, 7].map((p) => [p, 0, 1])
   // ─── Inelul de jos, cu accesul pentru ambulanță din fiecare colț ───
-  // Accesul e o deschidere dreaptă, paralelă cu diagonala colțului: pereți albi netezi,
-  // înclinați după panta tribunei, cu balustradă, pavaj la nivelul terenului și tunel sub culoar.
-  const te = (d) => 0.5 - notchHalfT(d) // capătul gradenelor spre deschidere (fracțiune din colț)
-  const ts = (d) => 0.5 + notchHalfT(d)
-  // bandă pe un colț între (d0,y0) și (d1,y1), cu marginile care urmează deschiderea
-  const cornerBand = (q, p, d0, y0, d1, y1, lo0, hi0, lo1, hi1, n = 8) => {
-    if (hi0 - lo0 < 1e-4 && hi1 - lo1 < 1e-4) return
-    for (let k = 0; k < n; k++) {
-      const f0 = k / n
-      const f1 = (k + 1) / n
-      q.quad(P(p, lo0 + (hi0 - lo0) * f0, d0, y0), P(p, lo1 + (hi1 - lo1) * f0, d1, y1), P(p, lo1 + (hi1 - lo1) * f1, d1, y1), P(p, lo0 + (hi0 - lo0) * f1, d0, y0))
+  // Accesul e o tranșee dreaptă de lățime constantă, paralelă cu diagonala colțului: pereți albi
+  // netezi, înclinați după panta tribunei, cu balustradă, pavaj la nivelul terenului, un portal mai
+  // jos sub culoar și, peste tranșee, tunelul acoperit alb cu „UNIVERSITATEA CRAIOVA”.
+  const PUc = (u, d, y) => {
+    const q = pointU(u, d)
+    return [q.x, y, q.z]
+  }
+  // bandă între intervalul [a0,b0] (la d0,y0) și [a1,b1] (la d1,y1), în u continuu;
+  // capetele pot fi pe porțiuni diferite (colț sau latură dreaptă)
+  const bandU = (q, a0, b0, a1, b1, d0, y0, d1, y1) => {
+    const lo = Math.min(a0, a1)
+    const hi = Math.max(b0, b1)
+    const br = [lo]
+    for (let n = Math.floor(lo) + 1; n < hi; n++) br.push(n)
+    br.push(hi)
+    const cl = (v, a, b) => Math.min(b, Math.max(a, v))
+    for (let i = 0; i < br.length - 1; i++) {
+      const s0 = [cl(br[i], a0, b0), cl(br[i + 1], a0, b0)]
+      const s1 = [cl(br[i], a1, b1), cl(br[i + 1], a1, b1)]
+      if (s0[1] - s0[0] < 1e-7 && s1[1] - s1[0] < 1e-7) continue
+      const piece = ((Math.floor((br[i] + br[i + 1]) / 2) % 8) + 8) % 8
+      const n = piece % 2 ? 10 : 1
+      for (let k = 0; k < n; k++) {
+        const f0 = k / n
+        const f1 = (k + 1) / n
+        const u00 = s0[0] + (s0[1] - s0[0]) * f0
+        const u01 = s0[0] + (s0[1] - s0[0]) * f1
+        const u10 = s1[0] + (s1[1] - s1[0]) * f0
+        const u11 = s1[0] + (s1[1] - s1[0]) * f1
+        q.quad(PUc(u00, d0, y0), PUc(u10, d1, y1), PUc(u11, d1, y1), PUc(u01, d0, y0))
+      }
     }
   }
+  // marginile tranșeei: [înainte, după] diagonala colțului p, la distanța d
+  const eLo = (p, d) => notchEdges(p, d)[0]
+  const eHi = (p, d) => notchEdges(p, d)[1]
   const ring1Band = (q, d0, y0, d1, y1) => {
-    for (let p = 0; p < 8; p++) {
-      if (p % 2 === 0) strip(q, [[p, 0, 1]], d0, y0, d1, y1)
-      else {
-        cornerBand(q, p, d0, y0, d1, y1, 0, te(d0), 0, te(d1))
-        cornerBand(q, p, d0, y0, d1, y1, ts(d0), 1, ts(d1), 1)
-      }
+    for (const c of [1, 3, 5, 7]) {
+      const n = c + 2
+      const lo0 = eHi(c, d0)
+      const lo1 = eHi(c, d1)
+      const hi0 = eLo(n % 8, d0) + (n >= 8 ? 8 : 0)
+      const hi1 = eLo(n % 8, d1) + (n >= 8 ? 8 : 0)
+      bandU(q, lo0, hi0, lo1, hi1, d0, y0, d1, y1)
     }
   }
   ring1Band(walls, 0, 0, 0, Y1(0))
@@ -131,6 +156,7 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   const paveQ = new Quads()
   const railPts = []
   const TUN = 3.5 // adâncimea tunelului de sub culoar
+  const TH = NOTCH_TUN_H - 1.0 // înălțimea portalului (pereții drepți ai tunelului acoperit)
   const slope = (d) => Y1(0) + 0.15 + (Math.min(d, WALK_D) / WALK_D) * (WALK_Y - Y1(0))
   for (const p of [1, 3, 5, 7]) {
     // pavajul: de la teren până în tunel
@@ -138,25 +164,26 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
     for (let k = 0; k < N; k++) {
       const d0 = 0.05 + ((WALK_D + TUN) * k) / N
       const d1 = 0.05 + ((WALK_D + TUN) * (k + 1)) / N
-      cornerBand(paveQ, p, d0, 0.04, d1, 0.04, te(d0), ts(d0), te(d1), ts(d1), 6)
+      bandU(paveQ, eLo(p, d0), eHi(p, d0), eLo(p, d1), eHi(p, d1), d0, 0.04, d1, 0.04)
     }
     // pereții laterali netezi (muchia de sus urcă odată cu gradenele) și balustrada
-    for (const side of [te, ts]) {
+    for (const side of [eLo, eHi]) {
       const line = []
       for (let k = 0; k <= N; k++) line.push(0.05 + (WALK_D * k) / N)
       for (let k = 0; k < N; k++) {
         const [d0, d1] = [line[k], line[k + 1]]
-        walls.quad(P(p, side(d0), d0, 0), P(p, side(d0), d0, slope(d0)), P(p, side(d1), d1, slope(d1)), P(p, side(d1), d1, 0))
+        walls.quad(PUc(side(p, d0), d0, 0), PUc(side(p, d0), d0, slope(d0)), PUc(side(p, d1), d1, slope(d1)), PUc(side(p, d1), d1, 0))
       }
-      railPts.push(line.map((d) => P(p, side(d), d, slope(d) + 1.0)))
+      railPts.push(line.map((d) => PUc(side(p, d), d, slope(d) + 1.0)))
       // pereții tunelului
-      for (const [d0, d1] of [[WALK_D, WALK_D + TUN]]) darkQ.quad(P(p, side(d0), d0, 0), P(p, side(d0), d0, WALK_Y - 0.4), P(p, side(d1), d1, WALK_Y - 0.4), P(p, side(d1), d1, 0))
+      const [d0, d1] = [WALK_D, WALK_D + TUN]
+      darkQ.quad(PUc(side(p, d0), d0, 0), PUc(side(p, d0), d0, TH), PUc(side(p, d1), d1, TH), PUc(side(p, d1), d1, 0))
     }
-    // tavanul și fundul tunelului, plus buiandrugul alb de deasupra intrării
+    // tavanul și fundul tunelului, plus peretele alb de deasupra portalului (până la culoar)
     const dT = WALK_D + TUN
-    cornerBand(darkQ, p, WALK_D, WALK_Y - 0.4, dT, WALK_Y - 0.4, te(WALK_D), ts(WALK_D), te(dT), ts(dT), 4)
-    cornerBand(darkQ, p, dT, 0, dT, WALK_Y - 0.4, te(dT), ts(dT), te(dT), ts(dT), 4)
-    cornerBand(walls, p, WALK_D - 0.01, WALK_Y - 0.4, WALK_D - 0.01, WALK_Y, te(WALK_D), ts(WALK_D), te(WALK_D), ts(WALK_D), 4)
+    bandU(darkQ, eLo(p, WALK_D), eHi(p, WALK_D), eLo(p, dT), eHi(p, dT), WALK_D, TH, dT, TH)
+    bandU(darkQ, eLo(p, dT), eHi(p, dT), eLo(p, dT), eHi(p, dT), dT, 0, dT, TH)
+    bandU(walls, eLo(p, WALK_D - 0.01), eHi(p, WALK_D - 0.01), eLo(p, WALK_D - 0.01), eHi(p, WALK_D - 0.01), WALK_D - 0.01, TH, WALK_D - 0.01, WALK_Y)
   }
   strip(steps, FULL, WALK_D, WALK_Y, D2(0), WALK_Y)
   // balustrada de sticlă și mâna curentă de pe culoar
@@ -182,7 +209,27 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
     if (!s.rings.includes(2)) continue
     for (const bl of sectorBlocks(s)) blocks.push({ ...bl, sector: s })
   }
+  // presa (H), între G și I: aceeași pantă, doar pentru gradene (locurile presei sunt separate)
+  {
+    const [zI, zG] = layout.pressSpan
+    for (const [za, zb] of [[zG, 0], [0, zI]]) {
+      const uo = zToTW(Math.abs(za) > Math.abs(zb) ? za : zb)
+      blocks.push({ b: 0, u0: zToTW(za), u1: zToTW(zb), rows: ring2RowsAtU(uo), sector: { vomitories: false } })
+    }
+  }
   blocks.sort((a, b) => wrap8(a.u0) - wrap8(b.u0))
+  // rândurile inelului de sus întrerupte de blocul de loje al Tribunei 1 (latura de vest)
+  const cutT1 = (rng, j) => {
+    const c = t1CutT(j)
+    if (!c) return rng
+    return rng.flatMap(([p, t0, t1]) => (p !== 6 ? [[p, t0, t1]] : [[p, t0, Math.min(t1, c[0])], [p, Math.max(t0, c[1]), t1]].filter(([, a, b]) => b - a > 1e-6)))
+  }
+  const blockedAt = (u, j) => {
+    const c = t1CutT(j)
+    if (!c) return false
+    const w = wrap8(u)
+    return w >= 6 && w < 7 && w - 6 > c[0] - 0.006 && w - 6 < c[1] + 0.006
+  }
   const n = blocks.length
   const shares = (a, b) => {
     const g = Math.abs(wrap8(a.u1) - wrap8(b.u0))
@@ -193,10 +240,12 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   for (let k = 0; k < n; k++) {
     const B = blocks[k]
     const rng = rangesOf(B.u0, B.u1)
-    strip(walls, rng, D2(0), WALK_Y, D2(0), Y2(0))
+    strip(walls, cutT1(rng, 0), D2(0), WALK_Y, D2(0), Y2(0))
     for (let j = 0; j < B.rows; j++) {
-      if (j > 0) strip(steps, rng, D2(j), Y2(j - 1), D2(j), Y2(j))
-      strip(steps, rng, D2(j), Y2(j), D2(j + 1), Y2(j))
+      const rj = cutT1(rng, j)
+      // primul rând de deasupra unui nivel al blocului: contratreapta coboară până la acoperișul lui
+      if (j > 0) strip(steps, rj, D2(j), Y2(j - 1) - (T1_ROWS.includes(j) ? 0.4 : 0), D2(j), Y2(j))
+      strip(steps, rj, D2(j), Y2(j), D2(j + 1), Y2(j))
     }
     // peretele alb din spatele blocului, până la grinda inelară
     strip(walls, rng, D2(B.rows), Y2(B.rows - 1), D2(B.rows), RING_TOP)
@@ -216,10 +265,10 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
       const hi = Math.max(prev.rows, B.rows)
       for (let j = lo; j < hi; j++) walls.quad(PU(B.u0, D2(j), Y2(j)), PU(B.u0, D2(j + 1), Y2(j)), PU(B.u0, D2(j + 1), RING_TOP), PU(B.u0, D2(j), RING_TOP))
     }
-    for (let j = 0; j < aisleRows; j++) aisleMarks.push([B.u0, D2(j), Y2(j)])
+    for (let j = 0; j < aisleRows; j++) if (!blockedAt(B.u0, j)) aisleMarks.push([B.u0, D2(j), Y2(j)])
     const next = blocks[(k + 1) % n]
     if (!shares(B, next)) {
-      for (let j = 0; j < B.rows; j++) aisleMarks.push([B.u1, D2(j), Y2(j)])
+      for (let j = 0; j < B.rows; j++) if (!blockedAt(B.u1, j)) aisleMarks.push([B.u1, D2(j), Y2(j)])
     }
     // vomitorul sectorului (unul singur, ca în fotografia Peluzei Nord)
     if (B.sector.vomitories && B.b === vomBlock(B.sector) && B.rows >= 16) {
@@ -264,7 +313,7 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
     for (const u of ring1AisleUs(s)) ring1Us.set(wrap8(u).toFixed(5), u)
   }
   for (const u of ring1Us.values()) {
-    for (let i = 0; i < G.ring1.rows; i++) if (!inNotch(u, D1(i) + 0.4)) aisleMarks.push([u, D1(i), Y1(i)])
+    for (let i = 0; i < G.ring1.rows; i++) if (!inNotch(u, D1(i) + 0.4, 0.6)) aisleMarks.push([u, D1(i), Y1(i)])
   }
 
   const stepsMesh = new THREE.Mesh(steps.geometry(), concrete)
@@ -287,6 +336,64 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   })
   const notchRail = new THREE.Mesh(mergeGeometries(railGeo1), new THREE.MeshStandardMaterial({ color: 0xb8bec4, metalness: 0.7, roughness: 0.3 }))
   root.add(stepsMesh, wallMesh, darkMesh, glassMesh, paveMesh, notchRail)
+
+  // tunelul acoperit de peste fiecare acces din colț: prelată albă cu „UNIVERSITATEA CRAIOVA”,
+  // de la marginea terenului până la portalul de sub culoar
+  {
+    const CW = NOTCH_W - 0.25
+    const WALL_H = TH
+    const a0 = G.r - 1.6
+    const a1 = G.r + WALK_D
+    const L = a1 - a0
+    const sideTex = TX.coverTexture()
+    sideTex.anisotropy = 8
+    const sideMat = new THREE.MeshStandardMaterial({ map: sideTex, roughness: 0.55 })
+    const roofMat = new THREE.MeshStandardMaterial({ color: 0xf2f4f6, roughness: 0.5, side: THREE.DoubleSide })
+    const roofTopMat = new THREE.MeshStandardMaterial({ map: TX.coverRoofTexture(), roughness: 0.5 })
+    const frontMat = new THREE.MeshStandardMaterial({ map: TX.coverFrontTexture(), roughness: 0.6 })
+    const roofGeo = new THREE.CylinderGeometry(CW / 2, CW / 2, L, 28, 1, true, Math.PI, Math.PI)
+    roofGeo.rotateZ(-Math.PI / 2)
+    roofGeo.scale(1, 1.0 / (CW / 2), 1)
+    roofGeo.translate(0, WALL_H, 0)
+    const cap = new THREE.Shape()
+    for (let k = 0; k <= 20; k++) {
+      const t = (k / 20) * Math.PI
+      const x = (CW / 2) * Math.cos(t)
+      const y = WALL_H + Math.sin(t)
+      k ? cap.lineTo(x, y) : cap.moveTo(x, y)
+    }
+    const capGeo = new THREE.ShapeGeometry(cap)
+    for (const p of [1, 3, 5, 7]) {
+      const { cx, cz, vx, vz } = cornerAxis(p)
+      const g = new THREE.Group()
+      for (const sd of [-1, 1]) {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(L, WALL_H), sideMat)
+        m.position.set(0, WALL_H / 2, (sd * CW) / 2)
+        if (sd < 0) m.rotation.y = Math.PI
+        m.castShadow = true
+        m.receiveShadow = true
+        g.add(m)
+      }
+      const roof = new THREE.Mesh(roofGeo, roofTopMat)
+      roof.castShadow = true
+      roof.receiveShadow = true
+      g.add(roof)
+      const front = new THREE.Mesh(new THREE.PlaneGeometry(CW, WALL_H), frontMat)
+      front.rotation.y = -Math.PI / 2
+      front.position.set(-L / 2, WALL_H / 2, 0)
+      const capM = new THREE.Mesh(capGeo, roofMat)
+      capM.rotation.y = -Math.PI / 2
+      capM.position.set(-L / 2, 0, 0)
+      // cadrul metalic al capătului
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, CW + 0.1), new THREE.MeshStandardMaterial({ color: 0x9aa4ad, metalness: 0.6, roughness: 0.35 }))
+      frame.position.set(-L / 2 - 0.02, WALL_H, 0)
+      g.add(front, capM, frame)
+      const am = (a0 + a1) / 2
+      g.position.set(cx + vx * am, 0, cz + vz * am)
+      g.rotation.y = Math.atan2(-vz, vx)
+      root.add(g)
+    }
+  }
 
   // mâna curentă de pe scările inelului de sus
   const railByAisle = new Map()

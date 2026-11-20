@@ -317,6 +317,76 @@ export function tunnelTexture() {
   return tex(c)
 }
 
+// text centrat, micșorat cât să încapă în lățimea dată (fontul condensat poate lipsi la prima desenare)
+function fitText(g, text, x, y, maxW, size) {
+  let px = size
+  do {
+    g.font = `800 ${px}px "Barlow Condensed", Arial Narrow, sans-serif`
+    px -= 2
+  } while (g.measureText(text).width > maxW && px > 8)
+  g.fillText(text, x, y)
+}
+
+// prelata albă a tunelului de acces din colțuri: „UNIVERSITATEA CRAIOVA” pe toată lungimea
+export function coverTexture() {
+  const [c, g] = canvas(2048, 512)
+  const grd = g.createLinearGradient(0, 0, 0, 512)
+  grd.addColorStop(0, '#fbfcfd')
+  grd.addColorStop(1, '#e3e7ec')
+  g.fillStyle = grd
+  g.fillRect(0, 0, 2048, 512)
+  g.fillStyle = '#0b4aa2'
+  g.fillRect(0, 0, 2048, 46)
+  g.fillRect(0, 470, 2048, 42)
+  g.fillStyle = '#ffffff'
+  g.fillRect(0, 46, 2048, 6)
+  g.fillStyle = '#0b4aa2'
+  g.textAlign = 'center'
+  g.textBaseline = 'middle'
+  fitText(g, 'UNIVERSITATEA CRAIOVA', 1024, 262, 1880, 188)
+  // cusăturile prelatei
+  g.fillStyle = 'rgba(120,130,145,0.25)'
+  for (let x = 256; x < 2048; x += 512) g.fillRect(x, 52, 3, 418)
+  return tex(c)
+}
+
+// acoperișul tunelului de acces: textul merge pe lungime (v), pe fâșia de sus a prelatei
+export function coverRoofTexture() {
+  const [c, g] = canvas(512, 2048)
+  g.fillStyle = '#f4f6f8'
+  g.fillRect(0, 0, 512, 2048)
+  g.fillStyle = '#0b4aa2'
+  g.fillRect(0, 0, 40, 2048)
+  g.fillRect(472, 0, 40, 2048)
+  g.save()
+  g.translate(256, 1024)
+  g.rotate(-Math.PI / 2)
+  g.textAlign = 'center'
+  g.textBaseline = 'middle'
+  fitText(g, 'UNIVERSITATEA CRAIOVA', 0, 0, 1800, 150)
+  g.restore()
+  return tex(c)
+}
+
+// capătul tunelului de acces dinspre teren: gura întunecată, rama albă și banda albastră cu numele
+export function coverFrontTexture() {
+  const [c, g] = canvas(512, 384)
+  g.fillStyle = '#f4f6f8'
+  g.fillRect(0, 0, 512, 384)
+  g.fillStyle = '#0b4aa2'
+  g.fillRect(0, 0, 512, 78)
+  g.fillStyle = '#ffffff'
+  g.textAlign = 'center'
+  g.textBaseline = 'middle'
+  fitText(g, 'UNIVERSITATEA CRAIOVA', 256, 42, 470, 50)
+  const grd = g.createLinearGradient(0, 96, 0, 384)
+  grd.addColorStop(0, '#0d1116')
+  grd.addColorStop(1, '#2a3038')
+  g.fillStyle = grd
+  g.fillRect(28, 96, 456, 288)
+  return tex(c)
+}
+
 export function skyTexture() {
   const [c, g] = canvas(16, 512)
   const grd = g.createLinearGradient(0, 0, 0, 512)
