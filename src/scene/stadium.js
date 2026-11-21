@@ -39,6 +39,19 @@ function chairGeometry(w = 0.46) {
   return mergeGeometries([seat, back, lip, stem].map((g) => g.toNonIndexed()))
 }
 
+// scaunul simplificat pentru vederea de ansamblu (de la sute de metri): șezut și spătar, 4 triunghiuri
+function chairLowGeometry(w = 0.46) {
+  const g = new THREE.BufferGeometry()
+  const h = w / 2
+  const p = [
+    -h, 0.44, -0.12, h, 0.44, -0.12, h, 0.46, 0.25, -h, 0.44, -0.12, h, 0.46, 0.25, -h, 0.46, 0.25,
+    -h, 0.46, -0.14, h, 0.46, -0.14, h, 0.9, -0.2, -h, 0.46, -0.14, h, 0.9, -0.2, -h, 0.9, -0.2,
+  ]
+  g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3))
+  g.computeVertexNormals()
+  return g
+}
+
 function armchairGeometry() {
   const seat = new THREE.CylinderGeometry(0.25, 0.25, 0.14, 16, 1)
   seat.scale(1, 1, 1.02)
@@ -136,6 +149,8 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   const seatMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.45, side: THREE.DoubleSide })
   const chair = chairGeometry()
   const vipChair = chairGeometry(0.5)
+  const chairLow = chairLowGeometry()
+  const vipChairLow = chairLowGeometry(0.5)
   const tmpPos = new THREE.Vector3()
   const place = (mesh, k, s, scale = 1) => {
     tmpPos.set(s.x, s.y, s.z)
@@ -152,10 +167,14 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
     })
     mesh.castShadow = !lowSpec
     mesh.receiveShadow = true
-    mesh.userData = { sector: s.id, seatIdx: s.seatIdx }
+    mesh.userData = { sector: s.id, seatIdx: s.seatIdx, hi: mesh.geometry, lo: s.kind === 'vip' ? vipChairLow : chairLow }
     mesh.computeBoundingSphere()
     root.add(mesh)
     out.seatMeshes.set(s.id, mesh)
+  }
+  // detaliul scaunelor după vedere (de aproape: scaunul modelat; de departe: simplificat)
+  out.setSeatDetail = (high) => {
+    for (const m of out.seatMeshes.values()) m.geometry = high ? m.userData.hi : m.userData.lo
   }
 
   // ─── Zonele pentru persoane în scaun rulant (planul stadionului: 2 × 31, în fața Tribunei 2) ───

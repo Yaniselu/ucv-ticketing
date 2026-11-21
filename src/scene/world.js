@@ -190,11 +190,12 @@ function paintPolygon(layer, pts, color) {
 // ─── Copaci: coroanele detectate pe imaginea satelit ─────────────────
 // coroana: 6 volume rotunjite, deformate cu zgomot (miezul) și un strat exterior puțin mai mare,
 // cu frunziș decupat (alphaTest), ca silueta să fie neregulată și să treacă lumina pe margini
-function crownGeometry(shell = 1) {
+// lod 0: trei volume (copacii din jurul stadionului); lod 1: un volum (copacii depărtați)
+function crownGeometry(shell = 1, lod = 0) {
   const parts = []
-  const blobs = [[0, 1.05, 0, 1.0], [0.55, 0.85, 0.2, 0.72], [-0.5, 0.9, -0.25, 0.75], [0.15, 1.5, -0.35, 0.68], [-0.2, 1.45, 0.45, 0.66], [0.35, 0.55, -0.45, 0.6]]
+  const blobs = lod === 0 ? [[0, 1.05, 0, 1.0], [0.52, 0.8, 0.22, 0.74], [-0.42, 1.3, -0.3, 0.72]] : [[0, 1.05, 0, 1.12]]
   for (const [x, y, z, r] of blobs) {
-    const g = new THREE.IcosahedronGeometry(r * shell, 4)
+    const g = new THREE.IcosahedronGeometry(r * shell, 1)
     const p = g.attributes.position
     const v = new THREE.Vector3()
     for (let i = 0; i < p.count; i++) {
@@ -305,11 +306,11 @@ function leafTexture() {
 }
 
 function buildTrees(trees) {
-  const core = crownGeometry(0.86)
-  const shell = crownGeometry(1.0)
-  // plopi: coroane înalte și înguste (de-a lungul străzilor din jurul stadionului)
+  // Două niveluri de detaliu: copacii până la 320 m de stadion au coroana din trei volume, cei mai
+  // depărtați (văzuți doar de sus / de departe) dintr-unul. Totalul rămâne sub ~1,5 milioane de
+  // triunghiuri, față de ~40 de milioane cu coroanele detaliate peste tot.
   const leaf = leafTexture()
-  const coreMat = new THREE.MeshStandardMaterial({ color: 0xa8a8a8, roughness: 0.95, flatShading: false })
+  const coreMat = new THREE.MeshStandardMaterial({ color: 0xa8a8a8, roughness: 0.95 })
   const shellMat = new THREE.MeshStandardMaterial({ map: leaf, alphaTest: 0.42, side: THREE.DoubleSide, roughness: 0.85 })
   // întunecăm baza coroanei (umbra proprie), ca la copacii reali
   for (const m of [coreMat, shellMat]) {
@@ -317,43 +318,51 @@ function buildTrees(trees) {
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vCrownY;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvCrownY = position.y;')
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vCrownY;').replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= 0.7 + 0.42 * smoothstep(0.2, 1.9, vCrownY);')
     }
-    m.customProgramCacheKey = () => 'crown-v2'
+    m.customProgramCacheKey = () => 'crown-v3'
   }
-  const crownCore = new THREE.InstancedMesh(core, coreMat, trees.length)
-  const crownShell = new THREE.InstancedMesh(shell, shellMat, trees.length)
-  const trunkGeo = new THREE.CylinderGeometry(0.11, 0.24, 1, 7).translate(0, 0.5, 0)
-  coreMat.vertexColors = false
-  const trunk = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardMaterial({ color: 0x5a4a3c, roughness: 1 }), trees.length)
+  const NEAR = 320
+  const groups = [trees.filter(([x, z]) => Math.hypot(x, z) < NEAR), trees.filter(([x, z]) => Math.hypot(x, z) >= NEAR)]
+  const trunkGeo = new THREE.CylinderGeometry(0.11, 0.24, 1, 5, 1, true).translate(0, 0.5, 0)
+  const trunk = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardMaterial({ color: 0x5a4a3c, roughness: 1 }), groups[0].length)
   const m4 = new THREE.Matrix4()
   const q = new THREE.Quaternion()
   const up = new THREE.Vector3(0, 1, 0)
   const c = new THREE.Color()
   const c2 = new THREE.Color()
+  const hsl = {}
   let seed = 5
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
-  trees.forEach(([x, z, r, g, b, lum], k) => {
-    const poplar = rnd() < 0.07
-    const s = (2.1 + rnd() * 1.7 + (lum < 55 ? 0.6 : 0)) * (poplar ? 0.85 : 1)
-    const sy = poplar ? s * 2.6 : s * (0.85 + rnd() * 0.3)
-    const sx = poplar ? s * 0.5 : s
-    const trunkH = poplar ? s * 0.9 : s * 0.7 + 1.2
-    m4.compose(new THREE.Vector3(x, trunkH - 0.5 * (poplar ? 1.6 : 1), z), q.setFromAxisAngle(up, rnd() * 6.28), new THREE.Vector3(sx, sy * 0.62, sx))
-    crownCore.setMatrixAt(k, m4)
-    crownShell.setMatrixAt(k, m4)
-    // culoarea reală a coroanei (din satelit), luminată: imaginea conține umbre
-    // culoarea frunzișului: din satelit, dar ținută în gama verdelui real (fără negru, fără gri)
-    c.setRGB(r / 255, g / 255, b / 255, THREE.SRGBColorSpace)
-    const hsl = {}
-    c.getHSL(hsl)
-    c.setHSL(0.2 + Math.min(0.09, Math.max(0, hsl.h - 0.2)) + (rnd() - 0.5) * 0.03, 0.38 + rnd() * 0.18, 0.2 + Math.min(0.12, hsl.l * 0.35) + rnd() * 0.06)
-    c2.copy(c).multiplyScalar(0.62)
-    crownShell.setColorAt(k, c)
-    crownCore.setColorAt(k, c2)
-    m4.compose(new THREE.Vector3(x, 0, z), q.identity(), new THREE.Vector3(poplar ? 0.8 : 1, trunkH, poplar ? 0.8 : 1))
-    trunk.setMatrixAt(k, m4)
-  })
   const g = new THREE.Group()
-  g.add(trunk, crownCore, crownShell)
+  groups.forEach((list, lod) => {
+    const core = new THREE.InstancedMesh(crownGeometry(0.86, lod), coreMat, list.length)
+    const shell = new THREE.InstancedMesh(crownGeometry(1.0, lod), shellMat, list.length)
+    list.forEach(([x, z, r, gg, b, lum], k) => {
+      const poplar = rnd() < 0.07
+      const s = (2.1 + rnd() * 1.7 + (lum < 55 ? 0.6 : 0)) * (poplar ? 0.85 : 1)
+      const sy = poplar ? s * 2.6 : s * (0.85 + rnd() * 0.3)
+      const sx = poplar ? s * 0.5 : s
+      const trunkH = poplar ? s * 0.9 : s * 0.7 + 1.2
+      m4.compose(new THREE.Vector3(x, trunkH - 0.5 * (poplar ? 1.6 : 1), z), q.setFromAxisAngle(up, rnd() * 6.28), new THREE.Vector3(sx, sy * 0.62, sx))
+      core.setMatrixAt(k, m4)
+      shell.setMatrixAt(k, m4)
+      // culoarea frunzișului: din satelit, ținută în gama verdelui real (fără negru, fără gri)
+      c.setRGB(r / 255, gg / 255, b / 255, THREE.SRGBColorSpace)
+      c.getHSL(hsl)
+      c.setHSL(0.2 + Math.min(0.09, Math.max(0, hsl.h - 0.2)) + (rnd() - 0.5) * 0.03, 0.38 + rnd() * 0.18, 0.2 + Math.min(0.12, hsl.l * 0.35) + rnd() * 0.06)
+      c2.copy(c).multiplyScalar(0.62)
+      shell.setColorAt(k, c)
+      core.setColorAt(k, c2)
+      if (lod === 0) {
+        m4.compose(new THREE.Vector3(x, 0, z), q.identity(), new THREE.Vector3(poplar ? 0.8 : 1, trunkH, poplar ? 0.8 : 1))
+        trunk.setMatrixAt(k, m4)
+      }
+    })
+    core.computeBoundingSphere()
+    shell.computeBoundingSphere()
+    g.add(core, shell)
+  })
+  trunk.computeBoundingSphere()
+  g.add(trunk)
   return g
 }
 

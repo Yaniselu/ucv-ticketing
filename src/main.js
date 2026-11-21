@@ -15,7 +15,6 @@ import { createAccount } from './ui/account.js'
 import { loadBrand } from './scene/brand.js'
 import { buildStadium } from './scene/stadium.js'
 import { buildCrowd } from './scene/crowd.js'
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
 import { buildWorld } from './scene/world.js'
 import { addGoogleTiles, GOOGLE_KEY } from './scene/google.js'
@@ -120,6 +119,9 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping
 renderer.toneMappingExposure = 0.64
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFShadowMap
+// soarele și construcțiile sunt statice: hărțile de umbră se calculează doar când se schimbă scena
+renderer.shadowMap.autoUpdate = false
+renderer.shadowMap.needsUpdate = true
 
 const scene = new THREE.Scene()
 // Soarele are aceeași poziție ca în imaginea satelit (dinspre SSE, umbrele spre NNV),
@@ -188,6 +190,12 @@ scene.add(crowd)
 // împrejurimile reale (satelit + OpenStreetMap), încărcate în fundal
 let streetLabelData = []
 let googleTiles = null
+let worldLoading = true
+// randare la cerere: se desenează doar când se mișcă ceva (camera, animațiile, culorile locurilor)
+let needsRender = 4
+function invalidate(n = 2) {
+  needsRender = Math.max(needsRender, n)
+}
 buildWorld(scene, { lowSpec })
   .then((w) => {
     streetLabelData = w.labels
@@ -207,12 +215,20 @@ buildWorld(scene, { lowSpec })
       }
     }
     if (state.mode === 'overview') buildLabels()
-    return w.ready
+    renderer.shadowMap.needsUpdate = true
+    invalidate(4)
+    return w.ready.then((n) => {
+      worldLoading = false
+      renderer.shadowMap.needsUpdate = true
+      invalidate(4)
+      return n
+    })
   })
   .catch((e) => console.warn('Împrejurimile nu s-au putut încărca', e))
 
 // post-procesare: ocluzie ambientală pentru umbrele de contact dintre rânduri
 let composer = null
+let aoPass = null
 if (useAO) {
   composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }))
   composer.addPass(new RenderPass(scene, camera))
@@ -222,7 +238,7 @@ if (useAO) {
   ao.updateGtaoMaterial({ radius: 0.9, distanceExponent: 1.4, thickness: 1.5, scale: 1.1, samples: 12, distanceFallOff: 1.0, screenSpaceRadius: false })
   ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 5, radiusExponent: 1, rings: 2, samples: 16 })
   composer.addPass(ao)
-  composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.16, 0.45, 0.93))
+  aoPass = ao
   composer.addPass(new OutputPass())
   // gradare de culoare discretă (contrast, saturație, vignetă), ca la o fotografie
   composer.addPass(new ShaderPass({
@@ -330,11 +346,14 @@ function paint() {
     if (!ref || !ref.mesh.instanceColor) continue
     const c = seatColor(i)
     const a = ref.mesh.instanceColor.array
-    a[ref.k * 3] = c.r
-    a[ref.k * 3 + 1] = c.g
-    a[ref.k * 3 + 2] = c.b
+    const o = ref.k * 3
+    if (a[o] === c.r && a[o + 1] === c.g && a[o + 2] === c.b) continue
+    a[o] = c.r
+    a[o + 1] = c.g
+    a[o + 2] = c.b
     paintMeshes.add(ref.mesh)
   }
+  if (paintMeshes.size) invalidate()
   for (const m of paintMeshes) m.instanceColor.needsUpdate = true
   paintMeshes.clear()
 }
@@ -446,6 +465,8 @@ function applyControls(mode) {
   camera.updateProjectionMatrix()
   controls.enabled = mode !== 'pov'
   controls.autoRotate = false
+  stadium.setSeatDetail(mode !== 'overview')
+  invalidate()
   if (mode === 'overview') Object.assign(controls, { minDistance: 120, maxDistance: 620 * boost(), maxPolarAngle: 1.3 })
   if (mode === 'stand') Object.assign(controls, { minDistance: 40, maxDistance: 300 * boost(), maxPolarAngle: 1.42 })
   if (mode === 'sector') Object.assign(controls, { minDistance: 6, maxDistance: 140, maxPolarAngle: 1.5 })
@@ -887,14 +908,60 @@ function resize() {
     composer.setPixelRatio(renderer.getPixelRatio())
     composer.setSize(w, h)
   }
+  invalidate()
 }
 window.addEventListener('resize', resize)
 resize()
 
+// ─── Calitatea adaptivă ─────────────────────────────────────────────
+// Rezoluția de randare se adaptează la placa video: dacă cadrele depășesc intervalul ecranului
+// (8,3 ms la 120 Hz, 16,7 ms la 60 Hz), scade în trepte; dacă e rezervă, crește înapoi.
+const DPR_MAX = Math.min(window.devicePixelRatio || 1, lowSpec ? 1.5 : 2)
+const DPR_MIN = Math.min(DPR_MAX, lowSpec ? 0.75 : 1)
+let dpr = renderer.getPixelRatio()
+let refreshMs = 1000 / 60
+const rafSamples = []
+let frameEma = 0
+let govSince = performance.now()
+function govern(now, dtMs, rendered, moving) {
+  // intervalul ecranului, din primele cadre (rAF)
+  if (rafSamples.length < 90) {
+    if (dtMs > 2 && dtMs < 60) rafSamples.push(dtMs)
+    if (rafSamples.length === 90) {
+      const sorted = rafSamples.slice().sort((a, b) => a - b)
+      refreshMs = Math.max(4, sorted[Math.floor(sorted.length * 0.3)])
+    }
+    return
+  }
+  if (!rendered || !moving) {
+    govSince = now
+    return
+  }
+  frameEma = frameEma ? frameEma * 0.9 + dtMs * 0.1 : dtMs
+  if (now - govSince < 900) return
+  let next = dpr
+  if (frameEma > refreshMs * 1.22 && dpr > DPR_MIN) next = Math.max(DPR_MIN, dpr - 0.25)
+  else if (frameEma < refreshMs * 1.04 && dpr < DPR_MAX && now - govSince > 3000) next = Math.min(DPR_MAX, dpr + 0.25)
+  if (next !== dpr) {
+    dpr = next
+    renderer.setPixelRatio(dpr)
+    resize()
+    govSince = now
+    frameEma = 0
+  }
+}
+
 let idleSince = performance.now()
 let last = performance.now()
+let lastMove = performance.now()
+let aoDone = false
+let lastLoadDraw = 0
+const prevView = new THREE.Matrix4()
+const prevProj = new THREE.Matrix4()
 function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000)
+  requestAnimationFrame(frame)
+  const dtMs = now - last
+  const dt = Math.min(0.05, dtMs / 1000)
   last = now
   stepFlight(now)
   if (state.mode === 'pov' && !flight) {
@@ -910,20 +977,51 @@ function frame(now) {
     camera.fov += (fovTarget - camera.fov) * Math.min(1, dt * 3)
     camera.updateProjectionMatrix()
   }
+  const fading = Math.abs(roofTarget - stadium.roofMat.opacity) > 0.002 || Math.abs(innerTarget - stadium.shellInMat.opacity) > 0.002
   stadium.roofMat.opacity += (roofTarget - stadium.roofMat.opacity) * Math.min(1, dt * 4)
   stadium.shellInMat.opacity += (innerTarget - stadium.shellInMat.opacity) * Math.min(1, dt * 4)
+  camera.updateMatrixWorld()
+  const camMoved = !prevView.equals(camera.matrixWorld) || !prevProj.equals(camera.projectionMatrix)
+  if (camMoved) {
+    prevView.copy(camera.matrixWorld)
+    prevProj.copy(camera.projectionMatrix)
+  }
+  const moving = camMoved || !!flight || fading
+  if (moving) {
+    lastMove = now
+    invalidate(1)
+    aoDone = false
+  }
   if (pointerDirty && !flight && !down) {
     pointerDirty = false
     setHover(pick())
   } else if (pointer && !flight && state.hoverSeat == null && !down) {
     ui.tooltip(currentHit(), pointer)
   }
-  positionLabels()
+  if (camMoved) positionLabels()
   ui.tick()
-  googleTiles?.update()
-  if (composer) composer.render(dt)
-  else renderer.render(scene, camera)
-  requestAnimationFrame(frame)
+  if (googleTiles) {
+    googleTiles.update()
+    invalidate(1)
+  }
+  // cât timp se încarcă împrejurimile (dalele satelit), redesenăm de 4 ori pe secundă
+  if (worldLoading && now - lastLoadDraw > 250) {
+    lastLoadDraw = now
+    invalidate(1)
+  }
+  // ocluzia ambientală (umbrele de contact) e scumpă: doar când camera stă pe loc
+  if (aoPass && !moving && !aoDone && now - lastMove > 180) {
+    aoDone = true
+    invalidate(1)
+  }
+  const rendered = needsRender > 0
+  if (rendered) {
+    needsRender--
+    if (aoPass) aoPass.enabled = aoDone
+    if (composer) composer.render(dt)
+    else renderer.render(scene, camera)
+  }
+  govern(now, dtMs, rendered, moving)
 }
 function currentHit() {
   if (state.hoverSeat != null) return { seat: state.hoverSeat }
@@ -941,6 +1039,7 @@ renderer.compile(scene, camera)
 requestAnimationFrame((t) => {
   last = t
   frame(t)
+  setTimeout(() => (worldLoading = worldLoading && performance.now() < 60000), 60000)
   document.getElementById('loader').classList.add('done')
   // intro-ul competiției (poarta care se deschide); apoi coborâm de sus și ne înclinăm spre stadion
   controls.maxDistance = 2000
@@ -963,4 +1062,4 @@ if (params.get('reset')) account.openAuth({ resetToken: params.get('reset') })
 else if (params.has('bilete')) account.openTickets()
 
 // acces pentru testare din consolă
-window.__ucv = { sale, account, checkout, refreshAvailability, layout, status, state, goStand, goSector, goBox, goPov, goOverview, toggleSeat, cart, flyTo, pickAt: (x, y) => { pointer = { x, y }; return pick() } }
+window.__ucv = { renderer, scene, camera, sale, account, checkout, refreshAvailability, layout, status, state, goStand, goSector, goBox, goPov, goOverview, toggleSeat, cart, flyTo, pickAt: (x, y) => { pointer = { x, y }; return pick() } }
