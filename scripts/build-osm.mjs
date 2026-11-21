@@ -20,7 +20,7 @@ const BBOX = { s: 44.304, w: 23.77, n: 44.324, e: 23.799 }
 const RADIUS_BUILDINGS = 1050
 const RADIUS_ROADS = 1250
 
-async function fetchTiles() {
+export async function fetchTiles() {
   fs.mkdirSync(CACHE, { recursive: true })
   const files = []
   let k = 0
@@ -42,7 +42,7 @@ async function fetchTiles() {
   return files
 }
 
-function parse(files) {
+export function parse(files) {
   const nodes = new Map()
   const ways = new Map()
   const rels = new Map()
@@ -83,7 +83,7 @@ export function toLocal(lat, lon) {
 }
 
 const r1 = (v) => Math.round(v * 10) / 10
-function ring(osm, wayId) {
+export function ring(osm, wayId) {
   const w = osm.ways.get(wayId)
   if (!w) return null
   const pts = []
@@ -209,7 +209,8 @@ async function main() {
       // trotuarele: 0 niciunul, 1 stânga, 2 dreapta, 3 ambele, 4 implicit (după clasă)
       const sw = t.sidewalk || t['sidewalk:both'] || ''
       const side = sw === 'both' ? 3 : sw === 'left' ? 1 : sw === 'right' ? 2 : sw === 'no' || sw === 'none' || sw === 'separate' ? 0 : 4
-      const kind = t.footway === 'sidewalk' ? 1 : t.footway === 'crossing' ? 2 : 0 // pentru alei: trotuar desenat separat / trecere
+      // pentru alei: 1 trotuar desenat separat, 2 trecere; pentru drumurile de serviciu: 3 culoar de parcare
+      const kind = t.footway === 'sidewalk' ? 1 : t.footway === 'crossing' ? 2 : t.service === 'parking_aisle' ? 3 : 0
       out.roads.push([rc[0], r1(width), ni, flatLine(pts), surf, side, kind])
       continue
     }
@@ -225,6 +226,18 @@ async function main() {
     const c = centroid(pts)
     if (Math.hypot(...c) > RADIUS_ROADS || insideStadium(c)) continue
     out.areas.push([kind, flat(pts)])
+  }
+  // pistele și terenurile mapate ca multipoligon (ex. pista de atletism de lângă stadion)
+  for (const [, r] of osm.rels) {
+    if (!['track', 'pitch'].includes(r.tags.leisure)) continue
+    for (const m of r.mem) {
+      if (m.type !== 'way' || m.role !== 'outer') continue
+      const pts = ring(osm, m.ref)
+      if (!pts || pts.length < 4 || pts[0][0] !== pts[pts.length - 1][0]) continue
+      const c = centroid(pts)
+      if (Math.hypot(...c) > RADIUS_ROADS || insideStadium(c)) continue
+      out.areas.push([2, flat(pts)])
+    }
   }
   for (const [, n] of osm.nodes) {
     if (n.tags.natural === 'tree') out.areas.push([3, toLocal(n.lat, n.lon).map(r1)])

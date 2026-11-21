@@ -3,7 +3,9 @@
 // spații verzi cu iarbă și Sala Polivalentă modelată separat.
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
-import { paverMaterial, curbMaterial } from './paving.js'
+import { paverMaterial, curbMaterial, asphaltMaterial, grassMaterial } from './paving.js'
+import { inPrecinct } from './precinct.js'
+import { carMeshes } from './cars.js'
 
 function rng(seed) {
   let s = seed >>> 0
@@ -36,33 +38,6 @@ function noiseFill(g, w, h, base, amp, seed) {
   g.putImageData(img, 0, 0)
 }
 
-const asphaltTex = () => canvasTex(256, 256, (g, w, h) => {
-  noiseFill(g, w, h, '#3d4045', 26, 4)
-  // pete de reparații și uzură
-  const r = rng(8)
-  for (let k = 0; k < 14; k++) {
-    g.fillStyle = `rgba(${r() < 0.5 ? '20,22,25' : '90,92,96'},${0.12 + r() * 0.12})`
-    g.fillRect(r() * w, r() * h, 10 + r() * 50, 6 + r() * 30)
-  }
-})
-const pavingTex = () => canvasTex(256, 256, (g, w, h) => {
-  g.fillStyle = '#9c9a95'
-  g.fillRect(0, 0, w, h)
-  const r = rng(3)
-  for (let y = 0; y < h; y += 16) for (let x = 0; x < w; x += 16) {
-    const v = 150 + Math.floor(r() * 40)
-    g.fillStyle = `rgb(${v},${v - 2},${v - 6})`
-    g.fillRect(x + 1, y + 1, 14, 14)
-  }
-})
-const grassTex = () => canvasTex(256, 256, (g, w, h) => {
-  noiseFill(g, w, h, '#58733a', 40, 12)
-  const r = rng(5)
-  for (let k = 0; k < 900; k++) {
-    g.fillStyle = `rgba(${r() < 0.5 ? '120,150,70' : '50,70,30'},0.35)`
-    g.fillRect(r() * w, r() * h, 1, 3 + r() * 4)
-  }
-})
 const dashTex = () => canvasTex(16, 64, (g) => {
   g.clearRect(0, 0, 16, 64)
   g.fillStyle = '#f2f2ee'
@@ -161,19 +136,29 @@ function principal(flat) {
   return { cx, cz, ux, uz, u0, u1, v0, v1 }
 }
 
-function carGeometry() {
-  const parts = []
-  const box = (w, h, d, y, z = 0) => parts.push(new THREE.BoxGeometry(w, h, d).translate(0, y, z).toNonIndexed())
-  box(1.78, 0.62, 4.35, 0.52)
-  box(1.7, 0.18, 4.2, 0.18)
-  const cabin = new THREE.CylinderGeometry(0.62, 0.86, 0.5, 4, 1)
-  cabin.rotateY(Math.PI / 4)
-  cabin.scale(1.38, 1, 2.3)
-  cabin.translate(0, 1.07, -0.2)
-  parts.push(cabin.toNonIndexed())
-  return mergeGeometries(parts)
+// indexul clădirilor (grilă de 25 m), pentru a nu pune locuri de parcare peste ele
+function buildingIndex(buildings) {
+  const cell = 25
+  const grid = new Map()
+  for (const b of buildings) {
+    const f = b[2]
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity
+    for (let i = 0; i < f.length; i += 2) {
+      x0 = Math.min(x0, f[i]); x1 = Math.max(x1, f[i]); z0 = Math.min(z0, f[i + 1]); z1 = Math.max(z1, f[i + 1])
+    }
+    for (let i = Math.floor(x0 / cell); i <= Math.floor(x1 / cell); i++) {
+      for (let j = Math.floor(z0 / cell); j <= Math.floor(z1 / cell); j++) {
+        const k = i + ',' + j
+        if (!grid.has(k)) grid.set(k, [])
+        grid.get(k).push(f)
+      }
+    }
+  }
+  return (x, z) => {
+    const list = grid.get(Math.floor(x / cell) + ',' + Math.floor(z / cell))
+    return !!list && list.some((f) => inPoly(x, z, f))
+  }
 }
-const CAR_COLORS = ['#f2f2f2', '#e8e8e8', '#1c1c1e', '#2a2d33', '#8d9196', '#b8bcc1', '#6f747a', '#1f3b6e', '#7a1f1f', '#3b4a3a', '#c9c3b5', '#24425f', '#9a9fa5']
 
 // ─── Străzile, trotuarele și pavajul ────────────────────────────────
 // Carosabilul (asfalt / piatră cubică / neasfaltat), bordurile de granit înălțate, trotuarele cu
@@ -262,9 +247,12 @@ export function buildCity(data, { lowSpec = false } = {}) {
   const group = new THREE.Group()
   const RMAX = lowSpec ? 700 : 1050
   const onOtherRoad = roadIndex(data.roads)
-  const inPodium = (x, z) => (x / 116) ** 2 + (z / 128) ** 2 < 1
+  // incinta stadionului (podiumul, esplanada) e modelată separat, în precinct.js
+  const inPodium = (x, z) => inPrecinct(x, z)
   const greens = data.areas.filter((a) => a[0] === 0).map((a) => a[1])
   const inGreen = (x, z) => greens.some((f) => inPoly(x, z, f))
+  const pitches = data.areas.filter((a) => a[0] === 2).map((a) => a[1])
+  const inPitch = (x, z) => pitches.some((f) => inPoly(x, z, f))
   const B = { asphalt: [], sett: [], gravel: [], lines: [] }
   const walk = { spic: new QuadBuf(), rosu: new QuadBuf(), patrat: new QuadBuf() }
   const curbTop = new QuadBuf()
@@ -274,7 +262,12 @@ export function buildCity(data, { lowSpec = false } = {}) {
     const [cls, width, , flat, surf = 0, side = 4, fk = 0] = r
     const mid = [flat[Math.floor(flat.length / 4) * 2], flat[Math.floor(flat.length / 4) * 2 + 1]]
     const d = Math.hypot(mid[0], mid[1])
-    if (d > RMAX || inPodium(mid[0], mid[1])) return
+    if (d > RMAX) return
+    if (d < 400) {
+      let inside = 0
+      for (let i = 0; i < flat.length; i += 2) if (inPodium(flat[i], flat[i + 1])) inside++
+      if (inside / (flat.length / 2) > 0.6) return
+    }
     if (cls <= 4) {
       const g = ribbon(flat, width, cls <= 3 ? Y_ROAD : Y_ROAD - 0.01, 0, 1, true)
       if (g) (surf === 1 ? B.sett : surf === 2 ? B.gravel : B.asphalt).push(g)
@@ -324,8 +317,14 @@ export function buildCity(data, { lowSpec = false } = {}) {
   })
 
   // piețele pietonale: pavele pătrate
+  const centroid = (flat) => {
+    let x = 0, z = 0
+    for (let i = 0; i < flat.length; i += 2) { x += flat[i]; z += flat[i + 1] }
+    return [x / (flat.length / 2), z / (flat.length / 2)]
+  }
   for (const [kind, flat] of data.areas) {
     if (kind !== 4 || flat.length < 6) continue
+    if (inPodium(...centroid(flat))) continue
     const pts = []
     for (let i = 0; i < flat.length; i += 2) pts.push(new THREE.Vector2(flat[i], flat[i + 1]))
     const tri = THREE.ShapeUtils.triangulateShape(pts, [])
@@ -338,9 +337,9 @@ export function buildCity(data, { lowSpec = false } = {}) {
   }
 
   // materialele
-  const asphalt = asphaltTex()
-  asphalt.repeat.set(1 / 6, 1 / 6)
-  const roadMat = new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.95, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })
+  // asfaltul la scară reală (agregat, relief), UV-urile benzilor sunt în metri
+  const roadMat = asphaltMaterial({ size: lowSpec ? 512 : 1024 })
+  Object.assign(roadMat, { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })
   const add = (geos, mat, shadow = true) => {
     mat.side = THREE.DoubleSide
     if (!geos.length) return
@@ -411,49 +410,152 @@ export function buildCity(data, { lowSpec = false } = {}) {
     }
   }
 
-  // spații verzi
-  const grassGeo = []
-  for (const [kind, flat] of data.areas) {
-    if (kind !== 0 || flat.length < 6) continue
-    const g = polygonGeometry(flat, 0.04, 6)
-    if (g) grassGeo.push(g)
+  // spații verzi: gazonul puțin ridicat, cu bordură de granit pe contur (la zonele urbane mici)
+  {
+    const lawnGeo = []
+    const curb = new QuadBuf()
+    for (const [kind, flat] of data.areas) {
+      if (kind !== 0 || flat.length < 6) continue
+      const c = centroid(flat)
+      if (Math.hypot(...c) > RMAX || inPodium(...c)) continue
+      let per = 0
+      let area2 = 0
+      const n = flat.length / 2
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n
+        per += Math.hypot(flat[j * 2] - flat[i * 2], flat[j * 2 + 1] - flat[i * 2 + 1])
+        area2 += flat[i * 2] * flat[j * 2 + 1] - flat[j * 2] * flat[i * 2 + 1]
+      }
+      const curbed = per < 700
+      const g = polygonGeometry(flat, curbed ? 0.13 : 0.05, 1)
+      if (g) lawnGeo.push(g)
+      if (!curbed) continue
+      // sensul conturului → normala spre interior
+      const sgn = area2 > 0 ? 1 : -1
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n
+        const ax = flat[i * 2], az = flat[i * 2 + 1], bx = flat[j * 2], bz = flat[j * 2 + 1]
+        const L = Math.hypot(bx - ax, bz - az)
+        if (L < 0.05) continue
+        const ix = (-(bz - az) / L) * sgn * -1, iz = ((bx - ax) / L) * sgn * -1
+        const w = 0.12
+        // fața exterioară și partea de sus a bordurii
+        curb.quad([ax, 0.02, az], [bx, 0.02, bz], [bx, 0.17, bz], [ax, 0.17, az], [0, 0], [L, 0], [L, 0.15], [0, 0.15])
+        curb.quad([ax, 0.17, az], [bx, 0.17, bz], [bx + ix * w, 0.17, bz + iz * w], [ax + ix * w, 0.17, az + iz * w], [0, 0], [L, 0], [L, w], [0, w])
+      }
+    }
+    if (lawnGeo.length) {
+      const g = mergeGeometries(lawnGeo)
+      // pete de culoare (gazon mai închis / mai uscat), la scara de zeci de metri
+      const p = g.attributes.position
+      const col = new Float32Array(p.count * 3)
+      for (let i = 0; i < p.count; i++) {
+        const x = p.getX(i), z = p.getZ(i)
+        const v = 0.8 + 0.2 * Math.sin(x * 0.043 + Math.sin(z * 0.05) * 2) * Math.cos(z * 0.037 - x * 0.01) + 0.06 * Math.sin(x * 0.31 + z * 0.27)
+        col[i * 3] = v * 1.02
+        col[i * 3 + 1] = v
+        col[i * 3 + 2] = v * 0.93
+      }
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3))
+      const gm = grassMaterial({ size: lowSpec ? 512 : 1024 })
+      Object.assign(gm, { vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })
+      const m = new THREE.Mesh(g, gm)
+      m.receiveShadow = !lowSpec
+      group.add(m)
+    }
+    const cg = curb.geometry()
+    if (cg) group.add(new THREE.Mesh(cg, curbMat))
   }
-  if (grassGeo.length) group.add(new THREE.Mesh(mergeGeometries(grassGeo), new THREE.MeshStandardMaterial({ map: grassTex(), roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })))
 
-  // parcări: asfalt, marcaje și mașini 3D
+  // parcări: asfalt, locuri trasate de-a lungul culoarelor (OSM: service = parking_aisle),
+  // borduri pe contur (în afară de intrări) și mașini 3D
   const lotGeo = []
   const cars = []
   const marks = []
   const r = rng(21)
-  for (const [kind, flat] of data.areas) {
-    if (kind !== 1 || flat.length < 6) continue
-    const g = polygonGeometry(flat, Y_ROAD - 0.005, 6)
+  const lots = data.areas.filter(([kind, flat]) => kind === 1 && flat.length >= 6 && Math.hypot(...centroid(flat)) < RMAX && !inPodium(...centroid(flat))).map((a) => a[1])
+  const inLot = (x, z) => lots.find((f) => inPoly(x, z, f))
+  const bIndex = buildingIndex(data.buildings)
+  const lotHasAisle = new Set()
+  const lotCurb = new QuadBuf()
+  for (const flat of lots) {
+    const g = polygonGeometry(flat, Y_ROAD - 0.005, 1)
     if (g) lotGeo.push(g)
+  }
+  // locurile de-a lungul culoarelor
+  data.roads.forEach((road, id) => {
+    const [cls, width, , flat, , , fk] = road
+    if (cls !== 4 || fk !== 3) return
+    const mx = flat[Math.floor(flat.length / 4) * 2], mz = flat[Math.floor(flat.length / 4) * 2 + 1]
+    if (Math.hypot(mx, mz) > RMAX) return
+    const aisleLot = inLot(mx, mz)
+    if (aisleLot) lotHasAisle.add(aisleLot)
+    const half = Math.max(3, width / 2 + 0.5)
+    for (let i = 0; i < flat.length - 2; i += 2) {
+      const ax = flat[i], az = flat[i + 1], bx = flat[i + 2], bz = flat[i + 3]
+      const len = Math.hypot(bx - ax, bz - az)
+      if (len < 3) continue
+      const dx = (bx - ax) / len, dz = (bz - az) / len
+      for (const sd of [1, -1]) {
+        const nx = -dz * sd, nz = dx * sd
+        for (let s = 1.6; s < len - 1.6; s += 2.5) {
+          const cx = ax + dx * s + nx * (half + 2.5)
+          const cz = az + dz * s + nz * (half + 2.5)
+          if (inPodium(cx, cz) || onOtherRoad(cx, cz, id, 1.2) || bIndex(cx, cz) || inPitch(cx, cz) || inPitch(cx + nx * 2.6, cz + nz * 2.6)) continue
+          if (aisleLot ? !inPoly(cx, cz, aisleLot) : inGreen(cx, cz)) continue
+          // linia dintre locuri (perpendiculară pe culoar)
+          marks.push([cx + dx * 1.25, cz + dz * 1.25, Math.atan2(nx, nz)])
+          if (r() < 0.72) cars.push([cx + dx * (r() - 0.5) * 0.25, Y_ROAD, cz + dz * (r() - 0.5) * 0.25, Math.atan2(nx, nz) + (r() < 0.75 ? Math.PI : 0) + (r() - 0.5) * 0.06])
+        }
+      }
+    }
+  })
+  for (const flat of lots) {
+    // bordura pe contur; unde intră o stradă sau culoarul, rămâne liber
+    const n = flat.length / 2
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n
+      const ax = flat[i * 2], az = flat[i * 2 + 1], bx = flat[j * 2], bz = flat[j * 2 + 1]
+      const L = Math.hypot(bx - ax, bz - az)
+      const k = Math.max(1, Math.ceil(L / 2))
+      for (let q = 0; q < k; q++) {
+        const x0 = ax + ((bx - ax) * q) / k, z0 = az + ((bz - az) * q) / k
+        const x1 = ax + ((bx - ax) * (q + 1)) / k, z1 = az + ((bz - az) * (q + 1)) / k
+        if (onOtherRoad((x0 + x1) / 2, (z0 + z1) / 2, -1, 0.4)) continue
+        lotCurb.quad([x0, Y_ROAD - 0.01, z0], [x1, Y_ROAD - 0.01, z1], [x1, Y_WALK + 0.01, z1], [x0, Y_WALK + 0.01, z0], [0, 0], [L / k, 0], [L / k, 0.15], [0, 0.15])
+      }
+    }
+    if (lotHasAisle.has(flat)) continue
+    // parcările fără culoar în OSM: rânduri de locuri pe axa lungă
     const P = principal(flat)
     const span = P.v1 - P.v0
     if (P.u1 - P.u0 < 6 || span < 5) continue
-    // rânduri de locuri: 5 m adâncime, culoar de 6 m
     for (let v = P.v0 + 2.6; v < P.v1 - 2.4; v += span > 16 ? 8 : 5.2) {
       for (let u = P.u0 + 1.4; u < P.u1 - 1.2; u += 2.6) {
         const x = P.cx + u * P.ux - v * P.uz
         const z = P.cz + u * P.uz + v * P.ux
-        if (!inPoly(x, z, flat)) continue
-        marks.push([x + 1.3 * P.ux, z + 1.3 * P.uz, Math.atan2(P.ux, P.uz)])
-        if (r() < 0.68) cars.push([x, z, Math.atan2(-P.uz, P.ux) + (r() < 0.5 ? 0 : Math.PI) + (r() - 0.5) * 0.06])
+        if (!inPoly(x, z, flat) || bIndex(x, z)) continue
+        marks.push([x + 1.3 * P.ux, z + 1.3 * P.uz, Math.atan2(-P.uz, P.ux)])
+        if (r() < 0.68) cars.push([x, Y_ROAD, z, Math.atan2(-P.uz, P.ux) + (r() < 0.5 ? 0 : Math.PI) + (r() - 0.5) * 0.06])
       }
     }
   }
   if (lotGeo.length) group.add(new THREE.Mesh(mergeGeometries(lotGeo), roadMat))
+  {
+    const cg = lotCurb.geometry()
+    if (cg) group.add(new THREE.Mesh(cg, curbMat))
+  }
   const m4 = new THREE.Matrix4()
   const q = new THREE.Quaternion()
   const up = new THREE.Vector3(0, 1, 0)
   const one = new THREE.Vector3(1, 1, 1)
   if (marks.length) {
-    const mk = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.12, 5).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xe9e9e4 }), marks.length)
+    const mk = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.12, 4.8).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xe9e9e4 }), marks.length)
     marks.forEach(([x, z, a], k) => {
-      m4.compose(new THREE.Vector3(x, Y_ROAD + 0.01, z), q.setFromAxisAngle(up, a + Math.PI / 2), one)
+      m4.compose(new THREE.Vector3(x, Y_ROAD + 0.01, z), q.setFromAxisAngle(up, a), one)
       mk.setMatrixAt(k, m4)
     })
+    mk.computeBoundingSphere()
     group.add(mk)
   }
   // mașini parcate și pe marginea străzilor rezidențiale de lângă stadion
@@ -468,23 +570,12 @@ export function buildCity(data, { lowSpec = false } = {}) {
         if (r() > 0.32) continue
         const side = r() < 0.5 ? 1 : -1
         const off = width / 2 - 1.1
-        cars.push([ax + dx * s - dz * off * side, az + dz * s + dx * off * side, Math.atan2(dx, dz)])
+        cars.push([ax + dx * s - dz * off * side, Y_ROAD, az + dz * s + dx * off * side, Math.atan2(dx, dz)])
       }
     }
   }
-  if (cars.length) {
-    const body = new THREE.InstancedMesh(carGeometry(), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.32, metalness: 0.5 }), cars.length)
-    const glass = new THREE.InstancedMesh(new THREE.BoxGeometry(1.5, 0.36, 1.9).translate(0, 1.1, -0.2), new THREE.MeshStandardMaterial({ color: 0x1b2430, roughness: 0.1, metalness: 0.6 }), cars.length)
-    const c = new THREE.Color()
-    cars.forEach(([x, z, a], k) => {
-      m4.compose(new THREE.Vector3(x, Y_ROAD, z), q.setFromAxisAngle(up, a), one)
-      body.setMatrixAt(k, m4)
-      glass.setMatrixAt(k, m4)
-      body.setColorAt(k, c.set(CAR_COLORS[Math.floor(r() * CAR_COLORS.length)]))
-    })
-    body.castShadow = !lowSpec
-    group.add(body, glass)
-  }
+  // mașinile: x, y, z, unghi (fața spre +z la unghiul 0)
+  group.add(carMeshes(cars.map(([x, y, z, a]) => [x, y, z, a]), { seed: 5, shadows: !lowSpec }))
 
   // Sala Polivalentă: volum vitrat cu acoperiș curb metalic
   const hall = data.buildings.find((b) => b[3] === 'Sala Polivalentă')
@@ -492,46 +583,146 @@ export function buildCity(data, { lowSpec = false } = {}) {
   return group
 }
 
+// Sala Polivalentă (4 215 locuri): volum paralelipipedic placat cu panouri metalice gri-deschis, cu
+// bandă vitrată, fațada principală (spre bulevard) cu perete-cortină și copertină, acoperiș plat cu
+// atic, luminatoare în rețea și agregatele de ventilație (ca în imaginea satelit).
 function buildHall(flat) {
   const P = principal(flat)
   const L = P.u1 - P.u0
   const W = P.v1 - P.v0
   const g = new THREE.Group()
-  const wallH = 13
-  const facade = canvasTex(256, 256, (c) => {
-    const grd = c.createLinearGradient(0, 0, 0, 256)
-    grd.addColorStop(0, '#6f8597')
-    grd.addColorStop(1, '#42525f')
+  const H = 18
+  const south = P.ux >= 0 ? 1 : -1 // latura dinspre bulevard (sud), în coordonatele locale
+  // placajul: panouri de 3 × 1 m, cu rosturi, bandă de ferestre și soclu
+  const clad = (len) => {
+    const t = canvasTex(512, 512, (c) => {
+      c.fillStyle = '#c9cdd1'
+      c.fillRect(0, 0, 512, 512)
+      for (let y = 0; y < 512; y += 28) {
+        c.fillStyle = `rgba(${y % 56 ? '255,255,255' : '0,0,0'},0.04)`
+        c.fillRect(0, y, 512, 28)
+        c.fillStyle = 'rgba(70,76,82,0.55)'
+        c.fillRect(0, y, 512, 2)
+      }
+      for (let x = 0; x < 512; x += 85) {
+        c.fillStyle = 'rgba(70,76,82,0.35)'
+        c.fillRect(x, 0, 2, 512)
+      }
+      // banda vitrată (între 4,5 și 6,5 m)
+      const y0 = 512 - (6.5 / H) * 512
+      const y1 = 512 - (4.5 / H) * 512
+      const grd = c.createLinearGradient(0, y0, 0, y1)
+      grd.addColorStop(0, '#3f5566')
+      grd.addColorStop(1, '#22313c')
+      c.fillStyle = grd
+      c.fillRect(0, y0, 512, y1 - y0)
+      c.fillStyle = '#9aa3aa'
+      for (let x = 0; x < 512; x += 43) c.fillRect(x, y0, 3, y1 - y0)
+      // soclul de beton
+      c.fillStyle = '#8c8e8f'
+      c.fillRect(0, 512 - (0.7 / H) * 512, 512, (0.7 / H) * 512)
+    })
+    t.repeat.set(len / 15, 1)
+    return t
+  }
+  const wallMat = (len) => new THREE.MeshStandardMaterial({ map: clad(len), roughness: 0.42, metalness: 0.35 })
+  const wall = (len, x, z, ry) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(len, H), wallMat(len))
+    m.position.set(x, H / 2, z)
+    m.rotation.y = ry
+    g.add(m)
+  }
+  wall(L, 0, -south * W / 2, south > 0 ? Math.PI : 0)
+  wall(W, L / 2, 0, Math.PI / 2)
+  wall(W, -L / 2, 0, -Math.PI / 2)
+  // fațada principală: perete-cortină pe 70% din lungime, în rest placaj
+  const gw = L * 0.7
+  const side = (L - gw) / 2
+  for (const sx of [-1, 1]) wall(side, sx * (gw / 2 + side / 2), south * W / 2, south > 0 ? 0 : Math.PI)
+  const curtain = canvasTex(512, 512, (c) => {
+    const grd = c.createLinearGradient(0, 0, 0, 512)
+    grd.addColorStop(0, '#7f9aae')
+    grd.addColorStop(0.55, '#4b6578')
+    grd.addColorStop(1, '#2b3c48')
     c.fillStyle = grd
-    c.fillRect(0, 0, 256, 256)
-    c.fillStyle = '#d9dde0'
-    for (let x = 0; x < 256; x += 32) c.fillRect(x, 0, 3, 256)
-    c.fillRect(0, 124, 256, 6)
-    c.fillRect(0, 0, 256, 10)
+    c.fillRect(0, 0, 512, 512)
+    c.fillStyle = 'rgba(255,255,255,0.08)'
+    c.beginPath()
+    c.moveTo(0, 120); c.lineTo(512, 40); c.lineTo(512, 140); c.lineTo(0, 220)
+    c.fill()
+    c.fillStyle = '#d5dadd'
+    for (let x = 0; x < 512; x += 64) c.fillRect(x, 0, 4, 512)
+    for (let y = 0; y < 512; y += 85) c.fillRect(0, y, 512, 3)
+    // ușile de la parter
+    c.fillStyle = '#1b252c'
+    for (let x = 16; x < 512; x += 128) c.fillRect(x, 512 - 76, 96, 76)
+    c.fillStyle = '#c8ced2'
+    for (let x = 16; x < 512; x += 128) c.fillRect(x + 46, 512 - 76, 4, 76)
   })
-  facade.repeat.set(L / 6, 2)
-  const body = new THREE.Mesh(new THREE.BoxGeometry(L, wallH, W), new THREE.MeshStandardMaterial({ map: facade, roughness: 0.25, metalness: 0.35 }))
-  body.position.y = wallH / 2
-  g.add(body)
-  // bolta metalică pe lungime
-  const ribs = canvasTex(512, 16, (c) => {
-    c.fillStyle = '#d6dade'
-    c.fillRect(0, 0, 512, 16)
-    c.fillStyle = 'rgba(120,128,136,0.5)'
-    for (let x = 0; x < 512; x += 8) c.fillRect(x, 0, 1, 16)
-  })
-  ribs.repeat.set(4, 1)
-  const rise = 8
-  const R = (W * W) / (8 * rise) + rise / 2
-  const ang = 2 * Math.asin(W / 2 / R)
-  const vault = new THREE.CylinderGeometry(R, R, L + 1.5, 64, 1, false, -ang / 2, ang)
-  vault.rotateZ(Math.PI / 2)
-  vault.rotateX(-Math.PI / 2)
-  vault.translate(0, wallH + rise - R, 0)
-  const roof = new THREE.Mesh(vault, new THREE.MeshStandardMaterial({ map: ribs, roughness: 0.35, metalness: 0.6, side: THREE.DoubleSide }))
+  curtain.repeat.set(gw / 12, 1)
+  const cw = new THREE.Mesh(new THREE.PlaneGeometry(gw, H - 1.5), new THREE.MeshStandardMaterial({ map: curtain, roughness: 0.08, metalness: 0.6 }))
+  cw.position.set(0, (H - 1.5) / 2, south * W / 2)
+  if (south < 0) cw.rotation.y = Math.PI
+  g.add(cw)
+  // fâșia albă de deasupra peretelui-cortină, cu numele sălii
+  const band = canvasTex(1024, 96, (c) => {
+    c.fillStyle = '#eef0f1'
+    c.fillRect(0, 0, 1024, 96)
+    c.fillStyle = '#123a73'
+    c.font = '800 60px "Barlow Condensed", "Arial Narrow", sans-serif'
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    c.fillText('SALA POLIVALENTĂ CRAIOVA', 512, 50)
+  }, { repeat: false })
+  const bandMesh = new THREE.Mesh(new THREE.PlaneGeometry(gw, 1.5), new THREE.MeshStandardMaterial({ map: band, roughness: 0.4 }))
+  bandMesh.position.set(0, H - 0.75, south * (W / 2 + 0.02))
+  if (south < 0) bandMesh.rotation.y = Math.PI
+  g.add(bandMesh)
+  // copertina de la intrare, pe stâlpi subțiri
+  const canopy = new THREE.Mesh(new THREE.BoxGeometry(gw * 0.6, 0.35, 5), new THREE.MeshStandardMaterial({ color: 0xe6e8ea, roughness: 0.5, metalness: 0.3 }))
+  canopy.position.set(0, 4.6, south * (W / 2 + 2.5))
+  canopy.castShadow = true
+  g.add(canopy)
+  const postGeo = []
+  for (let x = -gw * 0.28; x <= gw * 0.28 + 0.01; x += (gw * 0.56) / 6) postGeo.push(new THREE.CylinderGeometry(0.12, 0.12, 4.45, 10).translate(x, 2.22, south * (W / 2 + 4.6)).toNonIndexed())
+  g.add(new THREE.Mesh(mergeGeometries(postGeo), new THREE.MeshStandardMaterial({ color: 0xbfc5ca, metalness: 0.7, roughness: 0.3 })))
+  // acoperișul plat cu atic
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(L, 0.3, W), new THREE.MeshStandardMaterial({ color: 0xd9dad6, roughness: 0.95 }))
+  roof.position.y = H - 0.15
+  roof.receiveShadow = true
   g.add(roof)
+  const coping = new THREE.MeshStandardMaterial({ color: 0xb8bcc0, roughness: 0.5, metalness: 0.4 })
+  for (const [w, d, x, z] of [[L + 0.6, 0.6, 0, W / 2], [L + 0.6, 0.6, 0, -W / 2], [0.6, W, L / 2, 0], [0.6, W, -L / 2, 0]]) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, 1.1, d), coping)
+    m.position.set(x, H + 0.4, z)
+    m.castShadow = true
+    g.add(m)
+  }
+  // luminatoarele (cupole în rețea) și agregatele de pe acoperiș
+  const domes = []
+  const nx = 9
+  const nz = 5
+  for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) domes.push([(-0.5 + (i + 0.5) / nx) * L * 0.86, (-0.5 + (j + 0.5) / nz) * W * 0.78])
+  const domeGeo = mergeGeometries([
+    new THREE.BoxGeometry(1.7, 0.35, 1.7).translate(0, 0.17, 0).toNonIndexed(),
+    new THREE.SphereGeometry(0.85, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.45, 1).translate(0, 0.35, 0).toNonIndexed(),
+  ])
+  const dm = new THREE.InstancedMesh(domeGeo, new THREE.MeshStandardMaterial({ color: 0xe4ecef, roughness: 0.2, metalness: 0.1 }), domes.length)
+  const m4 = new THREE.Matrix4()
+  domes.forEach(([x, z], k) => dm.setMatrixAt(k, m4.makeTranslation(x, H, z)))
+  dm.castShadow = true
+  g.add(dm)
+  const hvacMat = new THREE.MeshStandardMaterial({ color: 0xa9adb0, roughness: 0.6, metalness: 0.5 })
+  for (const [x, z, w, d, h] of [[L * 0.36, W * 0.3, 7, 3.2, 2.2], [L * 0.36, -W * 0.3, 7, 3.2, 2.2], [-L * 0.38, 0, 4, 9, 1.8], [0, -W * 0.42, 10, 2.2, 1.4]]) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), hvacMat)
+    m.position.set(x, H + h / 2, z)
+    m.castShadow = true
+    g.add(m)
+  }
   g.position.set(P.cx, 0, P.cz)
   g.rotation.y = -Math.atan2(P.uz, P.ux)
-  g.traverse((o) => { o.castShadow = true; o.receiveShadow = true })
+  g.traverse((o) => {
+    if (o.isMesh) o.receiveShadow = true
+  })
   return g
 }

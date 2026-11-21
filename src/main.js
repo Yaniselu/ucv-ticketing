@@ -1062,4 +1062,4 @@ if (params.get('reset')) account.openAuth({ resetToken: params.get('reset') })
 else if (params.has('bilete')) account.openTickets()
 
 // acces pentru testare din consolă
-window.__ucv = { renderer, scene, camera, sale, account, checkout, refreshAvailability, layout, status, state, goStand, goSector, goBox, goPov, goOverview, toggleSeat, cart, flyTo, pickAt: (x, y) => { pointer = { x, y }; return pick() } }
+window.__ucv = { renderer, scene, camera, controls, sale, account, checkout, refreshAvailability, layout, status, state, goStand, goSector, goBox, goPov, goOverview, toggleSeat, cart, flyTo, pickAt: (x, y) => { pointer = { x, y }; return pick() } }

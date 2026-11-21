@@ -5,6 +5,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { buildCity } from './city.js'
 import { buildBuildings as buildBuildings2 } from './buildings.js'
 import { paverSet } from './paving.js'
+import { inPrecinct, precinctRings, precinctTrees } from './precinct.js'
+import { SHELL_PROFILE } from './structure.js'
 
 const TILE_URL = (z, x, y) => `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`
 
@@ -176,6 +178,67 @@ function satelliteLayer(proj, z, radius, y, maxPx, onProgress) {
   return { mesh, canvas, ctx: g, tex, toPx, toUV, done }
 }
 
+// Umbra stadionului e „pictată” în imaginea satelit (soarele de la sud-est, jos): fără ea, terenul
+// de la nord de stadion pare pătat. O ridicăm: zona umbrei = carcasa (profilul real) proiectată pe
+// direcția umbrei; pixelii întunecați de acolo sunt luminați până la nivelul terenului din soare.
+const SHADOW_DIR = [-0.34, -1.25] // deplasarea umbrei pe metru de înălțime (măsurată pe imagine)
+function liftStadiumShadow(layer) {
+  const g = layer.ctx
+  const [ax, ay] = layer.toPx(0, 0)
+  const [bx, by] = layer.toPx(100, 0)
+  const [cx, cy] = layer.toPx(0, 100)
+  // transformarea afină scenă → pixeli, și inversa ei
+  const a = (bx - ax) / 100, b = (cx - ax) / 100, d = (by - ay) / 100, e = (cy - ay) / 100
+  const det = a * e - b * d
+  const toScene = (px, py) => [((px - ax) * e - (py - ay) * b) / det, (-(px - ax) * d + (py - ay) * a) / det]
+  const corners = [[-210, -240], [190, -240], [190, 130], [-210, 130]].map(([x, z]) => layer.toPx(x, z))
+  const x0 = Math.max(0, Math.floor(Math.min(...corners.map((c) => c[0]))))
+  const x1 = Math.min(layer.canvas.width, Math.ceil(Math.max(...corners.map((c) => c[0]))))
+  const y0 = Math.max(0, Math.floor(Math.min(...corners.map((c) => c[1]))))
+  const y1 = Math.min(layer.canvas.height, Math.ceil(Math.max(...corners.map((c) => c[1]))))
+  if (x1 <= x0 || y1 <= y0) return
+  const img = g.getImageData(x0, y0, x1 - x0, y1 - y0) // o singură citire
+  const D = img.data
+  const W = x1 - x0
+  const hs = []
+  for (let h = 0; h <= 50; h += 2.5) {
+    let k = 0
+    while (k < SHELL_PROFILE.length - 2 && SHELL_PROFILE[k + 1][2] < h) k++
+    const [p0x, p0z, p0y] = SHELL_PROFILE[k]
+    const [p1x, p1z, p1y] = SHELL_PROFILE[k + 1]
+    const f = Math.min(1, Math.max(0, (h - p0y) / (p1y - p0y)))
+    hs.push([h, p0x + (p1x - p0x) * f + 2, p0z + (p1z - p0z) * f + 2])
+  }
+  for (let py = y0; py < y1; py++) {
+    for (let px = x0; px < x1; px++) {
+      const [x, z] = toScene(px, py)
+      if ((x / 99) ** 2 + (z / 110.5) ** 2 < 1) continue
+      // cât de adânc e punctul în umbra proiectată (0 = afară, 1 = adânc)
+      let w = 0
+      for (const [h, rx, rz] of hs) {
+        const qx = x - SHADOW_DIR[0] * h
+        const qz = z - SHADOW_DIR[1] * h
+        const v = (qx / rx) ** 2 + (qz / rz) ** 2
+        if (v < 1.12) w = Math.max(w, Math.min(1, (1.12 - v) / 0.12))
+        if (w >= 1) break
+      }
+      if (w <= 0) continue
+      const o = ((py - y0) * W + (px - x0)) * 4
+      const lum = (D[o] + D[o + 1] + D[o + 2]) / 3
+      if (lum > 105) continue
+      const k = 1 + (Math.min(2.4, 112 / Math.max(lum, 22)) - 1) * w * (1 - Math.max(0, lum - 80) / 25)
+      // umbra din imagine e albăstruie: luminăm, desaturăm parțial și încălzim culoarea
+      const L2 = lum * k
+      const sat = 1 - 0.5 * w
+      D[o] = Math.min(255, (L2 + (D[o] * k - L2) * sat) * (1 + 0.07 * w))
+      D[o + 1] = Math.min(255, (L2 + (D[o + 1] * k - L2) * sat) * (1 + 0.01 * w))
+      D[o + 2] = Math.min(255, (L2 + (D[o + 2] * k - L2) * sat) * (1 - 0.12 * w))
+    }
+  }
+  g.putImageData(img, x0, y0)
+  layer.tex.needsUpdate = true
+}
+
 function paintPolygon(layer, pts, color) {
   const g = layer.ctx
   g.beginPath()
@@ -249,6 +312,8 @@ function detectTrees(layer, data, radius, maxTrees) {
   for (let k = 0; k < 64; k++) ell.push(118 * Math.cos((k / 64) * Math.PI * 2), 130 * Math.sin((k / 64) * Math.PI * 2))
   path(ell, true)
   m.fill()
+  // incinta (podiumul, taluzurile, esplanada) e modelată separat, cu copacii ei
+  for (const r of precinctRings()) { path(r, true); m.fill() }
   const maskPx = m.getImageData(0, 0, W, H).data
   const img = layer.ctx.getImageData(0, 0, W, H).data
   const trees = []
@@ -278,7 +343,8 @@ function detectTrees(layer, data, radius, maxTrees) {
       trees.push([jx, jz, r, gg, b, lum])
     }
   }
-  for (const a of data.areas) if (a[0] === 3) trees.push([a[1][0], a[1][1], 70, 95, 55, 70])
+  for (const a of data.areas) if (a[0] === 3 && !inPrecinct(a[1][0], a[1][1])) trees.push([a[1][0], a[1][1], 70, 95, 55, 70])
+  for (const [x, z, y] of precinctTrees()) trees.push([x, z, 64, 98, 50, 66, y])
   return trees
 }
 
@@ -337,13 +403,13 @@ function buildTrees(trees) {
   groups.forEach((list, lod) => {
     const core = new THREE.InstancedMesh(crownGeometry(0.86, lod), coreMat, list.length)
     const shell = new THREE.InstancedMesh(crownGeometry(1.0, lod), shellMat, list.length)
-    list.forEach(([x, z, r, gg, b, lum], k) => {
+    list.forEach(([x, z, r, gg, b, lum, y0 = 0], k) => {
       const poplar = rnd() < 0.07
       const s = (2.1 + rnd() * 1.7 + (lum < 55 ? 0.6 : 0)) * (poplar ? 0.85 : 1)
       const sy = poplar ? s * 2.6 : s * (0.85 + rnd() * 0.3)
       const sx = poplar ? s * 0.5 : s
       const trunkH = poplar ? s * 0.9 : s * 0.7 + 1.2
-      m4.compose(new THREE.Vector3(x, trunkH - 0.5 * (poplar ? 1.6 : 1), z), q.setFromAxisAngle(up, rnd() * 6.28), new THREE.Vector3(sx, sy * 0.62, sx))
+      m4.compose(new THREE.Vector3(x, y0 + trunkH - 0.5 * (poplar ? 1.6 : 1), z), q.setFromAxisAngle(up, rnd() * 6.28), new THREE.Vector3(sx, sy * 0.62, sx))
       core.setMatrixAt(k, m4)
       shell.setMatrixAt(k, m4)
       // culoarea frunzișului: din satelit, ținută în gama verdelui real (fără negru, fără gri)
@@ -354,7 +420,7 @@ function buildTrees(trees) {
       shell.setColorAt(k, c)
       core.setColorAt(k, c2)
       if (lod === 0) {
-        m4.compose(new THREE.Vector3(x, 0, z), q.identity(), new THREE.Vector3(poplar ? 0.8 : 1, trunkH, poplar ? 0.8 : 1))
+        m4.compose(new THREE.Vector3(x, y0, z), q.identity(), new THREE.Vector3(poplar ? 0.8 : 1, trunkH, poplar ? 0.8 : 1))
         trunk.setMatrixAt(k, m4)
       }
     })
@@ -381,7 +447,7 @@ function buildStreetLights(data) {
       const dx = (bx - ax) / len, dz = (bz - az) / len
       for (let s = (30 - acc) % 30; s < len; s += 30) {
         const x = ax + dx * s, z = az + dz * s
-        if (Math.hypot(x, z) > 720 || (x / 112) ** 2 + (z / 124) ** 2 < 1) continue
+        if (Math.hypot(x, z) > 720 || inPrecinct(x, z)) continue
         const off = width / 2 + 1.3
         const sides = cls <= 1 ? [1, -1] : [side]
         for (const sd of sides) spots.push([x - dz * off * sd, z + dx * off * sd, Math.atan2(dz * sd, -dx * sd)])
@@ -393,7 +459,10 @@ function buildStreetLights(data) {
   // pe promenada din jurul stadionului
   for (let k = 0; k < 40; k++) {
     const a = (k / 40) * Math.PI * 2
-    spots.push([124 * Math.cos(a), 137 * Math.sin(a), a + Math.PI / 2])
+    const x = 124 * Math.cos(a)
+    const z = 137 * Math.sin(a)
+    // pe esplanadă și pe podium sunt stâlpii incintei
+    if (!inPrecinct(x, z, 1)) spots.push([x, z, a + Math.PI / 2])
   }
   const pole = new THREE.CylinderGeometry(0.09, 0.14, 9, 6).translate(0, 4.5, 0)
   const arm = new THREE.BoxGeometry(1.7, 0.09, 0.09).translate(0.8, 8.9, 0)
@@ -480,6 +549,7 @@ export async function buildWorld(scene, { lowSpec = false, onProgress } = {}) {
   const labels = streetLabels(data)
   const ready = (async () => {
     await Promise.all([near.done, mid.done, ring ? ring.done : null, close ? close.done : null])
+    for (const L of [near, ring].filter(Boolean)) liftStadiumShadow(L)
     cover()
     buildings.applyRoofColors([near, ring, mid].filter(Boolean))
     const trees = detectTrees(near, data, nearR - 10, lowSpec ? 2500 : 6500)

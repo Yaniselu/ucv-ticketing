@@ -15,9 +15,33 @@ Prototip de ticketing cu harta 3D a stadionului din Craiova, în stilul celor fo
 - **Intro-ul** depinde de competiția meciului. Fundalul e negru la Conference și Europa League, albastru cu stele la Champions League și roșu la Superliga și Cupa României. Logoul competiției stă în mijlocul unei porți cu două canaturi, care se deschide spre stadion.
   - Se poate sări cu „Sari peste” sau cu un clic. E oprit cu `?nointro` sau dacă sistemul cere animații reduse.
 - **Tripla 2025–2026:** la competițiile interne, intro-ul arată stema Universității Craiova și cele trei trofee modelate 3D după fotografii: Cupa României (urna de argint oferită de Ion Țiriac), trofeul Superligii (LPF, 2023) și Supercupa României (cu mingea aurie).
+  - **Detalii:**
+    - metal cu urme fine de strunjire;
+    - Superliga: muchiile vii ale panourilor răsucite, nervura toartelor, inscripția gravată pe bază și dedicația câștigătoarei;
+    - Cupa României: brâu cizelat cu volute de acant, pene în relief pe aripi, ochi la vulturi, plăcuța de alamă și plăcuțele cu câștigătoarele pe soclul de lemn;
+    - Supercupa: inscripția gravată și placa de pe soclu.
+  - **Lumina:** trofeele sunt luminate ca într-un studio foto (softbox-uri), cu umbre moi pe masă.
 - **Stema clubului** e redesenată curat, la rezoluție mare, după afișul oficial al clubului (`public/brand/`). Apare în antet, la încărcare, ca favicon, pe bilete (web și PDF), în email, pe panourile LED, pe tabelă și pe prelatele tunelurilor.
 - **Tabelele** sunt ecrane video negre, agățate sus în colonada din colțurile NE și SV, ca în fotografii. Afișează logoul competiției, stemele, scorul și cronometrul.
 - În spatele tribunelor: parapet și platformă, stâlpii ramificați ai acoperișului și vitrajul închis la culoare. Marginea de sus a inelului de sus e o curbă continuă, ca pe stadion.
+
+## Incinta stadionului 1:1
+Modelată după planurile și fotografiile arhitecților (DICO & ȚIGĂNAȘ) și după OpenStreetMap (`scripts/build-precinct.mjs` → `src/data/precinct.js`, `src/scene/precinct.js`).
+- **Podiumul** e un planșeu la +4,6 m, pe stâlpi, cu promenada de asfalt. Marginea urmează conturul clădirii din OSM.
+- **Parterul de sub podium:**
+  - spre Tribuna 2 și Peluza Nord are porți cu grilaj de oțel;
+  - sub peluze sunt parcările, cu mașini, liniile locurilor și corpuri de iluminat în tavan;
+  - în colțurile de sud, podiumul iese în consolă pe stâlpi în V, iar aleile auto intră sub el.
+- **Tribuna 1:** spre ea coboară taluzuri de gazon. Scara principală are 14 m lățime, cu podest și mâini curente.
+- **Scările din OSM** sunt la est și la nord. Mai sunt scări la accese și lifturi vitrate pentru persoanele cu dizabilități.
+- **Porțile cu turnichete** sunt sub streașina fațadei, la cele 21 de accese din planul oficial: turnichete tripod, cititoare de bilete și bare de dirijare. Numele porților sunt cele de pe bilete (Poarta 6, Poarta 8, Peluza Sud, Tribuna 1, VIP / Loje, Acces oaspeți).
+- **Esplanada Stadion** coboară spre Bd. Ilie Balaci:
+  - pe mijloc, cinci linii ondulate de câte cinci trepte; pe laturi, rampe;
+  - dale de granit de 60×40 cm;
+  - gazon ridicat cu ziduri-bancă de beton, copaci și stâlpi de iluminat.
+- **Curțile de lumină:** trei, coborâte până la parter (două cu gazon, una cu mașini), cu balustrade de sticlă.
+- **Statuia lui Ion Oblemenco:** bronz, pe soclu de granit cu placă, pe esplanadă, la poziția din OSM.
+- **Imaginea satelit:** umbra stadionului „pictată” în ea e luminată, ca terenul de la nord să nu pară pătat.
 
 ## Împrejurimile pe 1 km
 - Clădirile din OpenStreetMap au fațade pe tipuri: blocuri cu panouri prefabricate, balcoane închise sau deschise și casa scării; case cu ferestre cu rame, obloane și soclu; birouri vitrate; hale. Parterul e separat de etaje. Geamurile reflectă cerul, iar relieful vine din hărți de normale.
@@ -35,6 +59,12 @@ Prototip de ticketing cu harta 3D a stadionului din Craiova, în stilul celor fo
   - dale de granit de 60×40 cm pe esplanada stadionului.
 - **Treceri de pietoni:** zebră, cu benzi de 50 cm, la toate trecerile din OpenStreetMap.
 - Datele (suprafața străzii, trotuarele, piețele, trecerile) vin din `scripts/build-osm.mjs`.
+- **Asfaltul** e generat la scara reală, cu agregat și relief.
+- **Spațiile verzi** urbane au gazonul ridicat și bordură de granit.
+- **Parcările:**
+  - locurile sunt trasate de-a lungul culoarelor din OSM, cu borduri pe contur;
+  - mașinile au profil real (hatchback sau sedan), roți, geamuri, faruri și stopuri.
+- **Sala Polivalentă:** acoperiș plat cu atic, luminatoare și agregate, ca în imaginea satelit. Are placaj metalic, perete-cortină spre bulevard, copertină și numele sălii.
 
 ## Performanță
 - **Copaci:** două niveluri de detaliu.

@@ -16,13 +16,58 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 const LOGOS = import.meta.glob('../assets/logos/*.png', { eager: true, query: '?url', import: 'default' })
 const logoUrl = (id) => Object.entries(LOGOS).find(([p]) => p.endsWith(`/${id}.png`))?.[1]
 
+// urmele fine de strunjire / lustruire de pe metal (dungi circulare, pe direcția u a strungului):
+// rugozitatea variază ușor, iar reflexiile nu mai par „de calculator”
+let brushed = null
+function brushedMap() {
+  if (brushed) return brushed
+  const c = document.createElement('canvas')
+  c.width = 1024
+  c.height = 512
+  const g = c.getContext('2d')
+  g.fillStyle = 'rgb(150,150,150)'
+  g.fillRect(0, 0, 1024, 512)
+  let s = 11
+  const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647)
+  for (let k = 0; k < 2600; k++) {
+    const y = rnd() * 512
+    const v = 90 + rnd() * 150
+    g.strokeStyle = `rgba(${v},${v},${v},${0.25 + rnd() * 0.4})`
+    g.lineWidth = 0.6 + rnd() * 1.2
+    const x = rnd() * 1024
+    const L = 80 + rnd() * 600
+    g.beginPath()
+    g.moveTo(x, y)
+    g.lineTo(x + L, y + (rnd() - 0.5) * 2)
+    g.stroke()
+  }
+  // câteva zgârieturi fine, în alte direcții
+  for (let k = 0; k < 90; k++) {
+    const x = rnd() * 1024, y = rnd() * 512, a = rnd() * Math.PI, L = 10 + rnd() * 60
+    g.strokeStyle = `rgba(230,230,230,${0.3 + rnd() * 0.3})`
+    g.lineWidth = 0.7
+    g.beginPath()
+    g.moveTo(x, y)
+    g.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L)
+    g.stroke()
+  }
+  brushed = new THREE.CanvasTexture(c)
+  brushed.wrapS = brushed.wrapT = THREE.RepeatWrapping
+  brushed.repeat.set(3, 2)
+  brushed.anisotropy = 8
+  return brushed
+}
+
 function mats() {
   const loader = new THREE.TextureLoader()
-  const silver = new THREE.MeshPhysicalMaterial({ color: 0xf4f5f7, metalness: 1, roughness: 0.1, clearcoat: 0.7, clearcoatRoughness: 0.08 })
+  const rm = brushedMap()
+  const silver = new THREE.MeshPhysicalMaterial({ color: 0xf4f5f7, metalness: 1, roughness: 0.16, roughnessMap: rm, clearcoat: 0.7, clearcoatRoughness: 0.08 })
   return {
     silver,
-    chrome: new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 1, roughness: 0.045, clearcoat: 1, clearcoatRoughness: 0.03 }),
+    chrome: new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 1, roughness: 0.075, roughnessMap: rm, clearcoat: 1, clearcoatRoughness: 0.03 }),
     satin: new THREE.MeshPhysicalMaterial({ color: 0xd9dce0, metalness: 1, roughness: 0.32 }),
+    engrave: new THREE.MeshStandardMaterial({ color: 0x80868e, metalness: 1, roughness: 0.55 }),
+    brass: new THREE.MeshPhysicalMaterial({ color: 0xd8b45a, metalness: 1, roughness: 0.22, roughnessMap: rm, clearcoat: 0.6 }),
     gunmetal: new THREE.MeshPhysicalMaterial({ color: 0x3b3e44, metalness: 1, roughness: 0.14, clearcoat: 1, clearcoatRoughness: 0.05 }),
     gold: new THREE.MeshPhysicalMaterial({ color: 0xffc23a, metalness: 1, roughness: 0.16, clearcoat: 0.9, clearcoatRoughness: 0.08 }),
     goldDark: new THREE.MeshStandardMaterial({ color: 0x7a4f0c, metalness: 1, roughness: 0.35 }),
@@ -164,7 +209,7 @@ function football(r, mat, seamMat, { pentMat = null } = {}) {
   return g
 }
 // decal: o bucată din suprafața unui con / cilindru, cu o textură (sigla), pusă în fața trofeului
-function conicDecal(tex, { y0, y1, r0, r1, arc, lift = 0.0015 }, mat) {
+function conicDecal(tex, { y0, y1, r0, r1, arc, lift = 0.0015, center = Math.PI / 2 }, mat) {
   const g = new THREE.BufferGeometry()
   const pos = []
   const uv = []
@@ -177,7 +222,7 @@ function conicDecal(tex, { y0, y1, r0, r1, arc, lift = 0.0015 }, mat) {
     const r = r0 + (r1 - r0) * v + lift
     for (let i = 0; i <= NX; i++) {
       const u = i / NX
-      const a = Math.PI / 2 + (u - 0.5) * arc
+      const a = center + (u - 0.5) * arc
       pos.push(r * Math.cos(a) * -1, y, r * Math.sin(a))
       uv.push(u, v)
     }
@@ -197,6 +242,65 @@ function conicDecal(tex, { y0, y1, r0, r1, arc, lift = 0.0015 }, mat) {
   m.polygonOffset = true
   m.polygonOffsetFactor = -2
   return new THREE.Mesh(g, m)
+}
+// inscripție gravată de jur împrejurul unei benzi cilindrice / conice (literele = alphaMap)
+function textBand(text, { y0, y1, r0, r1, mat, font = '700', reps = 1, lift = 0.0008, size = 2048 }) {
+  const tex = canvasTex(size, 96, (c, w, h) => {
+    c.fillStyle = '#000'
+    c.fillRect(0, 0, w, h)
+    c.fillStyle = '#fff'
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    c.font = `${font} 62px "Barlow Condensed", "Arial Narrow", Arial, sans-serif`
+    for (let k = 0; k < reps; k++) c.fillText(text, ((k + 0.5) * w) / reps, h / 2 + 3)
+  })
+  const g = new THREE.CylinderGeometry(r1 + lift, r0 + lift, y1 - y0, 192, 1, true)
+  g.translate(0, (y0 + y1) / 2, 0)
+  const m = mat.clone()
+  m.alphaMap = tex
+  m.transparent = true
+  m.depthWrite = false
+  m.polygonOffset = true
+  m.polygonOffsetFactor = -2
+  return new THREE.Mesh(g, m)
+}
+// plăcuță metalică cu text gravat (pe soclu)
+function plaque(lines, w, h, mat, { bg = '#c9ccd0', ink = '#2a2c30', frame = true } = {}) {
+  const tex = canvasTex(512, Math.round((512 * h) / w), (c, W, H) => {
+    c.fillStyle = bg
+    c.fillRect(0, 0, W, H)
+    if (frame) {
+      c.strokeStyle = ink
+      c.lineWidth = Math.max(2, H * 0.04)
+      c.strokeRect(H * 0.08, H * 0.08, W - H * 0.16, H - H * 0.16)
+    }
+    c.fillStyle = ink
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    const n = lines.length
+    lines.forEach((t, k) => {
+      const fs = (H / (n + 0.8)) * (k === 0 ? 0.78 : 0.62)
+      c.font = `${k === 0 ? 800 : 600} ${fs}px "Barlow Condensed", "Arial Narrow", Arial, sans-serif`
+      let f = fs
+      while (c.measureText(t).width > W * 0.88 && f > 6) {
+        f -= 1
+        c.font = `${k === 0 ? 800 : 600} ${f}px "Barlow Condensed", "Arial Narrow", Arial, sans-serif`
+      }
+      c.fillText(t, W / 2, (H * (k + 0.9)) / (n + 0.8))
+    })
+  })
+  tex.colorSpace = THREE.SRGBColorSpace
+  const m = mat.clone()
+  m.map = tex
+  m.bumpMap = tex
+  m.bumpScale = -0.6
+  m.color = new THREE.Color(0xffffff)
+  // textul trebuie să se citească: plăcuța e mai puțin oglindă decât trofeul
+  m.metalness = 0.55
+  m.roughness = 0.32
+  m.roughnessMap = null
+  if ('clearcoat' in m) m.clearcoat = 0.4
+  return new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.0016), m)
 }
 function canvasTex(w, h, draw) {
   const c = document.createElement('canvas')
@@ -231,6 +335,20 @@ export function superligaTrophy(M = mats()) {
     c.fill()
   })
   g.add(conicDecal(lpf, { y0: 0.03, y1: 0.062, r0: 0.092, r1: 0.07, arc: 0.44 }, M.chrome))
+  // inscripția gravată pe muchia bazei și dedicația câștigătoarei pe spatele conului
+  g.add(textBand('SUPERLIGA  ·  CAMPIONATUL ROMÂNIEI  ·  LIGA PROFESIONISTĂ DE FOTBAL  ·  ', { y0: 0.0105, y1: 0.0195, r0: 0.111, r1: 0.111, mat: M.chrome, reps: 2 }))
+  const ded = canvasTex(512, 256, (c) => {
+    c.fillStyle = '#000'
+    c.fillRect(0, 0, 512, 256)
+    c.fillStyle = '#fff'
+    c.textAlign = 'center'
+    c.font = '800 70px "Barlow Condensed", Arial'
+    c.fillText('UNIVERSITATEA', 256, 80)
+    c.fillText('CRAIOVA', 256, 150)
+    c.font = '600 48px "Barlow Condensed", Arial'
+    c.fillText('CAMPIOANĂ 2025 – 2026', 256, 222)
+  })
+  g.add(conicDecal(ded, { y0: 0.032, y1: 0.064, r0: 0.091, r1: 0.069, arc: 0.6, center: -Math.PI / 2 }, M.chrome))
   // gâtul cu nod
   g.add(new THREE.Mesh(lathe([[0, 0.14], [0.024, 0.141], [0.019, 0.15], [0.017, 0.16], [0.026, 0.168], [0.028, 0.174], [0.02, 0.182], [0.019, 0.19], [0, 0.19]], 96, null, 40), M.chrome))
   // cupa: panouri concave răsucite cu muchii ascuțite, deschisă sus, perete subțire
@@ -249,6 +367,29 @@ export function superligaTrophy(M = mats()) {
   inMesh.material.side = THREE.BackSide
   g.add(inMesh)
   g.add(ring(0.1172, 0.0022, 0.58, M.chrome, 220))
+  // muchiile vii dintre panourile răsucite: linii lucioase care prind lumina (ca pe trofeul real)
+  {
+    const rOut = (y) => {
+      for (let k = 0; k < outer.length - 1; k++) {
+        const [ra, ya] = outer[k]
+        const [rb, yb] = outer[k + 1]
+        if (y >= ya && y <= yb) return ra + ((rb - ra) * (y - ya)) / (yb - ya)
+      }
+      return outer[outer.length - 1][0]
+    }
+    const tubes = []
+    for (let k = 0; k < N; k++) {
+      const pts = []
+      for (let i = 0; i <= 90; i++) {
+        const y = 0.215 + (0.575 - 0.215) * (i / 90)
+        const th = (k * Math.PI * 2) / N - twist(y)
+        const r = rOut(y) + 0.0004
+        pts.push(new THREE.Vector3(r * Math.cos(th), y, r * Math.sin(th)))
+      }
+      tubes.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 180, 0.0011, 6, false))
+    }
+    g.add(new THREE.Mesh(mergeGeometries(tubes), M.chrome))
+  }
   // emblema Superligii gravată sub buză (decal întunecat, ca o gravură)
   const url = logoUrl('superliga')
   if (url) {
@@ -317,6 +458,8 @@ export function superligaTrophy(M = mats()) {
     // în fotografii: bara de sus e orizontală, iar latura exterioară coboară aproape drept spre gât
     const pts = [[0.104, 0.548], [0.15, 0.552], [0.2, 0.552], [0.226, 0.548], [0.229, 0.53], [0.2, 0.46], [0.16, 0.38], [0.115, 0.3], [0.07, 0.235], [0.04, 0.205]].map(([x, y]) => [s * x, y, 0])
     g.add(new THREE.Mesh(sweep(pts, (t) => 0.013 - 0.003 * t, () => 0.024, 200, 12), M.chrome))
+    // nervura din mijlocul toartei
+    g.add(new THREE.Mesh(sweep(pts, () => 0.0034, () => 0.0272, 200, 8), M.chrome))
   }
   g.userData.height = 0.58
   return g
@@ -333,6 +476,37 @@ export function cupaRomanieiTrophy(M = mats()) {
     return m
   }
   g.add(oct(0.2, 0.05, 0, M.wood), oct(0.175, 0.035, 0.05, M.wood))
+  // plăcuțele cu câștigătoarele pe fețele soclului; în față, plăcuța de alamă cu numele trofeului
+  {
+    const winners = [
+      ['2014 – 2015', 'STEAUA BUCUREȘTI'], ['2015 – 2016', 'CFR CLUJ'], ['2016 – 2017', 'FC VOLUNTARI'],
+      ['2017 – 2018', 'UNIVERSITATEA CRAIOVA'], ['2018 – 2019', 'VIITORUL CONSTANȚA'], ['2019 – 2020', 'FCSB'],
+      ['2020 – 2021', 'UNIVERSITATEA CRAIOVA'], ['2021 – 2022', 'SEPSI OSK'], ['2022 – 2023', 'SEPSI OSK'],
+      ['2023 – 2024', 'CORVINUL HUNEDOARA'], ['2024 – 2025', 'CFR CLUJ'], ['2025 – 2026', 'UNIVERSITATEA CRAIOVA'],
+    ]
+    let wi = 0
+    for (let f = 0; f < 8; f++) {
+      const a = Math.PI / 2 + (f * Math.PI) / 4 // fața 0 = spre privitor (+z)
+      const front = f === 0
+      const rows = front ? [[0.2, 0.025, 0.012, 0.16]] : [[0.2, 0.025, 0.01, 0.13], [0.175, 0.0675, 0.012, 0.11]]
+      for (const [r, y, hgt, wdt] of rows) {
+        const ap = r * Math.cos(Math.PI / 8) + 0.0012
+        let p
+        if (front && r === 0.2) {
+          p = plaque(['CUPA ROMÂNIEI', 'UNIVERSITATEA CRAIOVA · 2025 – 2026'], 0.13, 0.034, M.brass, { bg: '#c8a24c', ink: '#3a2a0a' })
+          p.position.y = 0.025
+        } else {
+          const [yr, team] = winners[wi++ % winners.length]
+          p = plaque([team, yr], wdt * 0.82, hgt * 2.2 * (r === 0.2 ? 1.1 : 0.85), M.silver, { frame: false })
+          p.position.y = y
+        }
+        p.position.x = ap * Math.cos(a)
+        p.position.z = ap * Math.sin(a)
+        p.rotation.y = Math.PI / 2 - a
+        g.add(p)
+      }
+    }
+  }
   const base = new THREE.Group()
   base.position.y = 0.085
   g.add(base)
@@ -352,7 +526,62 @@ export function cupaRomanieiTrophy(M = mats()) {
   // caneluri în evantai sub corp, corpul ovoid, umărul, gâtul și buza răsfrântă
   const fan = (r, th, y) => (y > 0.25 && y < 0.33 ? r * (1 + 0.055 * Math.abs(Math.cos(th * 16)) ** 0.5 * Math.sin((Math.PI * (y - 0.25)) / 0.08)) : r)
   const urn = [[0.04, 0.25], [0.06, 0.262], [0.085, 0.282], [0.108, 0.305], [0.122, 0.33], [0.131, 0.37], [0.134, 0.41], [0.13, 0.455], [0.118, 0.495], [0.103, 0.522], [0.099, 0.535], [0.092, 0.55], [0.085, 0.575], [0.084, 0.6], [0.088, 0.625], [0.097, 0.645], [0.104, 0.656]]
-  base.add(new THREE.Mesh(lathe(urn, 224, fan, 160), M.silver))
+  // brâul cizelat (volute și frunze de acant) de pe pântecul urnei, în relief (bump map)
+  const chased = canvasTex(2048, 1024, (c, W, H) => {
+    c.fillStyle = '#808080'
+    c.fillRect(0, 0, W, H)
+    const v0 = H * (1 - 0.56)
+    const v1 = H * (1 - 0.3)
+    c.strokeStyle = '#d8d8d8'
+    c.lineCap = 'round'
+    // chenarele brâului
+    c.lineWidth = 7
+    for (const y of [v0, v1]) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke() }
+    const reps = 12
+    const bw = W / reps
+    const mid = (v0 + v1) / 2
+    const hh = (v1 - v0) / 2
+    for (let k = 0; k < reps; k++) {
+      const x0 = k * bw
+      // volută dublă
+      for (const sd of [-1, 1]) {
+        c.lineWidth = 6
+        c.beginPath()
+        for (let t = 0; t <= 1; t += 0.02) {
+          const a = t * Math.PI * 2.6
+          const rr = hh * 0.75 * (1 - t * 0.8)
+          const x = x0 + bw / 2 + sd * (bw * 0.18 + Math.cos(a) * rr * 0.9)
+          const y = mid + Math.sin(a) * rr * sd
+          t ? c.lineTo(x, y) : c.moveTo(x, y)
+        }
+        c.stroke()
+        // frunza de acant
+        c.fillStyle = '#c4c4c4'
+        c.beginPath()
+        c.moveTo(x0 + bw / 2, mid + hh * 0.85)
+        c.quadraticCurveTo(x0 + bw / 2 + sd * bw * 0.32, mid, x0 + bw / 2 + sd * bw * 0.08, mid - hh * 0.8)
+        c.quadraticCurveTo(x0 + bw / 2 + sd * bw * 0.12, mid, x0 + bw / 2, mid + hh * 0.85)
+        c.fill()
+      }
+      // floarea din mijloc
+      c.fillStyle = '#e6e6e6'
+      for (let p = 0; p < 6; p++) {
+        const a = (p / 6) * Math.PI * 2
+        c.beginPath()
+        c.ellipse(x0 + bw / 2 + Math.cos(a) * 14, mid + Math.sin(a) * 14, 12, 6, a, 0, Math.PI * 2)
+        c.fill()
+      }
+      // perle mici între motive
+      c.fillStyle = '#dcdcdc'
+      c.beginPath()
+      c.arc(x0, mid, 9, 0, Math.PI * 2)
+      c.fill()
+    }
+  })
+  const urnMat = M.silver.clone()
+  urnMat.bumpMap = chased
+  urnMat.bumpScale = 2.2
+  base.add(new THREE.Mesh(lathe(urn, 224, fan, 160), urnMat))
   // interiorul gurii
   const inside = new THREE.Mesh(lathe([[0.102, 0.656], [0.082, 0.62], [0.076, 0.58], [0.0, 0.54]], 96), M.silver.clone())
   inside.material.side = THREE.BackSide
@@ -474,6 +703,34 @@ export function cupaRomanieiTrophy(M = mats()) {
     wm.normalMap = feathers
     wm.normalScale = new THREE.Vector2(0.8, 0.8)
     base.add(new THREE.Mesh(wing, wm))
+    // penele în relief: solzi alungiți, în rânduri, pe ambele fețe ale aripii
+    {
+      const curve = new THREE.CatmullRomCurve3(pts.map(([x, y, z]) => new THREE.Vector3(x, y, z)), false, 'centripetal')
+      const fGeo = new THREE.SphereGeometry(1, 10, 6)
+      const list = []
+      for (let i = 0; i < 26; i++) {
+        const t = 0.04 + (i / 26) * 0.74
+        const p = curve.getPointAt(t)
+        const tan = curve.getTangentAt(t)
+        const nrm = new THREE.Vector3(-tan.y, tan.x, 0)
+        const width = 0.05 * Math.sin(Math.PI * Math.min(1, t * 1.4 + 0.18)) ** 0.8 * (1 - 0.65 * t) + 0.009
+        const depth = 0.019 - 0.01 * t
+        const rowsN = width > 0.03 ? 3 : 2
+        for (let rr = 0; rr < rowsN; rr++) {
+          const off = (rr / (rowsN - 1) - 0.5) * width * 0.7
+          for (const face of [-1, 1]) list.push({ p: p.clone().addScaledVector(nrm, off).add(new THREE.Vector3(0, 0, face * depth * 0.46)), tan, face, s: 0.011 + width * 0.12 })
+        }
+      }
+      const im = new THREE.InstancedMesh(fGeo, M.silver, list.length)
+      const m4 = new THREE.Matrix4()
+      const q = new THREE.Quaternion()
+      list.forEach(({ p, tan, s }, k) => {
+        q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tan.clone().negate())
+        m4.compose(p, q, new THREE.Vector3(s * 0.45, s * 1.25, 0.0026))
+        im.setMatrixAt(k, m4)
+      })
+      base.add(im)
+    }
     // capul vulturului, cu ciocul spre exterior
     const head = new THREE.Group()
     const skull = new THREE.Mesh(new THREE.SphereGeometry(0.019, 28, 20), M.silver)
@@ -486,6 +743,15 @@ export function cupaRomanieiTrophy(M = mats()) {
     const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.02, 0.04, 18), M.silver)
     neck.rotation.z = -0.8
     neck.position.set(-0.02, -0.02, 0)
+    // ochii și arcadele
+    for (const ez of [-1, 1]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.0034, 12, 8), M.chrome)
+      eye.position.set(0.012, 0.005, ez * 0.0145)
+      const brow = new THREE.Mesh(new THREE.SphereGeometry(0.006, 12, 8), M.silver)
+      brow.scale.set(1.6, 0.55, 0.8)
+      brow.position.set(0.011, 0.01, ez * 0.0125)
+      head.add(eye, brow)
+    }
     head.add(skull, beak, hook, neck)
     head.position.set(sd * 0.13, 0.72, 0)
     head.rotation.y = sd > 0 ? 0 : Math.PI
@@ -522,6 +788,20 @@ export function supercupaTrophy(M = mats()) {
   insideBowl.material.side = THREE.BackSide
   g.add(insideBowl)
   g.add(ring(0.1225, 0.0026, 0.63, M.chrome, 220))
+  // inscripția gravată sub buză și placa de pe soclu
+  g.add(textBand('SUPERCUPA ROMÂNIEI  ★  FEDERAȚIA ROMÂNĂ DE FOTBAL  ★  ', { y0: 0.6, y1: 0.61, r0: 0.1216, r1: 0.122, mat: M.engrave, reps: 2, font: '600' }))
+  {
+    const p = plaque(['SUPERCUPA ROMÂNIEI', 'UNIVERSITATEA CRAIOVA · 2026'], 0.12, 0.036, M.chrome, { bg: '#d7dadd' })
+    // pe fața cilindrului negru: o curbăm ușor pe rază
+    const gp = p.geometry.attributes.position
+    for (let i = 0; i < gp.count; i++) {
+      const x = gp.getX(i)
+      gp.setZ(i, gp.getZ(i) + Math.sqrt(Math.max(0, 0.1095 ** 2 - x * x)) - 0.1095)
+    }
+    p.geometry.computeVertexNormals()
+    p.position.set(0, 0.038, 0.1095)
+    g.add(p)
+  }
   // mingea aurie în fereastră, cu rama argintie
   const ball = football(0.07, M.gold, M.goldDark)
   ball.position.set(0, 0.49, 0.062)

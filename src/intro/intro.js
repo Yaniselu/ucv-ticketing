@@ -3,7 +3,6 @@
 // logoul în mijloc pe o poartă cu două canaturi care se deschide spre stadion. La competițiile
 // interne apar și cele trei trofee ale triplei 2025–2026 (Superliga, Cupa și Supercupa României).
 import * as THREE from 'three'
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { trebleGroup } from './trophies.js'
 import { CREST_URL } from '../scene/brand.js'
 import './intro.css'
@@ -40,6 +39,32 @@ function starfield() {
   return c.toDataURL()
 }
 
+// studioul foto pentru reflexii: cameră întunecată cu softbox-uri (benzi și panouri luminoase),
+// ca la fotografiile de produs — argintul lustruit capătă reflexii lungi, curate, cu contrast
+function studioEnvironment() {
+  const scene = new THREE.Scene()
+  scene.background = new THREE.Color(0x3a3e46)
+  const panel = (w, h, pos, intensity, color = 0xffffff) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(intensity), side: THREE.DoubleSide }))
+    m.position.set(...pos)
+    m.lookAt(0, 0.4, 0)
+    scene.add(m)
+  }
+  panel(4.5, 2.2, [0, 3.4, 2.2], 6) // softbox mare, sus în față
+  panel(1.1, 4.2, [-3.0, 1.4, 1.0], 5) // benzi verticale laterale
+  panel(1.1, 4.2, [3.0, 1.4, 1.0], 5)
+  panel(3.6, 1.0, [0, 0.7, 3.6], 2.2) // lumina de umplere din spatele aparatului
+  panel(0.6, 3.6, [-2.0, 1.2, -2.6], 3.6, 0xffe2b8) // contre-jour cald
+  panel(0.6, 3.6, [2.0, 1.2, -2.6], 3.6, 0xc8dcff) // contre-jour rece
+  panel(4.5, 4.5, [0, 4.8, 0], 2.6) // plafonul
+  // podeaua de studio, gri mediu
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshBasicMaterial({ color: 0x6b6f77 }))
+  floor.rotation.x = -Math.PI / 2
+  floor.position.y = -0.4
+  scene.add(floor)
+  return scene
+}
+
 function trophyStage(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1))
@@ -48,34 +73,38 @@ function trophyStage(canvas) {
   renderer.outputColorSpace = THREE.SRGBColorSpace
   const scene = new THREE.Scene()
   const pmrem = new THREE.PMREMGenerator(renderer)
-  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
-  scene.environmentIntensity = 1.6
+  scene.environment = pmrem.fromScene(studioEnvironment(), 0.03).texture
+  scene.environmentIntensity = 1.3
+  // umbre moi pe masă (trofeele „stau” pe ceva, nu plutesc)
+  renderer.shadowMap.enabled = true
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap
   const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 20)
   const key = new THREE.SpotLight(0xffffff, 26, 8, 0.5, 0.6)
-  key.position.set(0.8, 2.4, 2.2)
+  key.position.set(0.6, 3.0, 1.7)
+  key.castShadow = true
+  key.shadow.mapSize.set(2048, 2048)
+  key.shadow.radius = 6
+  key.shadow.bias = -0.0004
   const rimL = new THREE.PointLight(0xffe0b0, 6, 6)
   rimL.position.set(-1.6, 1.0, -0.8)
   const rimR = new THREE.PointLight(0xb0d0ff, 6, 6)
   rimR.position.set(1.6, 1.0, -0.8)
   scene.add(key, rimL, rimR, new THREE.AmbientLight(0xffffff, 0.25))
   const trophies = trebleGroup()
+  trophies.traverse((o) => {
+    if (o.isMesh) o.castShadow = true
+  })
   scene.add(trophies)
-  // pata de lumină de sub trofee
-  const glowTex = (() => {
-    const c = document.createElement('canvas')
-    c.width = c.height = 256
-    const g = c.getContext('2d')
-    const grd = g.createRadialGradient(128, 128, 0, 128, 128, 128)
-    grd.addColorStop(0, 'rgba(255,255,255,0.55)')
-    grd.addColorStop(1, 'rgba(255,255,255,0)')
-    g.fillStyle = grd
-    g.fillRect(0, 0, 256, 256)
-    return new THREE.CanvasTexture(c)
-  })()
-  const glow = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.1), new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false }))
-  glow.rotation.x = -Math.PI / 2
-  glow.position.y = 0.001
-  scene.add(glow)
+  // umbra se stinge spre margini (fără chenarul planului)
+  const shadowMat = new THREE.ShadowMaterial({ opacity: 0.34 })
+  shadowMat.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vPl;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvPl = position.xy;')
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vPl;').replace('#include <fog_fragment>', '#include <fog_fragment>\ngl_FragColor.a *= 1.0 - smoothstep(0.35, 1.0, length(vPl / vec2(1.6, 0.75)));')
+  }
+  const catcher = new THREE.Mesh(new THREE.PlaneGeometry(4, 2), shadowMat)
+  catcher.rotation.x = -Math.PI / 2
+  catcher.receiveShadow = true
+  trophies.add(catcher)
   const resize = () => {
     const w = canvas.clientWidth
     const h = canvas.clientHeight
