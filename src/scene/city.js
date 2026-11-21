@@ -3,6 +3,7 @@
 // spații verzi cu iarbă și Sala Polivalentă modelată separat.
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { paverMaterial, curbMaterial } from './paving.js'
 
 function rng(seed) {
   let s = seed >>> 0
@@ -69,7 +70,7 @@ const dashTex = () => canvasTex(16, 64, (g) => {
 })
 
 // bandă de lățime w în jurul unei polilinii; off = deplasarea laterală
-function ribbon(flat, w, y, off = 0, vScale = 8) {
+function ribbon(flat, w, y, off = 0, vScale = 8, meters = false) {
   const pts = []
   for (let i = 0; i < flat.length; i += 2) pts.push([flat[i], flat[i + 1]])
   const n = pts.length
@@ -98,7 +99,10 @@ function ribbon(flat, w, y, off = 0, vScale = 8) {
     const v1 = (acc + seg) / vScale
     acc += seg
     pos.push(L[i][0], y, L[i][1], R[i][0], y, R[i][1], R[i + 1][0], y, R[i + 1][1], L[i][0], y, L[i][1], R[i + 1][0], y, R[i + 1][1], L[i + 1][0], y, L[i + 1][1])
-    uv.push(0, v0, 1, v0, 1, v1, 0, v0, 1, v1, 0, v1)
+    const uw = meters ? w : 1
+    const a0 = meters ? acc - seg : 0
+    if (meters) uv.push(0, a0, uw, a0, uw, a0 + seg, 0, a0, uw, a0 + seg, 0, a0 + seg)
+    else uv.push(0, v0, 1, v0, 1, v1, 0, v0, 1, v1, 0, v1)
   }
   const g = new THREE.BufferGeometry()
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
@@ -171,46 +175,241 @@ function carGeometry() {
 }
 const CAR_COLORS = ['#f2f2f2', '#e8e8e8', '#1c1c1e', '#2a2d33', '#8d9196', '#b8bcc1', '#6f747a', '#1f3b6e', '#7a1f1f', '#3b4a3a', '#c9c3b5', '#24425f', '#9a9fa5']
 
+// ─── Străzile, trotuarele și pavajul ────────────────────────────────
+// Carosabilul (asfalt / piatră cubică / neasfaltat), bordurile de granit înălțate, trotuarele cu
+// pavele pe ambele părți (după eticheta sidewalk din OSM), aleile cu pavele, piețele pietonale și
+// trecerile de pietoni. Trotuarele se opresc în intersecții (acolo unde intră altă stradă).
+const Y_ROAD = 0.06
+const Y_WALK = 0.19
+const CURB = 0.16
+const WALK_W = [4.0, 3.5, 3.0, 2.2]
+
+class QuadBuf {
+  constructor() {
+    this.pos = []
+    this.uv = []
+  }
+  quad(a, b, c, d, ua, ub, uc, ud) {
+    this.pos.push(...a, ...b, ...c, ...a, ...c, ...d)
+    this.uv.push(...ua, ...ub, ...uc, ...ua, ...uc, ...ud)
+  }
+  geometry() {
+    if (!this.pos.length) return null
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3))
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2))
+    g.computeVertexNormals()
+    return g
+  }
+}
+
+// indexul segmentelor de stradă, pentru a afla unde intră altă stradă (intersecții)
+function roadIndex(roads) {
+  const cell = 20
+  const grid = new Map()
+  const key = (i, j) => `${i},${j}`
+  roads.forEach((r, id) => {
+    const [cls, width, , flat] = r
+    if (cls > 4) return
+    for (let i = 0; i < flat.length - 2; i += 2) {
+      const ax = flat[i], az = flat[i + 1], bx = flat[i + 2], bz = flat[i + 3]
+      const seg = [ax, az, bx, bz, width / 2, id]
+      const i0 = Math.floor(Math.min(ax, bx) / cell) - 1, i1 = Math.floor(Math.max(ax, bx) / cell) + 1
+      const j0 = Math.floor(Math.min(az, bz) / cell) - 1, j1 = Math.floor(Math.max(az, bz) / cell) + 1
+      for (let x = i0; x <= i1; x++) for (let z = j0; z <= j1; z++) {
+        const k = key(x, z)
+        if (!grid.has(k)) grid.set(k, [])
+        grid.get(k).push(seg)
+      }
+    }
+  })
+  // e punctul (x, z) pe carosabilul altei străzi decât `self` (cu o margine)?
+  return (x, z, self, margin) => {
+    const list = grid.get(key(Math.floor(x / cell), Math.floor(z / cell)))
+    if (!list) return false
+    for (const [ax, az, bx, bz, hw, id] of list) {
+      if (id === self) continue
+      const dx = bx - ax, dz = bz - az
+      const L2 = dx * dx + dz * dz || 1
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L2))
+      const px = ax + dx * t - x, pz = az + dz * t - z
+      if (px * px + pz * pz < (hw + margin) ** 2) return true
+    }
+    return false
+  }
+}
+
+// împarte o polilinie în bucăți de cel mult `step` metri: [x, z, dirX, dirZ, s0, s1]
+function pieces(flat, step) {
+  const out = []
+  let acc = 0
+  for (let i = 0; i < flat.length - 2; i += 2) {
+    const ax = flat[i], az = flat[i + 1], bx = flat[i + 2], bz = flat[i + 3]
+    const len = Math.hypot(bx - ax, bz - az)
+    if (len < 0.01) continue
+    const n = Math.max(1, Math.ceil(len / step))
+    const dx = (bx - ax) / len, dz = (bz - az) / len
+    for (let k = 0; k < n; k++) {
+      const t0 = k / n, t1 = (k + 1) / n
+      out.push([ax + (bx - ax) * t0, az + (bz - az) * t0, ax + (bx - ax) * t1, az + (bz - az) * t1, dx, dz, acc + len * t0, acc + len * t1])
+    }
+    acc += len
+  }
+  return out
+}
+
 export function buildCity(data, { lowSpec = false } = {}) {
   const group = new THREE.Group()
-  const roadGeo = []
-  const walkGeo = []
-  const curbGeo = []
-  const lineGeo = []
-  const RMAX = lowSpec ? 650 : 1000
-  for (const [cls, width, , flat] of data.roads) {
+  const RMAX = lowSpec ? 700 : 1050
+  const onOtherRoad = roadIndex(data.roads)
+  const inPodium = (x, z) => (x / 116) ** 2 + (z / 128) ** 2 < 1
+  const greens = data.areas.filter((a) => a[0] === 0).map((a) => a[1])
+  const inGreen = (x, z) => greens.some((f) => inPoly(x, z, f))
+  const B = { asphalt: [], sett: [], gravel: [], lines: [] }
+  const walk = { spic: new QuadBuf(), rosu: new QuadBuf(), patrat: new QuadBuf() }
+  const curbTop = new QuadBuf()
+  const curbFace = new QuadBuf()
+
+  data.roads.forEach((r, id) => {
+    const [cls, width, , flat, surf = 0, side = 4, fk = 0] = r
     const mid = [flat[Math.floor(flat.length / 4) * 2], flat[Math.floor(flat.length / 4) * 2 + 1]]
     const d = Math.hypot(mid[0], mid[1])
-    if (d > RMAX) continue
-    if ((mid[0] / 108) ** 2 + (mid[1] / 120) ** 2 < 1) continue
+    if (d > RMAX || inPodium(mid[0], mid[1])) return
     if (cls <= 4) {
-      const g = ribbon(flat, width, cls <= 3 ? 0.17 : 0.12, 0, 8)
-      if (g) roadGeo.push(g)
-      if (cls <= 3 && d < RMAX * 0.8) {
-        for (const side of [1, -1]) {
-          const sw = ribbon(flat, 2.2, 0.15, side * (width / 2 + 1.1), 4)
-          if (sw) walkGeo.push(sw)
-          // bordura: o fâșie îngustă, puțin mai înaltă, la marginea carosabilului
-          const cb = ribbon(flat, 0.18, 0.2, side * (width / 2 + 0.05), 1)
-          if (cb) curbGeo.push(cb)
+      const g = ribbon(flat, width, cls <= 3 ? Y_ROAD : Y_ROAD - 0.01, 0, 1, true)
+      if (g) (surf === 1 ? B.sett : surf === 2 ? B.gravel : B.asphalt).push(g)
+      if (cls <= 2 && surf === 0) {
+        const ln = ribbon(flat, 0.14, Y_ROAD + 0.012, 0, 6)
+        if (ln) B.lines.push(ln)
+      }
+      // trotuare și borduri pe străzile cu trotuar (după OSM; implicit pe ambele părți)
+      if (cls <= 3 && side !== 0 && surf !== 2) {
+        const sides = side === 1 ? [1] : side === 2 ? [-1] : [1, -1]
+        const sw = WALK_W[cls]
+        for (const sd of sides) {
+          for (const [ax, az, bx, bz, dx, dz, s0, s1] of pieces(flat, 3)) {
+            const nx = -dz * sd, nz = dx * sd
+            const mx = (ax + bx) / 2 + nx * (width / 2 + CURB + sw / 2)
+            const mz = (az + bz) / 2 + nz * (width / 2 + CURB + sw / 2)
+            if (Math.hypot(mx, mz) > RMAX || inPodium(mx, mz)) continue
+            // în intersecții (pe carosabilul altei străzi) nu e trotuar
+            if (onOtherRoad(mx, mz, id, 0.6) || onOtherRoad((ax + bx) / 2 + nx * (width / 2 + 0.05), (az + bz) / 2 + nz * (width / 2 + 0.05), id, 0.3)) continue
+            const P = (x, z, off, y) => [x + nx * off, y, z + nz * off]
+            const o0 = width / 2
+            const o1 = o0 + CURB
+            const o2 = o1 + sw
+            // bordura: fața spre carosabil și partea de sus
+            curbFace.quad(P(ax, az, o0, Y_ROAD), P(bx, bz, o0, Y_ROAD), P(bx, bz, o0, Y_WALK + 0.01), P(ax, az, o0, Y_WALK + 0.01), [s0, 0], [s1, 0], [s1, 0.13], [s0, 0.13])
+            curbTop.quad(P(ax, az, o0, Y_WALK + 0.01), P(bx, bz, o0, Y_WALK + 0.01), P(bx, bz, o1, Y_WALK + 0.01), P(ax, az, o1, Y_WALK + 0.01), [s0, 0], [s1, 0], [s1, CURB], [s0, CURB])
+            // trotuarul cu pavele (UV în metri: de-a lungul străzii și pe lățime)
+            walk.spic.quad(P(ax, az, o1, Y_WALK), P(bx, bz, o1, Y_WALK), P(bx, bz, o2, Y_WALK), P(ax, az, o2, Y_WALK), [s0, 0], [s1, 0], [s1, sw], [s0, sw])
+            // marginea exterioară (spre curți / spațiu verde), 12 cm mai sus decât terenul
+            curbFace.quad(P(ax, az, o2, Y_WALK), P(bx, bz, o2, Y_WALK), P(bx, bz, o2, Y_ROAD - 0.02), P(ax, az, o2, Y_ROAD - 0.02), [s0, 0], [s1, 0], [s1, 0.13], [s0, 0.13])
+          }
         }
       }
-      if (cls <= 2) {
-        const ln = ribbon(flat, 0.14, 0.19, 0, 6)
-        if (ln) lineGeo.push(ln)
+    } else if (fk !== 2) {
+      // aleile: pavele gri lângă străzi, roșii prin parcuri
+      const w = Math.min(Math.max(width, 1.6), 3)
+      const parkPath = fk !== 1 && inGreen(mid[0], mid[1])
+      const buf = parkPath ? walk.rosu : walk.spic
+      for (const [ax, az, bx, bz, dx, dz, s0, s1] of pieces(flat, 4)) {
+        const mx = (ax + bx) / 2, mz = (az + bz) / 2
+        if (Math.hypot(mx, mz) > RMAX || inPodium(mx, mz) || onOtherRoad(mx, mz, id, 0.2)) continue
+        const nx = -dz, nz = dx
+        const y = Y_ROAD + 0.05
+        buf.quad([ax + nx * w / 2, y, az + nz * w / 2], [bx + nx * w / 2, y, bz + nz * w / 2], [bx - nx * w / 2, y, bz - nz * w / 2], [ax - nx * w / 2, y, az - nz * w / 2], [s0, 0], [s1, 0], [s1, w], [s0, w])
       }
-    } else if (d < RMAX * 0.6) {
-      const g = ribbon(flat, Math.min(width, 2.4), 0.1, 0, 4)
-      if (g) walkGeo.push(g)
+    }
+  })
+
+  // piețele pietonale: pavele pătrate
+  for (const [kind, flat] of data.areas) {
+    if (kind !== 4 || flat.length < 6) continue
+    const pts = []
+    for (let i = 0; i < flat.length; i += 2) pts.push(new THREE.Vector2(flat[i], flat[i + 1]))
+    const tri = THREE.ShapeUtils.triangulateShape(pts, [])
+    const y = Y_ROAD + 0.07
+    for (const t of tri) {
+      const [a, b, c] = [pts[t[0]], pts[t[2]], pts[t[1]]]
+      walk.patrat.pos.push(a.x, y, a.y, b.x, y, b.y, c.x, y, c.y)
+      walk.patrat.uv.push(a.x, a.y, b.x, b.y, c.x, c.y)
     }
   }
+
+  // materialele
   const asphalt = asphaltTex()
-  asphalt.repeat.set(1, 1)
-  const roadMat = new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })
-  if (roadGeo.length) group.add(new THREE.Mesh(mergeGeometries(roadGeo), roadMat))
-  if (walkGeo.length) group.add(new THREE.Mesh(mergeGeometries(walkGeo), new THREE.MeshStandardMaterial({ map: pavingTex(), roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })))
-  if (curbGeo.length) group.add(new THREE.Mesh(mergeGeometries(curbGeo), new THREE.MeshStandardMaterial({ color: 0xc9c9c4, roughness: 0.8 })))
-  if (lineGeo.length) group.add(new THREE.Mesh(mergeGeometries(lineGeo), new THREE.MeshStandardMaterial({ map: dashTex(), alphaTest: 0.5, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 })))
+  asphalt.repeat.set(1 / 6, 1 / 6)
+  const roadMat = new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.95, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })
+  const add = (geos, mat, shadow = true) => {
+    mat.side = THREE.DoubleSide
+    if (!geos.length) return
+    const m = new THREE.Mesh(mergeGeometries(geos), mat)
+    m.receiveShadow = shadow && !lowSpec
+    group.add(m)
+  }
+  add(B.asphalt, roadMat)
+  add(B.sett, paverMaterial('piatra', { size: lowSpec ? 512 : 1024 }))
+  add(B.gravel, new THREE.MeshStandardMaterial({ color: 0x9c9585, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }))
+  add(B.lines, new THREE.MeshStandardMaterial({ map: dashTex(), alphaTest: 0.5, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }), false)
+  const size = lowSpec ? 512 : 1024
+  for (const [k, buf] of Object.entries(walk)) {
+    const g = buf.geometry()
+    if (!g) continue
+    const pm = paverMaterial(k, { size })
+    pm.side = THREE.DoubleSide
+    const m = new THREE.Mesh(g, pm)
+    m.receiveShadow = !lowSpec
+    group.add(m)
+  }
+  const curbMat = curbMaterial()
+  curbMat.side = THREE.DoubleSide
+  for (const buf of [curbTop, curbFace]) {
+    const g = buf.geometry()
+    if (g) group.add(new THREE.Mesh(g, curbMat))
+  }
+
+  // trecerile de pietoni (zebra): benzi albe de 50 cm, paralele cu strada, pe toată lățimea ei
+  {
+    const bars = []
+    for (const [cx, cz] of data.crossings || []) {
+      if (Math.hypot(cx, cz) > RMAX || inPodium(cx, cz)) continue
+      // strada cea mai apropiată (segmentul) din jurul trecerii
+      let best = null
+      for (const r of data.roads) {
+        if (r[0] > 3) continue
+        const f = r[3]
+        for (let i = 0; i < f.length - 2; i += 2) {
+          const ax = f[i], az = f[i + 1], bx = f[i + 2], bz = f[i + 3]
+          const dx = bx - ax, dz = bz - az
+          const L2 = dx * dx + dz * dz || 1
+          const t = Math.max(0, Math.min(1, ((cx - ax) * dx + (cz - az) * dz) / L2))
+          const dd = Math.hypot(ax + dx * t - cx, az + dz * t - cz)
+          if (dd < 2 && (!best || dd < best.dd)) best = { dd, dx, dz, w: r[1] }
+        }
+      }
+      if (!best) continue
+      const L = Math.hypot(best.dx, best.dz)
+      const ux = best.dx / L, uz = best.dz / L
+      const n = Math.floor((best.w - 0.4) / 1.0)
+      for (let k = 0; k < n; k++) {
+        const off = -((n - 1) * 1.0) / 2 + k * 1.0
+        bars.push([cx - uz * off, cz + ux * off, Math.atan2(ux, uz)])
+      }
+    }
+    if (bars.length) {
+      const zeb = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.5, 3.2).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xeeeeea, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 }), bars.length)
+      const m4 = new THREE.Matrix4()
+      const q = new THREE.Quaternion()
+      const up = new THREE.Vector3(0, 1, 0)
+      bars.forEach(([x, z, a], k) => {
+        m4.compose(new THREE.Vector3(x, Y_ROAD + 0.008, z), q.setFromAxisAngle(up, a), new THREE.Vector3(1, 1, 1))
+        zeb.setMatrixAt(k, m4)
+      })
+      zeb.computeBoundingSphere()
+      group.add(zeb)
+    }
+  }
 
   // spații verzi
   const grassGeo = []
@@ -228,7 +427,7 @@ export function buildCity(data, { lowSpec = false } = {}) {
   const r = rng(21)
   for (const [kind, flat] of data.areas) {
     if (kind !== 1 || flat.length < 6) continue
-    const g = polygonGeometry(flat, 0.13, 8)
+    const g = polygonGeometry(flat, Y_ROAD - 0.005, 6)
     if (g) lotGeo.push(g)
     const P = principal(flat)
     const span = P.v1 - P.v0
@@ -252,7 +451,7 @@ export function buildCity(data, { lowSpec = false } = {}) {
   if (marks.length) {
     const mk = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.12, 5).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xe9e9e4 }), marks.length)
     marks.forEach(([x, z, a], k) => {
-      m4.compose(new THREE.Vector3(x, 0.16, z), q.setFromAxisAngle(up, a + Math.PI / 2), one)
+      m4.compose(new THREE.Vector3(x, Y_ROAD + 0.01, z), q.setFromAxisAngle(up, a + Math.PI / 2), one)
       mk.setMatrixAt(k, m4)
     })
     group.add(mk)
@@ -278,7 +477,7 @@ export function buildCity(data, { lowSpec = false } = {}) {
     const glass = new THREE.InstancedMesh(new THREE.BoxGeometry(1.5, 0.36, 1.9).translate(0, 1.1, -0.2), new THREE.MeshStandardMaterial({ color: 0x1b2430, roughness: 0.1, metalness: 0.6 }), cars.length)
     const c = new THREE.Color()
     cars.forEach(([x, z, a], k) => {
-      m4.compose(new THREE.Vector3(x, 0.17, z), q.setFromAxisAngle(up, a), one)
+      m4.compose(new THREE.Vector3(x, Y_ROAD, z), q.setFromAxisAngle(up, a), one)
       body.setMatrixAt(k, m4)
       glass.setMatrixAt(k, m4)
       body.setColorAt(k, c.set(CAR_COLORS[Math.floor(r() * CAR_COLORS.length)]))

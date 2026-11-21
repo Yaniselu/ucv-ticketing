@@ -25,6 +25,25 @@ Prototip de ticketing cu harta 3D a stadionului din Craiova, în stilul celor fo
 - Imaginea satelit se încarcă în patru niveluri de detaliu (până la nivelul 17 pe 1 km). De aproape se adaugă granulația solului.
 - Copacii sunt detectați din imaginea satelit. Coroanele sunt rotunjite, cu frunziș decupat și verdele real, iar de-a lungul străzilor apar și plopi.
 
+## Pavajul pe 1 km
+- **Trotuare:** pe ambele părți ale străzilor (sau pe partea indicată în OpenStreetMap), cu borduri de granit înălțate față de carosabil. Se opresc în intersecții.
+- **Tipuri de pavaj**, modelate la scara reală, cu muchii teșite, rosturi și relief (normal map):
+  - pavele gri de 20×10 cm în spic, pe trotuare;
+  - pavele roșii pe aleile din parcuri;
+  - pavele pătrate de 30×30 cm în piețele pietonale;
+  - piatră cubică pe străzile pavate;
+  - dale de granit de 60×40 cm pe esplanada stadionului.
+- **Treceri de pietoni:** zebră, cu benzi de 50 cm, la toate trecerile din OpenStreetMap.
+- Datele (suprafața străzii, trotuarele, piețele, trecerile) vin din `scripts/build-osm.mjs`.
+
+## Performanță
+- **Copaci:** două niveluri de detaliu.
+- **Umbre:** calculate o singură dată.
+- **Ocluzia ambientală:** doar când camera stă pe loc.
+- **Scaune:** simplificate în vederea de ansamblu.
+- **Rezoluția:** se adaptează la intervalul ecranului (8,3 ms la 120 Hz).
+- **Desenare la cerere:** cadrul se redesenează doar când se mișcă ceva.
+
 ## Vânzarea de bilete
 
 ### Pentru cumpărători

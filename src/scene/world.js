@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { buildCity } from './city.js'
 import { buildBuildings as buildBuildings2 } from './buildings.js'
+import { paverSet } from './paving.js'
 
 const TILE_URL = (z, x, y) => `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`
 
@@ -464,9 +465,16 @@ export async function buildWorld(scene, { lowSpec = false, onProgress } = {}) {
     }
   }
   cover()
+  // pașii grei se fac pe rând, cu câte un cadru liber între ei (intro-ul și harta rămân fluide)
+  const yieldFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)))
   const buildings = buildBuildings2(data, { lowSpec })
   group.add(buildings.group)
+  await yieldFrame()
   group.add(buildStreetLights(data))
+  for (const k of ['spic', 'rosu', 'patrat', 'piatra']) {
+    paverSet(k, { size: lowSpec ? 512 : 1024 })
+    await yieldFrame()
+  }
   group.add(buildCity(data, { lowSpec }))
 
   const labels = streetLabels(data)

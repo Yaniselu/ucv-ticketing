@@ -158,7 +158,7 @@ function roadClass(t) {
 async function main() {
   const osm = parse(await fetchTiles())
   console.log(`OSM: ${osm.nodes.size} noduri, ${osm.ways.size} căi, ${osm.rels.size} relații`)
-  const out = { origin: ORIGIN, attribution: '© OpenStreetMap contributors (ODbL)', buildings: [], roads: [], names: [], areas: [] }
+  const out = { origin: ORIGIN, attribution: '© OpenStreetMap contributors (ODbL)', buildings: [], roads: [], names: [], areas: [], crossings: [] }
   const nameIdx = new Map()
   const seenBuilding = new Set()
 
@@ -187,7 +187,10 @@ async function main() {
 
   for (const [id, w] of osm.ways) {
     const t = w.tags
-    if (t.highway) {
+    // zonele pietonale (piețe) sunt poligoane, nu străzi
+    const closed = w.nd.length > 3 && w.nd[0] === w.nd[w.nd.length - 1]
+    const plaza = t.highway === 'pedestrian' && (t.area === 'yes' || closed)
+    if (t.highway && !plaza) {
       const rc = roadClass(t)
       if (!rc) continue
       const pts = ring(osm, id)
@@ -200,7 +203,14 @@ async function main() {
         ni = nameIdx.get(t.name)
       }
       const width = parseFloat(t.width) || rc[1]
-      out.roads.push([rc[0], r1(width), ni, flatLine(pts)])
+      // suprafața: 0 asfalt, 1 pavele / piatră cubică, 2 neasfaltat
+      const sf = t.surface || ''
+      const surf = /paving_stones|sett|cobblestone|unhewn|concrete:plates|bricks/.test(sf) ? 1 : /gravel|dirt|ground|unpaved|grass|compacted|earth|fine_gravel/.test(sf) ? 2 : 0
+      // trotuarele: 0 niciunul, 1 stânga, 2 dreapta, 3 ambele, 4 implicit (după clasă)
+      const sw = t.sidewalk || t['sidewalk:both'] || ''
+      const side = sw === 'both' ? 3 : sw === 'left' ? 1 : sw === 'right' ? 2 : sw === 'no' || sw === 'none' || sw === 'separate' ? 0 : 4
+      const kind = t.footway === 'sidewalk' ? 1 : t.footway === 'crossing' ? 2 : 0 // pentru alei: trotuar desenat separat / trecere
+      out.roads.push([rc[0], r1(width), ni, flatLine(pts), surf, side, kind])
       continue
     }
     // zone verzi (pentru copaci) și parcări
@@ -208,6 +218,7 @@ async function main() {
     if (['park', 'garden'].includes(t.leisure) || ['grass', 'forest', 'meadow', 'recreation_ground', 'village_green', 'cemetery'].includes(t.landuse) || ['wood', 'scrub'].includes(t.natural)) kind = 0
     else if (t.amenity === 'parking') kind = 1
     else if (t.leisure === 'pitch') kind = 2
+    else if (t.highway === 'pedestrian' || t['area:highway'] === 'pedestrian' || t['area:highway'] === 'footway' || t.place === 'square') kind = 4
     if (kind < 0) continue
     const pts = ring(osm, id)
     if (!pts || pts.length < 4 || pts[0][0] !== pts[pts.length - 1][0]) continue
@@ -217,6 +228,11 @@ async function main() {
   }
   for (const [, n] of osm.nodes) {
     if (n.tags.natural === 'tree') out.areas.push([3, toLocal(n.lat, n.lon).map(r1)])
+    // trecerile de pietoni (zebra), pe străzi
+    if (n.tags.highway === 'crossing' && n.tags.crossing !== 'unmarked') {
+      const c = toLocal(n.lat, n.lon)
+      if (Math.hypot(...c) < RADIUS_ROADS) out.crossings.push(c.map(r1))
+    }
   }
 
   fs.mkdirSync(path.dirname(OUT), { recursive: true })

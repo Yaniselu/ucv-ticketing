@@ -12,6 +12,7 @@ import {
 } from '../data/layout.js'
 import { Quads, strip, samples, P, ellipseBand, ellipseRing, beam, ellipseCurve } from './geom.js'
 import * as TX from './textures.js'
+import { paverMaterial } from './paving.js'
 import { ACCESS_MAP, ACCESS_POINTS, EVENT } from '../data/stadium-data.js'
 
 export const SHELL_TOP = 50.14 // înălțimea maximă (stadiumdb.com)
@@ -856,9 +857,11 @@ function buildPodium(root, lowSpec) {
   const top = new THREE.ShapeGeometry(shape, 96)
   top.rotateX(-Math.PI / 2)
   top.translate(0, PODIUM.h, 0)
-  const pav = TX.pavingTexture()
-  pav.repeat.set(0.5, 0.5)
-  const topMesh = new THREE.Mesh(top, new THREE.MeshStandardMaterial({ map: pav, roughness: 0.92, side: THREE.DoubleSide }))
+  // esplanada: dale de granit 60×40 cm în rânduri decalate (UV-urile formei sunt în metri)
+  const topMat = paverMaterial('dale', { size: lowSpec ? 512 : 1024 })
+  topMat.side = THREE.DoubleSide
+  topMat.polygonOffset = false
+  const topMesh = new THREE.Mesh(top, topMat)
   topMesh.receiveShadow = true
   root.add(topMesh)
   const wq = new Quads()
