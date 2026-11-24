@@ -65,7 +65,7 @@ const evs = await anon('GET', '/api/events')
 const ev = evs.data.events[0]
 ok(ev && ev.saleState === 'open', `meciul implicit e la vânzare (${ev?.id})`)
 const av = await A('GET', `/api/events/${ev.id}/availability`)
-ok(av.status === 200 && av.data.seats === 30803, 'disponibilitatea are toate cele 30.803 locuri')
+ok(av.status === 200 && av.data.seats === 30702, 'disponibilitatea are toate cele 30.702 locuri')
 
 console.log('Rezervare și plată')
 const seats = ['10-2|5|10', '10-2|5|11']
@@ -130,7 +130,7 @@ ok((await B('POST', '/api/checkout/hold', { eventId: ev.id, seats: ['17|3|3'] })
 const h8 = await B('POST', '/api/checkout/hold', { eventId: ev.id, seats: ['8-1|3|3'] })
 ok(h8.status === 200 && h8.data.order.total === 99, 'noul preț se aplică la comandă')
 const bl = await ADM('POST', `/api/admin/events/${ev.id}/blocks`, { action: 'block', sector: '9-2', rowFrom: 1, rowTo: 2 })
-ok(bl.status === 200 && bl.data.changed > 50, `adminul blochează rândurile 1–2 din 9-2 (${bl.data.changed} locuri)`)
+ok(bl.status === 200 && bl.data.changed > 30, `adminul blochează rândurile 1–2 din 9-2 (${bl.data.changed} locuri)`)
 ok((await B('POST', '/api/checkout/hold', { eventId: ev.id, seats: ['9-2|1|5'] })).status === 409, 'locurile blocate nu se pot cumpăra')
 const st = await ADM('GET', `/api/admin/events/${ev.id}/stats`)
 ok(st.status === 200 && st.data.total.sold === 2, 'statistici: 2 bilete vândute')

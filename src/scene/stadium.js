@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
-  G, D1, Y1, D2, Y2, WALK_D, WALK_Y, sectorBlocks, uRanges, pointU, PRESS_Y, PRESS_J, PRESS_ROWS, boxFloorY, boxFrontD, UPPER_Y0,
+  G, D1, Y1, D2, Y2, WALK_Y, uRanges, pointU, PRESS_Y, PRESS_J, PRESS_ROWS, boxFloorY, boxFrontD, UPPER_Y0,
   T1_HALF, T1_ROWS,
 } from '../data/layout.js'
 import * as TX from './textures.js'
@@ -144,9 +144,12 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   const chairLow = chairLowGeometry()
   const vipChairLow = chairLowGeometry(0.5)
   const tmpPos = new THREE.Vector3()
+  const tmpScale = new THREE.Vector3()
+  // scaunele sunt îngustate după pasul locurilor din harta reală (0,42–0,45 m), cu ~2 cm între ele
   const place = (mesh, k, s, scale = 1) => {
     tmpPos.set(s.x, s.y, s.z)
-    m4.compose(tmpPos, q4.setFromAxisAngle(up, s.rot), new THREE.Vector3(scale, scale, scale))
+    const sx = s.w ? Math.min(1, (s.w - 0.015) / (s.kind === 'vip' ? 0.5 : 0.46)) : 1
+    m4.compose(tmpPos, q4.setFromAxisAngle(up, s.rot), tmpScale.set(scale * sx, scale, scale))
     mesh.setMatrixAt(k, m4)
   }
   out.seatRef = new Array(layout.seats.length)
@@ -274,7 +277,7 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
     block.add(fl)
   }
   // capetele în trepte ale nivelurilor: pereți albi care coboară până la gradenele vecine
-  const rakeY = (d) => Y2(Math.max(0, Math.min(G.ring2.rows - 1, Math.floor((d - D2(0)) / G.depth + 1e-6))))
+  const rakeY = (d) => Y2(Math.max(0, Math.min(G.ring2.rows - 1, Math.floor((d - D2(0)) / G.ring2.depth + 1e-6))))
   const ends = [
     [H0, D2(0), D2(T1_ROWS[0]), () => L0, L1],
     [H1, D2(0), D2(T1_ROWS[1]), (d) => (d < D2(T1_ROWS[0]) ? L1 : rakeY(d)), L2],
@@ -460,15 +463,9 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   const proxyMat = new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide })
   for (const s of layout.sectors) {
     const q = new Quads()
-    const r2 = Math.max(...sectorBlocks(s).map((bl) => bl.rows))
-    for (const ring of s.rings) {
-      const n = ring === 1 ? G.ring1.rows : r2
-      const m = ring === 1 ? 0 : s.minRow || 0
-      const f = ring === 1 ? D1(0) : D2(m)
-      const b = ring === 1 ? D1(n) : D2(n)
-      const y0 = (ring === 1 ? Y1(0) : Y2(m)) + 0.9
-      const y1 = (ring === 1 ? Y1(n - 1) : Y2(n - 1)) + 1.1
-      strip(q, uRanges(s.u0, s.u1).map((r) => r.slice(0, 3)), f, y0, b, y1)
+    for (const pt of s.parts) {
+      const D = pt.ring === 1 ? D1 : D2
+      strip(q, uRanges(pt.u0 - 0.002, pt.u1 + 0.002).map((r) => r.slice(0, 3)), D(pt.r0), pt.y0 + 0.9, D(pt.r1 + 1), pt.y1 + 1.1)
     }
     const mesh = new THREE.Mesh(q.geometry(), proxyMat)
     mesh.userData = { sector: s.id }

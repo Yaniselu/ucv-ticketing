@@ -181,7 +181,15 @@ Fără `DATABASE_URL`, site-ul funcționează doar ca hartă: se pot explora loc
 
 ## Locurile 1:1 cu stadionul real
 
-Fiecare sector are exact numărul de locuri din planul oficial al stadionului (30.803 în total). Împărțirea pe rânduri și numerotarea locurilor din rând sunt reconstituite din fotografii. Pentru potrivire 1:1 cu biletele e nevoie de lista oficială rând cu rând (sector → rând → numerele locurilor), pe care o are furnizorul de ticketing al clubului (myticket / Entertix). Odată primită, lista se poate importa în generatorul din `src/data/layout.js`.
+Locurile vin din harta reală de pe entertix.ro (meciul Universitatea Craiova – Dinamo), din 8 capturi de ecran care acoperă tot stadionul. Fiecare loc de pe hartă e în stadionul 3D, în același bloc, pe același rând și la aceeași poziție în rând. Culoarele (scările) și vomitoarele sunt golurile din hartă.
+
+Cum a fost importată harta (scripturile sunt în afara proiectului; rezultatul e `src/data/seatmap.js`):
+1. Punctele de pe fiecare captură sunt detectate automat, iar capturile sunt lipite între ele după punctele comune. Ocolul complet se închide la ~0,1 px.
+2. Fiecare bloc de locuri e reconstruit pe grila lui (pas de 6 px pe hartă), ca să nu lipsească și să nu se dubleze niciun loc: 30.202 locuri.
+3. Blocurile sunt atribuite tribunelor și sectoarelor după poziție (Tribuna 1 sus, Peluza Nord în dreapta, Tribuna 2 jos, Peluza Sud în stânga), iar rândurile după adâncime: inelul de jos are 22 de rânduri pe tribune și 15 pe peluze, inelul de sus până la 33.
+4. Pe laturi, blocurile sunt așezate exact ca pe hartă (rânduri, locuri, goluri). În colțuri, harta are blocuri rotite: acolo locurile fiecărui colț (numărul real) umplu arcul rămas liber între tranșeea pentru ambulanță și sectoarele vecine.
+
+Pasul locurilor: 0,45 m pe tribune, 0,42 m pe peluze (rândurile lor sunt mai lungi decât latura), 0,44 m în colțuri. Lojele (440 de locuri) și cele 2 × 31 de locuri pentru scaune rulante nu apar pe hartă și rămân din planul stadionului.
 
 ## Interiorul, după fotografiile reale
 
@@ -204,9 +212,8 @@ Pentru ca împrejurimile să arate exact ca în realitate, aplicația poate înc
 npm install
 npm run dev      # http://localhost:5173
 npm run build    # build static în dist/
-npm run verify   # verifică locurile pe fiecare sector (30.803 în total)
+npm run verify   # verifică locurile pe fiecare sector, după harta reală (30.702 în total)
 npm run osm      # regenerează datele OpenStreetMap din jurul stadionului
-npm run tune     # recalculează granițele sectoarelor după o schimbare de geometrie
 npm run api      # API-ul local pe :3001 (cu DATABASE_URL sau, fără ea, PGlite în .data/)
 npm run test:api # testele automate ale API-ului (conturi, securitate, concurență, plată, admin, scanare)
 ```
@@ -217,33 +224,29 @@ Stack: Vite + three.js, fără framework, pe trei pagini (harta, `/admin`, `/sca
 
 ## Capacitatea, exact la număr
 
-Sursa este planul oficial al stadionului „Ion Oblemenco”, cu locurile pe fiecare sector și un **total de 30.803**. `src/data/layout.js` generează fiecare loc (sector, rând, număr, poziție 3D), iar `npm run verify` verifică:
-- că fiecare sector are exact numărul de locuri din plan;
+Sursa este harta reală a locurilor (Entertix): **30.202 locuri pe hartă**, din care 30.200 în stadionul 3D, plus 440 în loje și 62 pentru scaune rulante, deci **30.702 în total**. Planul oficial al stadionului dă 30.803; diferențele pe sector sunt în coloana „plan oficial” din `npm run verify`. `src/data/layout.js` generează fiecare loc (sector, rând, număr, poziție 3D) din `src/data/seatmap.js`, iar `npm run verify` verifică:
+- că fiecare sector are exact numărul de locuri de pe hartă;
 - că totalul este exact;
 - că niciun loc nu se suprapune cu altul.
 
 | Zonă | Sectoare (locuri) | Total |
 |---|---|---:|
-| Tribuna 1 | 18 (929, oaspeți), 19 (1.268, jumătatea dinspre colț pentru oaspeți), G (343), I (355), 1 (1.221), 2 (956) | 5.072 |
-| VIP | A (190), B (399), C (383), D (383), E (399), F (190) | 1.944 |
+| Tribuna 1 | 18 (916, oaspeți), 19 (1.267, jumătatea dinspre colț pentru oaspeți), G (353), I (355), 1 (1.251), 2 (955) | 5.097 |
+| VIP | A (190), B (399), C (366), D (366), E (399), F (190) | 1.910 |
 | Loje | 101–120 și 201–222 | 440 |
-| Presă | H | 336 |
-| Peluza 1 (Sud) | 14 (1.340), 15 (1.734), 16 (1.771), 17 (1.325) | 6.170 |
-| Peluza 2 (Nord) | 3 (1.338), 4 (1.626), 5 (1.762), 6 (1.327) | 6.053 |
-| Tribuna 2 | 7 (964), 8 (1.367), 9 (1.962), 10 (2.112), 11 (1.921), 12 (1.437), 13 (963) | 10.726 |
+| Presă | H (5 rânduri cu pupitre și locuri pe margini) | 315 |
+| Peluza 1 (Sud) | 14 (1.324), 15 (1.735), 16 (1.797), 17 (1.338) | 6.194 |
+| Peluza 2 (Nord) | 3 (1.336), 4 (1.625), 5 (1.762), 6 (1.271) | 5.994 |
+| Tribuna 2 | 7 (964), 8 (1.365), 9 (1.962), 10 (2.114), 11 (1.922), 12 (1.440), 13 (923) | 10.690 |
 | Persoane în scaun rulant | 2 zone în fața Tribunei 2 (sectoarele 8–9 și 11–12) | 62 |
-| **Total** | | **30.803** |
+| **Total** | | **30.702** |
 
-### Cum se potrivește fiecare sector
-
-`npm run tune` (`scripts/tune-seats.mjs`) calculează lățimea locului (0,511 m public, 0,544 m VIP) și granițele dintre sectoare, astfel încât geometria să dea fiecărui sector puțin peste numărul oficial. Rezultatul e salvat în `src/data/sector-bounds.js`.
-
-Surplusul (sub 40 de locuri pe sector) se scoate astfel: în câteva rânduri din spate rămâne un loc mai puțin, iar celelalte locuri se distanțează egal. Marginile blocurilor rămân drepte. Rulează `npm run tune` după orice schimbare a geometriei.
+Toate sectoarele au exact locurile de pe hartă, cu o excepție: sectorul 2 are 955 în loc de 957, pentru că 2 locuri nu încap pe arcul colțului. În colțuri, locurile care nu încap în inelul de jos trec în inelul de sus al aceluiași sector.
 
 ## Ce este real și ce este estimat
 
 **Din surse publice:**
-- Capacitatea de 30.803 și locurile pe fiecare sector, din planul oficial al stadionului. Alte surse dau 30.983 (bursa.ro, Wikipedia) sau 30.944 (clubul, arhitectul).
+- Locurile, rândurile, culoarele și vomitoarele, din harta reală a locurilor (Entertix). Planul oficial al stadionului dă 30.803 locuri; alte surse dau 30.983 (bursa.ro, Wikipedia) sau 30.944 (clubul, arhitectul).
 - Cele 4 zone: Tribuna 1 (vest, VIP, presă, loje), Tribuna 2 (est), Peluza Nord, Peluza Sud (ucv1948.ro/stadion).
 - Cele 19 sectoare numerotate și numele lor după legendele Craiovei Maxima, în ordinea numerelor de pe tricou (anunțul clubului, Fanatik, iunie 2025).
 - Structura de prețuri și sectoare: Tribuna 2 cu sectoarele 7–13, Inel 1 / Inel 2, Tribuna 0, Tribuna 1 și VIP A–F. Prețurile sunt cele pentru meciurile din UEFA Conference League 2026/27 (abonamente.ucv1948.ro).
@@ -252,13 +255,13 @@ Surplusul (sub 40 de locuri pe sector) se scoate astfel: în câteva rânduri di
   - Tribuna 2: 7 (colț NE), apoi 8–12 pe Inel 1 și Inel 2, de la nord la sud, și 13 (colț SE).
   - Peluza Sud: sectoarele 14–17.
   - Colțurile: 2 (nord-vest) și 18 (sud-vest).
-  - Sectorul oaspeților: tot sectorul 18 plus jumătatea sectorului 19 dinspre colț (1.314 locuri), despărțită de restul lui 19 printr-o scară. Nu se vinde online, iar accesul oaspeților e marcat lângă sectorul 18.
+  - Sectorul oaspeților: tot sectorul 18 plus jumătatea sectorului 19 dinspre colț (1.389 de locuri), despărțită de restul lui 19 printr-o scară. Nu se vinde online, iar accesul oaspeților e marcat lângă sectorul 18.
   - Tribuna 1 (după fotografia tribunei principale): sectoarele 19 și 1 la capete; în centru, de jos în sus:
     - VIP A–F, la nivelul terenului;
     - un nivel lounge vitrat de la podea la tavan, fără locuri în față;
     - lojele 101–120 (119 și 120 sunt duble) și 201–222, fiecare cu balcon și scaune în fața geamului; nivelurile se retrag ușor în trepte;
     - fiecare nivel e mai scurt decât cel de dedesubt (lounge-ul ±40 m, lojele 1 ±37 m, lojele 2 ±34 m), iar rândurile sectoarelor 19 și 1 din inelul de sus coboară în trepte pe lângă capete, ca în fotografie;
-    - deasupra lojelor, după un parapet alb, G, presa H și I sunt pe aceeași pantă și la aceeași înălțime ca rândurile vecine ale sectoarelor 19 și 1 (de la rândul 22 al inelului de sus până sus). Presa are 7 rânduri cu pupitre, din două în două rânduri ale pantei.
+    - deasupra lojelor, după un parapet alb, G, presa H și I sunt pe aceeași pantă și la aceeași înălțime ca rândurile vecine ale sectoarelor 19 și 1 (de la rândul 22 al inelului de sus până sus). Presa are 5 rânduri cu pupitre, din două în două rânduri ale pantei, și locuri obișnuite pe margini (ca pe hartă).
   - Colțurile interioare sunt aproape drepte, ca pe plan, deci laturile au lungimea reală (Tribuna 1 are ~109 m). Sectoarele de peluză și de tribună stau pe porțiunile drepte, iar colțurile aparțin sectoarelor de colț 2, 7, 13 și 18.
   - În fiecare colț e o deschidere diagonală prin inelul de jos, care se termină într-un tunel sub culoar, ca pe plan. În inelul de jos, sectoarele de peluză (3, 6, 14, 17) ajung până la deschidere. Intrarea fiecărui colț e de partea tribunei.
   - Capetele blocului central al Tribunei 1 nu au un perete înalt: fiecare nivel se termină cu un perete alb care coboară până la scaunele sectoarelor 1 și 19.
@@ -269,13 +272,14 @@ Surplusul (sub 40 de locuri pe sector) se scoate astfel: în câteva rânduri di
   - În inelul de jos, sectoarele de la capetele peluzelor (3, 6, 14, 17) coboară până la scara de la intrarea colțului; intrarea sectorului 7 e mai spre Tribuna 2.
   - Zonele pentru persoane în scaun rulant (2 × 31) sunt pe o platformă în fața Tribunei 2.
 - **Accesele** de pe planul stadionului sunt construite pe podium: 21 de puncte, cu numărul lor de turnichete (2 sau 4), plus accesul oaspeților, accesele pentru persoane cu handicap și accesul VIP / Loje.
-- **Intrările în tribune:** fiecare sector are un singur vomitor, cu numărul sectorului deasupra, ca în fotografia Peluzei Nord (intrările 3, 4, 5, 6).
-- **Scările:** în inelul de jos fiecare sector are o singură scară, care urcă direct la vomitorul sectorului. Între două scări, rândul e continuu chiar dacă trece granița dintre sectoare, iar fiecare loc aparține sectorului în dreptul căruia se află. Scările sunt late și deschise la culoare, cu o treaptă intermediară pe fiecare rând. `npm run verify` verifică și că niciun loc nu se suprapune cu altul.
+- **Intrările în tribune:** vomitoarele sunt golurile de 3–4,5 m din primele rânduri ale inelului de sus, ca pe hartă (14, în sectoarele 1, 3, 4, 5, 8–12, 14–17 și 19). Fiecare e o groapă sub rândul din față, cu gura tunelului în peretele din spate și numărul sectorului.
+- **Scările:** sunt culoarele din hartă (golurile de 0,45–2,6 m dintre locurile aceluiași rând), cât de late sunt pe hartă, deschise la culoare și cu o treaptă intermediară pe fiecare rând. Spatele inelului de sus se termină după ultimul rând cu locuri, deci e în trepte: blocurile mai scurte au în spate o platformă și pereți albi. `npm run verify` verifică și că niciun loc nu se suprapune cu altul.
 - **Porți:** poarta 6 servește Peluza Nord și poarta 8 Tribuna 2.
 - Terenul de 105 × 68 m, înălțimea de 50,14 m, bolul cu un singur inel de gradene acoperit integral, ecranele din colțurile NE și SV (stadiumdb.com, ucv1948.ro).
 
-**Estimat** (nu există un plan public al locurilor):
-- Numărul de rânduri și câte locuri are fiecare rând. Totalul pe sector e cel oficial, dar așezarea pe rânduri e reconstituită din fotografii.
+**Estimat:**
+- Colțurile: harta are acolo blocuri rotite, iar stadionul 3D are colțuri aproape drepte. Numărul de locuri al fiecărui colț e cel de pe hartă, dar așezarea pe rânduri e calculată pe arcul liber.
+- Numerotarea rândurilor și a locurilor: harta nu arată numerele, așa că rândurile sunt numerotate de la teren spre spate în fiecare sector, iar locurile de la un capăt la celălalt al rândului.
 - Cât din sectorul 19 e al oaspeților: am considerat jumătatea dinspre colț. Planul stadionului marca inițial sectorul 2 ca sector al oaspeților; acum oaspeții stau în 18 și o parte din 19, ca pe harta de prețuri Superliga 2026–2027.
 - Celelalte porți, prețul locurilor din loje și numărul de locuri din fiecare lojă: 10, respectiv 20 în lojile duble, astfel încât cele 42 de loje să dea 440 de locuri.
 - Disponibilitatea locurilor: este simulată, dar deterministă (`src/data/availability.js`). Într-o integrare reală vine din API-ul de ticketing.

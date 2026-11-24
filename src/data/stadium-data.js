@@ -56,20 +56,27 @@ export function setEvent(ev) {
 }
 setEvent(null)
 
-// Planul oficial al stadionului „Ion Oblemenco” (locuri pe sector): total 30.803.
-// Tribuna 1 = 5.072 (18, 19, G, I, 1, 2), VIP A–F = 1.944, loje = 440, presă (H) = 336,
-// Peluza 1 (sud) = 6.170, Peluza 2 (nord) = 6.053, Tribuna 2 = 10.726,
-// zone pentru persoane cu dizabilități = 2 × 31 (în fața Tribunei 2).
+// Harta reală a locurilor (Entertix, meciul Universitatea Craiova – Dinamo): fiecare loc e pe rândul
+// și la poziția lui din hartă (src/data/seatmap.js). Total 30.702 = 30.200 de locuri pe hartă
+// (presa 315, VIP A–F 1.910; harta are 30.202, 2 locuri din colțul NV nu încap) + 440 în loje + 2 × 31 pentru persoane în scaun rulant (în fața Tribunei 2).
 export const CAPACITY = {
-  total: 30803,
-  public: 28021,
-  vip: 1944,
+  total: 30702,
+  public: 27975,
+  vip: 1910,
   boxes: 440,
-  press: 336,
+  press: 315,
   wheelchair: 62,
   companion: 0,
 }
+// locurile fiecărui sector pe harta reală (inelul de jos + inelul de sus); sectorul 2 are 957 pe hartă,
+// dar 2 locuri nu încap pe arcul colțului din stadionul 3D
 export const SECTOR_SEATS = {
+  1: 1251, 2: 955, 3: 1336, 4: 1625, 5: 1762, 6: 1271, 7: 964, 8: 1365, 9: 1962, 10: 2114,
+  11: 1922, 12: 1440, 13: 923, 14: 1324, 15: 1735, 16: 1797, 17: 1338, 18: 916, 19: 1267,
+  A: 190, B: 399, C: 366, D: 366, E: 399, F: 190, G: 353, I: 355,
+}
+// pentru comparație: planul oficial al stadionului (total 30.803, presa 336, VIP 1.944)
+export const PLAN_SEATS = {
   1: 1221, 2: 956, 3: 1338, 4: 1626, 5: 1762, 6: 1327, 7: 964, 8: 1367, 9: 1962, 10: 2112,
   11: 1921, 12: 1437, 13: 963, 14: 1340, 15: 1734, 16: 1771, 17: 1325, 18: 929, 19: 1268,
   A: 190, B: 399, C: 383, D: 383, E: 399, F: 190, G: 343, I: 355,

@@ -9,7 +9,6 @@
     "preview": "vite preview",
     "verify": "node scripts/verify-capacity.mjs",
     "osm": "node scripts/build-osm.mjs",
-    "tune": "node scripts/tune-seats.mjs",
     "api": "node server/dev.js",
     "test:api": "node scripts/test-api.mjs"
   },
