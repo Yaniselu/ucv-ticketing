@@ -102,7 +102,7 @@ export function buildBuildings(data, { lowSpec = false } = {}) {
   })
 
   for (const [h, kind, fl, bname] of data.buildings) {
-    if (bname === 'Sala Polivalentă') continue // modelată separat
+    if (bname === 'Sala Polivalentă' || bname === 'tribuna') continue // modelate separat (city.js, sports.js)
     const pts = []
     for (let i = 0; i < fl.length; i += 2) pts.push([fl[i], fl[i + 1]])
     const n = pts.length

@@ -25,6 +25,37 @@ Prototip de ticketing cu harta 3D a stadionului din Craiova, în stilul celor fo
 - **Tabelele** sunt ecrane video negre, agățate sus în colonada din colțurile NE și SV, ca în fotografii. Afișează logoul competiției, stemele, scorul și cronometrul.
 - În spatele tribunelor: parapet și platformă, stâlpii ramificați ai acoperișului și vitrajul închis la culoare. Marginea de sus a inelului de sus e o curbă continuă, ca pe stadion.
 
+## Interfața (Liquid Glass)
+- Panourile, meniul de cont, autentificarea, coșul, biletul și indicațiile sunt din sticlă translucidă: blur și saturație pe fundalul 3D, margine luminoasă în degrade, luciu sus și umbre moi.
+- Butoanele sunt capsule, iar acțiunea principală e o capsulă albastră „lichidă”. Controalele segmentate au un buton alb care se mișcă, cu animații elastice.
+- Fontul este SF Pro pe dispozitivele Apple și Inter / Inter Tight în rest. Biletele păstrează fontul de pe PDF (Barlow Condensed).
+- Dacă sistemul cere mai puțină transparență, plăcile devin opace.
+
+## Copacii, unul câte unul
+- Pe imaginea satelit se găsesc coroanele, apoi transformata distanță dă centrul și raza reală a fiecărei coroane. Coroanele lipite se despart prin suprimarea non-maximelor.
+- **Acoperire:** nivelul 18 până la ~470 m și nivelul 17 până la 1 km, în total ~33.000 de copaci.
+- **Tipuri de copaci:**
+  - foioase (din volume rotunjite cu frunziș decupat);
+  - conifere (conuri suprapuse, recunoscute după verdele închis);
+  - câțiva plopi.
+- **Niveluri de detaliu:** trei, după distanță; departe, coroana e o imagine pe trei plane încrucișate.
+
+## Bazele sportive din jur (`src/scene/sports.js`)
+- **Stadionul de Atletism „Nicolae Mărășescu”:**
+  - pista de tartan cu 8 culoare și liniile lor (din conturul OSM, netezit);
+  - terenul de fotbal cu marcajele de 105×68 și porți cu plasă;
+  - tribuna cu gradene și scaune albastre, după conturul clădirii, cu copertina albă din mijloc;
+  - patru stâlpi de nocturnă.
+- **Pista de antrenament** are numărul de culoare calculat din lățime.
+- **Terenurile din OSM:**
+  - fotbal: gazon sau sintetic, cu marcaje, porți și gard de plasă;
+  - tenis: zgură, cu liniile terenului, fileu și gard;
+  - baschet: marcaje, panouri și coșuri.
+
+## Interiorul stadionului
+- Porțile au plasă de sfoară întinsă pe suporții din spate.
+- Băncile de rezerve au acoperiș curb pe arce de oțel, perete în spate și două rânduri de scaune tapițate.
+
 ## Incinta stadionului 1:1
 Modelată după planurile și fotografiile arhitecților (DICO & ȚIGĂNAȘ) și după OpenStreetMap (`scripts/build-precinct.mjs` → `src/data/precinct.js`, `src/scene/precinct.js`).
 - **Podiumul** e un planșeu la +4,6 m, pe stâlpi, cu promenada de asfalt. Marginea urmează conturul clădirii din OSM.

@@ -158,7 +158,7 @@ function roadClass(t) {
 async function main() {
   const osm = parse(await fetchTiles())
   console.log(`OSM: ${osm.nodes.size} noduri, ${osm.ways.size} căi, ${osm.rels.size} relații`)
-  const out = { origin: ORIGIN, attribution: '© OpenStreetMap contributors (ODbL)', buildings: [], roads: [], names: [], areas: [], crossings: [] }
+  const out = { origin: ORIGIN, attribution: '© OpenStreetMap contributors (ODbL)', buildings: [], roads: [], names: [], areas: [], crossings: [], sports: [] }
   const nameIdx = new Map()
   const seenBuilding = new Set()
 
@@ -172,6 +172,7 @@ async function main() {
     const kind = buildingKind(t, a)
     let name = t.name || ''
     if (/Polivalent/i.test(name)) name = 'Sala Polivalentă'
+    if (t.building === 'grandstand') name = 'tribuna' // modelată ca tribună cu gradene (sports.js)
     const height = /Polivalent/i.test(name) ? 21 : h
     out.buildings.push([r1(height), kind, flat(pts), name])
   }
@@ -230,14 +231,30 @@ async function main() {
   // pistele și terenurile mapate ca multipoligon (ex. pista de atletism de lângă stadion)
   for (const [, r] of osm.rels) {
     if (!['track', 'pitch'].includes(r.tags.leisure)) continue
+    let outer = null
+    let inner = null
     for (const m of r.mem) {
-      if (m.type !== 'way' || m.role !== 'outer') continue
+      if (m.type !== 'way') continue
       const pts = ring(osm, m.ref)
       if (!pts || pts.length < 4 || pts[0][0] !== pts[pts.length - 1][0]) continue
-      const c = centroid(pts)
-      if (Math.hypot(...c) > RADIUS_ROADS || insideStadium(c)) continue
-      out.areas.push([2, flat(pts)])
+      if (m.role === 'outer') outer = pts
+      if (m.role === 'inner') inner = pts
     }
+    if (!outer) continue
+    const c = centroid(outer)
+    if (Math.hypot(...c) > RADIUS_ROADS || insideStadium(c)) continue
+    out.areas.push([2, flat(outer)])
+    out.sports.push([r.tags.leisure, r.tags.sport || '', r.tags.surface || '', flat(outer), inner ? flat(inner) : null, +r.tags.lanes || 0])
+  }
+  // terenurile de sport (fotbal, tenis, baschet…) și pistele mapate ca simple contururi
+  for (const [id, w] of osm.ways) {
+    const t = w.tags
+    if (!['pitch', 'track'].includes(t.leisure)) continue
+    const pts = ring(osm, id)
+    if (!pts || pts.length < 4 || pts[0][0] !== pts[pts.length - 1][0]) continue
+    const c = centroid(pts)
+    if (Math.hypot(...c) > RADIUS_BUILDINGS || insideStadium(c)) continue
+    out.sports.push([t.leisure, t.sport || '', t.surface || '', flat(pts), null, +t.hoops || 0])
   }
   for (const [, n] of osm.nodes) {
     if (n.tags.natural === 'tree') out.areas.push([3, toLocal(n.lat, n.lon).map(r1)])

@@ -3,6 +3,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { buildCity } from './city.js'
+import { buildSports } from './sports.js'
 import { buildBuildings as buildBuildings2 } from './buildings.js'
 import { paverSet } from './paving.js'
 import { inPrecinct, precinctRings, precinctTrees } from './precinct.js'
@@ -175,7 +176,9 @@ function satelliteLayer(proj, z, radius, y, maxPx, onProgress) {
     clearInterval(timer)
     flush()
   })()
-  return { mesh, canvas, ctx: g, tex, toPx, toUV, done }
+  // pixeli → coordonatele scenei
+  const toScene = (px, py) => proj.toLocal(y2lat(py / tp + y0, z), x2lon(px / tp + x0, z))
+  return { mesh, canvas, ctx: g, tex, toPx, toUV, toScene, done }
 }
 
 // Umbra stadionului e „pictată” în imaginea satelit (soarele de la sud-est, jos): fără ea, terenul
@@ -281,14 +284,17 @@ function crownGeometry(shell = 1, lod = 0) {
   return m
 }
 
-function detectTrees(layer, data, radius, maxTrees) {
+// Copacii, unul câte unul: pe imaginea satelit se găsesc coroanele (pixeli de frunziș), apoi
+// transformata distanță dă, pentru fiecare pixel, cât de departe e marginea coroanei; maximele
+// locale sunt centrele copacilor, iar valoarea lor e raza reală a coroanei. Coroanele lipite
+// (aliniamente, parcuri) se despart prin suprimarea non-maximelor.
+function treeMask(layer, data) {
   const W = layer.canvas.width
   const H = layer.canvas.height
-  // masca pentru clădiri, străzi, terenuri și stadion
   const mask = document.createElement('canvas')
   mask.width = W
   mask.height = H
-  const m = mask.getContext('2d')
+  const m = mask.getContext('2d', { willReadFrequently: true })
   const path = (flat, close) => {
     m.beginPath()
     for (let i = 0; i < flat.length; i += 2) {
@@ -300,8 +306,7 @@ function detectTrees(layer, data, radius, maxTrees) {
   m.fillStyle = '#000'
   m.strokeStyle = '#000'
   for (const b of data.buildings) { path(b[2], true); m.fill() }
-  const pxPerM = layer.toPx(1, 0)[0] - layer.toPx(0, 0)[0]
-  const ppm = Math.hypot(layer.toPx(1, 0)[0] - layer.toPx(0, 0)[0], layer.toPx(1, 0)[1] - layer.toPx(0, 0)[1]) || pxPerM
+  const ppm = Math.hypot(layer.toPx(1, 0)[0] - layer.toPx(0, 0)[0], layer.toPx(1, 0)[1] - layer.toPx(0, 0)[1])
   for (const r of data.roads) {
     m.lineWidth = Math.max(1, r[1] * ppm * 0.9)
     path(r[3], false)
@@ -314,38 +319,107 @@ function detectTrees(layer, data, radius, maxTrees) {
   m.fill()
   // incinta (podiumul, taluzurile, esplanada) e modelată separat, cu copacii ei
   for (const r of precinctRings()) { path(r, true); m.fill() }
-  const maskPx = m.getImageData(0, 0, W, H).data
+  return { px: m.getImageData(0, 0, W, H).data, ppm }
+}
+
+function detectTrees(layer, data, { inner = 0, outer, maxTrees }) {
+  const W = layer.canvas.width
+  const H = layer.canvas.height
+  const { px: maskPx, ppm } = treeMask(layer, data)
   const img = layer.ctx.getImageData(0, 0, W, H).data
-  const trees = []
-  const step = 4.2
-  let seed = 11
-  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
-  for (let x = -radius; x <= radius && trees.length < maxTrees; x += step) {
-    for (let z = -radius; z <= radius && trees.length < maxTrees; z += step) {
-      const jx = x + (rnd() - 0.5) * step * 0.8
-      const jz = z + (rnd() - 0.5) * step * 0.8
-      const [px, py] = layer.toPx(jx, jz)
-      const ix = Math.round(px)
-      const iy = Math.round(py)
-      if (ix < 2 || iy < 2 || ix >= W - 2 || iy >= H - 2) continue
-      const o = (iy * W + ix) * 4
-      if (maskPx[o + 3] > 0) continue
-      // medie 3×3
-      let r = 0, gg = 0, b = 0
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-        const q = ((iy + dy) * W + ix + dx) * 4
-        r += img[q]; gg += img[q + 1]; b += img[q + 2]
+  // 1) frunzișul: verde mai saturat și mai închis decât iarba (pe fiecare pixel, mediat 3×3)
+  const canopy = new Uint8Array(W * H)
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x
+      if (maskPx[i * 4 + 3] > 0) continue
+      let r = 0, g = 0, b = 0
+      for (let dy = -1; dy <= 1; dy++) {
+        const o = ((y + dy) * W + x - 1) * 4
+        r += img[o] + img[o + 4] + img[o + 8]
+        g += img[o + 1] + img[o + 5] + img[o + 9]
+        b += img[o + 2] + img[o + 6] + img[o + 10]
       }
-      r /= 9; gg /= 9; b /= 9
-      const lum = (r + gg + b) / 3
-      const canopy = gg > r + 4 && gg > b + 6 && lum < 98 && lum > 22
-      if (!canopy) continue
-      trees.push([jx, jz, r, gg, b, lum])
+      r /= 9; g /= 9; b /= 9
+      const lum = (r + g + b) / 3
+      if (g > r + 4 && g > b + 6 && lum < 98 && lum > 20) canopy[i] = 1
     }
   }
-  for (const a of data.areas) if (a[0] === 3 && !inPrecinct(a[1][0], a[1][1])) trees.push([a[1][0], a[1][1], 70, 95, 55, 70])
-  for (const [x, z, y] of precinctTrees()) trees.push([x, z, 64, 98, 50, 66, y])
-  return trees
+  // 2) transformata distanță (chanfrein 3-4), în pixeli × 3
+  const dt = new Uint16Array(W * H)
+  const BIG = 60000
+  for (let i = 0; i < W * H; i++) dt[i] = canopy[i] ? BIG : 0
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x
+      if (!dt[i]) continue
+      dt[i] = Math.min(dt[i], dt[i - 1] + 3, dt[i - W] + 3, dt[i - W - 1] + 4, dt[i - W + 1] + 4)
+    }
+  }
+  for (let y = H - 2; y > 0; y--) {
+    for (let x = W - 2; x > 0; x--) {
+      const i = y * W + x
+      if (!dt[i]) continue
+      dt[i] = Math.min(dt[i], dt[i + 1] + 3, dt[i + W] + 3, dt[i + W + 1] + 4, dt[i + W - 1] + 4)
+    }
+  }
+  // 3) maximele locale = centrele coroanelor
+  const minR = 1.1 * ppm * 3 // raza minimă: 1,1 m
+  const cand = []
+  for (let y = 2; y < H - 2; y += 1) {
+    for (let x = 2; x < W - 2; x += 1) {
+      const i = y * W + x
+      const v = dt[i]
+      if (v < minR) continue
+      if (v < dt[i - 1] || v < dt[i + 1] || v < dt[i - W] || v < dt[i + W] || v < dt[i - W - 1] || v < dt[i - W + 1] || v < dt[i + W - 1] || v < dt[i + W + 1]) continue
+      // pe platouri păstrăm un singur pixel
+      if (v === dt[i - 1] || v === dt[i - W]) continue
+      cand.push([x, y, v / 3 / ppm])
+    }
+  }
+  cand.sort((a, b) => b[2] - a[2])
+  // 4) suprimarea non-maximelor, cu o grilă pentru vecini
+  const cell = 12 * ppm
+  const grid = new Map()
+  const out = []
+  const RMAX = 7.5 // coroanele mari (nuci, tei bătrâni) au până la ~15 m în diametru
+  for (const [x, y, r0] of cand) {
+    if (out.length >= maxTrees) break
+    const r = Math.min(RMAX, r0 + 0.35) // marginea coroanei e puțin dincolo de pixelii de frunziș
+    const gx = Math.floor(x / cell)
+    const gy = Math.floor(y / cell)
+    let ok = true
+    for (let ix = gx - 1; ix <= gx + 1 && ok; ix++) {
+      for (let iy = gy - 1; iy <= gy + 1 && ok; iy++) {
+        const list = grid.get(ix + ',' + iy)
+        if (!list) continue
+        for (const [ox, oy, or] of list) {
+          const d = Math.hypot(ox - x, oy - y) / ppm
+          if (d < 0.78 * Math.max(r, or)) { ok = false; break }
+        }
+      }
+    }
+    if (!ok) continue
+    // poziția în scenă (inversa afină a lui toPx, pe trei puncte)
+    const [sx, sz] = layer.toScene(x, y)
+    const dm = Math.max(Math.abs(sx), Math.abs(sz))
+    if (dm < inner || dm > outer) continue
+    const key = gx + ',' + gy
+    if (!grid.has(key)) grid.set(key, [])
+    grid.get(key).push([x, y, r])
+    // culoarea medie din centrul coroanei
+    let cr = 0, cg = 0, cb = 0, n = 0
+    const rr = Math.max(1, Math.round(r * ppm * 0.5))
+    for (let dy = -rr; dy <= rr; dy += Math.max(1, rr >> 1)) {
+      for (let dx = -rr; dx <= rr; dx += Math.max(1, rr >> 1)) {
+        const o = (Math.min(H - 1, Math.max(0, y + dy)) * W + Math.min(W - 1, Math.max(0, x + dx))) * 4
+        cr += img[o]; cg += img[o + 1]; cb += img[o + 2]; n++
+      }
+    }
+    cr /= n; cg /= n; cb /= n
+    out.push([sx, sz, cr, cg, cb, (cr + cg + cb) / 3, 0, r])
+  }
+  return out
 }
 
 function leafTexture() {
@@ -372,64 +446,176 @@ function leafTexture() {
   return t
 }
 
+// coroana văzută de departe: o imagine (lateral + de sus) pe trei plane încrucișate
+function treeSprite() {
+  const c = document.createElement('canvas')
+  c.width = 256
+  c.height = 128
+  const g = c.getContext('2d')
+  g.clearRect(0, 0, 256, 128)
+  let seed = 9
+  const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+  // lateral: trunchi + coroană rotunjită, mai închisă jos
+  g.fillStyle = '#5a4a3c'
+  g.fillRect(60, 84, 8, 44)
+  for (let k = 0; k < 1400; k++) {
+    const a = r() * Math.PI * 2
+    const d = Math.sqrt(r())
+    const x = 64 + Math.cos(a) * d * 52
+    const y = 56 + Math.sin(a) * d * 46
+    const v = 150 + (1 - (y - 10) / 100) * 90 * r()
+    g.fillStyle = `rgb(${v},${v},${v})`
+    g.beginPath()
+    g.ellipse(x, y, 3 + r() * 3, 2 + r() * 2, r() * 3, 0, Math.PI * 2)
+    g.fill()
+  }
+  // de sus: disc de frunziș
+  for (let k = 0; k < 1500; k++) {
+    const a = r() * Math.PI * 2
+    const d = Math.sqrt(r())
+    const x = 192 + Math.cos(a) * d * 58
+    const y = 64 + Math.sin(a) * d * 58
+    const v = 130 + 110 * r() * (1 - d * 0.5)
+    g.fillStyle = `rgb(${v},${v},${v})`
+    g.beginPath()
+    g.ellipse(x, y, 3 + r() * 3, 2 + r() * 2, r() * 3, 0, Math.PI * 2)
+    g.fill()
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+function spriteGeometry() {
+  const pos = []
+  const uv = []
+  const quad = (a, b, c, d, u0, u1) => {
+    pos.push(...a, ...b, ...c, ...a, ...c, ...d)
+    uv.push(u0, 0, u1, 0, u1, 1, u0, 0, u1, 1, u0, 1)
+  }
+  quad([-1, 0, 0], [1, 0, 0], [1, 2, 0], [-1, 2, 0], 0, 0.5)
+  quad([0, 0, -1], [0, 0, 1], [0, 2, 1], [0, 2, -1], 0, 0.5)
+  const y = 1.35
+  pos.push(-1, y, -1, 1, y, -1, 1, y, 1, -1, y, -1, 1, y, 1, -1, y, 1)
+  uv.push(0.5, 0, 1, 0, 1, 1, 0.5, 0, 1, 1, 0.5, 1)
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+  g.computeVertexNormals()
+  // normalele în sus: plantele încrucișate sunt luminate ca o coroană, nu ca un panou
+  const n = g.attributes.normal
+  for (let i = 0; i < n.count; i++) n.setXYZ(i, 0, 1, 0)
+  return g
+}
+// conifer (molid / tuia): trei conuri suprapuse
+function coniferGeometry() {
+  const parts = []
+  for (const [y, r, h] of [[0.2, 1.0, 1.3], [0.9, 0.78, 1.15], [1.55, 0.52, 1.0]]) parts.push(new THREE.ConeGeometry(r, h, 9, 1, true).translate(0, y + h / 2, 0).toNonIndexed())
+  const g = mergeGeometries(parts)
+  g.computeVertexNormals()
+  return g
+}
+
 function buildTrees(trees) {
-  // Două niveluri de detaliu: copacii până la 320 m de stadion au coroana din trei volume, cei mai
-  // depărtați (văzuți doar de sus / de departe) dintr-unul. Totalul rămâne sub ~1,5 milioane de
-  // triunghiuri, față de ~40 de milioane cu coroanele detaliate peste tot.
+  // Fiecare copac are poziția și raza coroanei măsurate pe imaginea satelit. Trei niveluri de detaliu,
+  // după distanța față de stadion: coroană din trei volume cu frunziș decupat (aproape), un volum
+  // (până la ~520 m), apoi trei plane încrucișate cu imaginea unei coroane (până la 1 km).
   const leaf = leafTexture()
   const coreMat = new THREE.MeshStandardMaterial({ color: 0xa8a8a8, roughness: 0.95 })
   const shellMat = new THREE.MeshStandardMaterial({ map: leaf, alphaTest: 0.42, side: THREE.DoubleSide, roughness: 0.85 })
+  const conMat = new THREE.MeshStandardMaterial({ map: leaf, color: 0xffffff, roughness: 0.9, side: THREE.DoubleSide })
   // întunecăm baza coroanei (umbra proprie), ca la copacii reali
-  for (const m of [coreMat, shellMat]) {
+  for (const m of [coreMat, shellMat, conMat]) {
     m.onBeforeCompile = (sh) => {
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vCrownY;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvCrownY = position.y;')
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vCrownY;').replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= 0.7 + 0.42 * smoothstep(0.2, 1.9, vCrownY);')
     }
     m.customProgramCacheKey = () => 'crown-v3'
   }
-  const NEAR = 320
-  const groups = [trees.filter(([x, z]) => Math.hypot(x, z) < NEAR), trees.filter(([x, z]) => Math.hypot(x, z) >= NEAR)]
-  const trunkGeo = new THREE.CylinderGeometry(0.11, 0.24, 1, 5, 1, true).translate(0, 0.5, 0)
-  const trunk = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardMaterial({ color: 0x5a4a3c, roughness: 1 }), groups[0].length)
-  const m4 = new THREE.Matrix4()
-  const q = new THREE.Quaternion()
-  const up = new THREE.Vector3(0, 1, 0)
+  const spriteMat = new THREE.MeshStandardMaterial({ map: treeSprite(), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.9 })
+  const NEAR = 230
+  const MID = 430
+  let seed = 5
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
   const c = new THREE.Color()
   const c2 = new THREE.Color()
   const hsl = {}
-  let seed = 5
-  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+  const items = trees.map(([x, z, r, gg, b, lum, y0 = 0, R], k) => {
+    c.setRGB(r / 255, gg / 255, b / 255, THREE.SRGBColorSpace)
+    c.getHSL(hsl)
+    const crown = R || 2.2 + rnd() * 1.8
+    const conifer = hsl.l < 0.2 && hsl.h > 0.3 && hsl.h < 0.5 && crown < 3.2 && rnd() < 0.55
+    const poplar = !conifer && crown < 2.6 && rnd() < 0.06
+    // culoarea frunzișului: din satelit, ținută în gama verdelui real
+    const col = new THREE.Color().setHSL(0.2 + Math.min(0.09, Math.max(0, hsl.h - 0.2)) + (rnd() - 0.5) * 0.03, 0.38 + rnd() * 0.18, 0.2 + Math.min(0.12, hsl.l * 0.35) + rnd() * 0.06)
+    if (conifer) col.offsetHSL(0.04, -0.08, -0.06)
+    const d = Math.hypot(x, z)
+    return { x, z, y0, crown, conifer, poplar, col, lod: d < NEAR ? 0 : d < MID ? 1 : 2, rot: rnd() * 6.28, k }
+  })
   const g = new THREE.Group()
-  groups.forEach((list, lod) => {
-    const core = new THREE.InstancedMesh(crownGeometry(0.86, lod), coreMat, list.length)
-    const shell = new THREE.InstancedMesh(crownGeometry(1.0, lod), shellMat, list.length)
-    list.forEach(([x, z, r, gg, b, lum, y0 = 0], k) => {
-      const poplar = rnd() < 0.07
-      const s = (2.1 + rnd() * 1.7 + (lum < 55 ? 0.6 : 0)) * (poplar ? 0.85 : 1)
-      const sy = poplar ? s * 2.6 : s * (0.85 + rnd() * 0.3)
-      const sx = poplar ? s * 0.5 : s
-      const trunkH = poplar ? s * 0.9 : s * 0.7 + 1.2
-      m4.compose(new THREE.Vector3(x, y0 + trunkH - 0.5 * (poplar ? 1.6 : 1), z), q.setFromAxisAngle(up, rnd() * 6.28), new THREE.Vector3(sx, sy * 0.62, sx))
-      core.setMatrixAt(k, m4)
-      shell.setMatrixAt(k, m4)
-      // culoarea frunzișului: din satelit, ținută în gama verdelui real (fără negru, fără gri)
-      c.setRGB(r / 255, gg / 255, b / 255, THREE.SRGBColorSpace)
-      c.getHSL(hsl)
-      c.setHSL(0.2 + Math.min(0.09, Math.max(0, hsl.h - 0.2)) + (rnd() - 0.5) * 0.03, 0.38 + rnd() * 0.18, 0.2 + Math.min(0.12, hsl.l * 0.35) + rnd() * 0.06)
-      c2.copy(c).multiplyScalar(0.62)
-      shell.setColorAt(k, c)
-      core.setColorAt(k, c2)
-      if (lod === 0) {
-        m4.compose(new THREE.Vector3(x, y0, z), q.identity(), new THREE.Vector3(poplar ? 0.8 : 1, trunkH, poplar ? 0.8 : 1))
-        trunk.setMatrixAt(k, m4)
-      }
-    })
-    core.computeBoundingSphere()
-    shell.computeBoundingSphere()
-    g.add(core, shell)
+  const m4 = new THREE.Matrix4()
+  const q = new THREE.Quaternion()
+  const up = new THREE.Vector3(0, 1, 0)
+  const trunkGeo = new THREE.CylinderGeometry(0.11, 0.24, 1, 5, 1, true).translate(0, 0.5, 0)
+  const trunkList = items.filter((t) => t.lod < 2)
+  const trunk = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardMaterial({ color: 0x5a4a3c, roughness: 1 }), trunkList.length)
+  const trunkH = (t) => (t.poplar ? t.crown * 1.4 : 1.2 + t.crown * 0.5)
+  trunkList.forEach((t, k) => {
+    const w = 0.6 + t.crown * 0.22
+    m4.compose(new THREE.Vector3(t.x, t.y0, t.z), q.identity(), new THREE.Vector3(w, trunkH(t) + 0.6, w))
+    trunk.setMatrixAt(k, m4)
   })
   trunk.computeBoundingSphere()
   g.add(trunk)
+  // foioasele (volume rotunjite), pe niveluri
+  for (const lod of [0, 1]) {
+    const list = items.filter((t) => t.lod === lod && !t.conifer)
+    if (!list.length) continue
+    const meshes = lod === 0 ? [new THREE.InstancedMesh(crownGeometry(0.86, 0), coreMat, list.length), new THREE.InstancedMesh(crownGeometry(1.0, 0), shellMat, list.length)] : [new THREE.InstancedMesh(crownGeometry(1.0, 1), shellMat, list.length)]
+    list.forEach((t, k) => {
+      const sx = (t.crown / (lod === 0 ? 1.25 : 1.12)) * (t.poplar ? 0.55 : 1)
+      const sy = t.poplar ? sx * 2.8 : sx * (0.82 + ((t.k * 0.37) % 0.3))
+      m4.compose(new THREE.Vector3(t.x, t.y0 + trunkH(t) - 0.25 * sy, t.z), q.setFromAxisAngle(up, t.rot), new THREE.Vector3(sx, sy * 0.8, sx))
+      c2.copy(t.col).multiplyScalar(0.62)
+      meshes.forEach((m, i) => {
+        m.setMatrixAt(k, m4)
+        m.setColorAt(k, i === 0 && lod === 0 ? c2 : t.col)
+      })
+    })
+    for (const m of meshes) {
+      m.computeBoundingSphere()
+      g.add(m)
+    }
+  }
+  // coniferele
+  {
+    const list = items.filter((t) => t.lod < 2 && t.conifer)
+    if (list.length) {
+      const m = new THREE.InstancedMesh(coniferGeometry(), conMat, list.length)
+      list.forEach((t, k) => {
+        const s = t.crown * 0.95
+        m4.compose(new THREE.Vector3(t.x, t.y0 + 0.4, t.z), q.setFromAxisAngle(up, t.rot), new THREE.Vector3(s, s * 1.9, s))
+        m.setMatrixAt(k, m4)
+        m.setColorAt(k, t.col)
+      })
+      m.computeBoundingSphere()
+      g.add(m)
+    }
+  }
+  // departe: imaginea coroanei pe plane încrucișate
+  {
+    const list = items.filter((t) => t.lod === 2)
+    if (list.length) {
+      const m = new THREE.InstancedMesh(spriteGeometry(), spriteMat, list.length)
+      list.forEach((t, k) => {
+        const s = t.crown * 1.05
+        m4.compose(new THREE.Vector3(t.x, t.y0, t.z), q.setFromAxisAngle(up, t.rot), new THREE.Vector3(s, s * (t.conifer ? 1.5 : 1.15), s))
+        m.setMatrixAt(k, m4)
+        m.setColorAt(k, c.copy(t.col).multiplyScalar(1.25))
+      })
+      m.computeBoundingSphere()
+      g.add(m)
+    }
+  }
   return g
 }
 
@@ -545,6 +731,7 @@ export async function buildWorld(scene, { lowSpec = false, onProgress } = {}) {
     await yieldFrame()
   }
   group.add(buildCity(data, { lowSpec }))
+  group.add(buildSports(data, { lowSpec }))
 
   const labels = streetLabels(data)
   const ready = (async () => {
@@ -552,7 +739,14 @@ export async function buildWorld(scene, { lowSpec = false, onProgress } = {}) {
     for (const L of [near, ring].filter(Boolean)) liftStadiumShadow(L)
     cover()
     buildings.applyRoofColors([near, ring, mid].filter(Boolean))
-    const trees = detectTrees(near, data, nearR - 10, lowSpec ? 2500 : 6500)
+    // fiecare coroană din imaginea satelit: nivelul 18 aproape, nivelul 17 până la 1 km
+    const trees = detectTrees(near, data, { outer: nearR - 10, maxTrees: lowSpec ? 5000 : 14000 })
+    if (ring) {
+      await yieldFrame()
+      trees.push(...detectTrees(ring, data, { inner: nearR - 10, outer: 990, maxTrees: 24000 }))
+    }
+    for (const a of data.areas) if (a[0] === 3 && !inPrecinct(a[1][0], a[1][1]) && !trees.some((t) => Math.abs(t[0] - a[1][0]) < 3 && Math.abs(t[1] - a[1][1]) < 3)) trees.push([a[1][0], a[1][1], 70, 95, 55, 70])
+    for (const [x, z, y] of precinctTrees()) trees.push([x, z, 64, 98, 50, 66, y])
     group.add(buildTrees(trees))
     return trees.length
   })()

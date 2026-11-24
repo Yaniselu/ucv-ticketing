@@ -9,6 +9,7 @@ import { Quads, strip } from './geom.js'
 import { buildStructure } from './structure.js'
 import { createTurf } from './turf.js'
 import { createPitchLogos } from './pitch-logo.js'
+import { goal as goalFrame, meshTexture } from './sports.js'
 import { COMPETITION, COMPETITION_ID } from '../data/stadium-data.js'
 
 
@@ -115,27 +116,18 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
     root.add(stick, flag)
   }
 
-  // porțile
-  const postMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 })
-  const netMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.35 })
-  for (const s of [-1, 1]) {
-    const goal = new THREE.Group()
-    const post = new THREE.CylinderGeometry(0.06, 0.06, 2.44, 10)
-    for (const x of [-3.66, 3.66]) {
-      const m = new THREE.Mesh(post, postMat)
-      m.position.set(x, 1.22, 0)
-      goal.add(m)
+  // porțile: bare albe de 12 cm, plasa (romburi de sfoară) întinsă pe suporții din spate
+  {
+    const postMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35 })
+    const netMat = new THREE.MeshStandardMaterial({ map: meshTexture(9, 1.4, '#f4f4f4'), alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.9 })
+    netMat.map.repeat.set(4, 1.4)
+    for (const s of [-1, 1]) {
+      const goal = goalFrame(7.32, 2.44, 2.0, postMat, netMat)
+      goal.position.z = s * 52.5
+      goal.rotation.y = s > 0 ? Math.PI : 0
+      goal.traverse((o) => (o.castShadow = true))
+      root.add(goal)
     }
-    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 7.44, 10), postMat)
-    bar.rotation.z = Math.PI / 2
-    bar.position.y = 2.44
-    goal.add(bar)
-    const net = new THREE.Mesh(new THREE.BoxGeometry(7.32, 2.44, 2, 14, 5, 4), netMat)
-    net.position.set(0, 1.22, s * 1)
-    goal.add(net)
-    goal.position.z = s * 52.5
-    goal.traverse((o) => (o.castShadow = true))
-    root.add(goal)
   }
 
   // ─── Gradenele, acoperișul, fațada (vezi structure.js) ───
@@ -392,16 +384,57 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   tunnel.position.set(-(G.hx + D1(7) / 2) + 0.2, tunH / 2, 0)
   tunnel.castShadow = true
   root.add(tunnel)
-  // băncile de rezerve
-  const dugMat = new THREE.MeshStandardMaterial({ color: 0xd9e6f2, transparent: true, opacity: 0.45, side: THREE.DoubleSide, roughness: 0.1 })
-  for (const z of [-9.5, 9.5]) {
-    const canopy = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.25, 11, 20, 1, true, 0, Math.PI), dugMat)
-    canopy.rotation.set(Math.PI / 2, 0, -Math.PI / 2)
-    canopy.position.set(-37.3, 0.05, z)
-    root.add(canopy)
-    const bench = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 10.5), new THREE.MeshStandardMaterial({ color: 0x1b4fa0 }))
-    bench.position.set(-37.9, 0.25, z)
-    root.add(bench)
+  // băncile de rezerve: adăposturi cu spate închis, acoperiș curb de policarbonat pe cadru de oțel
+  // și două rânduri de scaune tapițate (ca la stadionul real)
+  {
+    const dugMat = new THREE.MeshStandardMaterial({ color: 0xd9e6f2, transparent: true, opacity: 0.4, side: THREE.DoubleSide, roughness: 0.08, metalness: 0.1, depthWrite: false })
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0xc9ced3, metalness: 0.7, roughness: 0.35 })
+    const backMat = new THREE.MeshStandardMaterial({ color: 0x14325f, roughness: 0.6 })
+    const seatMat = new THREE.MeshStandardMaterial({ color: 0x0f3f8f, roughness: 0.45 })
+    const seatGeo = mergeGeometries([
+      new THREE.BoxGeometry(0.5, 0.12, 0.48).translate(0, 0.46, 0).toNonIndexed(),
+      new THREE.BoxGeometry(0.5, 0.62, 0.14).translate(0, 0.82, -0.2).toNonIndexed(),
+      new THREE.BoxGeometry(0.06, 0.4, 0.06).translate(0, 0.2, 0).toNonIndexed(),
+    ])
+    const seats = []
+    for (const z0 of [-9.5, 9.5]) {
+      const g = new THREE.Group()
+      const len = 11
+      const canopy = new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.45, len, 24, 1, true, 0, Math.PI), dugMat)
+      canopy.rotation.set(Math.PI / 2, 0, -Math.PI / 2)
+      canopy.position.set(0, 0.6, 0)
+      g.add(canopy)
+      // arcele cadrului, la fiecare 1,8 m
+      const arcs = []
+      for (let z = -len / 2; z <= len / 2 + 0.01; z += len / 6) {
+        const pts = []
+        for (let k = 0; k <= 12; k++) {
+          const a = (k / 12) * Math.PI
+          pts.push(new THREE.Vector3(Math.cos(a) * 1.46 * -1, 0.6 + Math.sin(a) * 1.46, z))
+        }
+        arcs.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.035, 5, false).toNonIndexed())
+      }
+      g.add(new THREE.Mesh(mergeGeometries(arcs), frameMat))
+      // peretele din spate (spre tribună) și pardoseala
+      const back = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.0, len), backMat)
+      back.position.set(-1.45, 1.0, 0)
+      g.add(back)
+      const floor = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.1, len), new THREE.MeshStandardMaterial({ color: 0x3a3f45, roughness: 0.9 }))
+      floor.position.set(0, 0.05, 0)
+      g.add(floor)
+      g.position.set(-37.3, 0, z0)
+      root.add(g)
+      // două rânduri de scaune, cu fața spre teren (+x)
+      for (const [x, y] of [[-0.95, 0.35], [-0.25, 0.1]]) {
+        for (let z = -len / 2 + 0.45; z < len / 2 - 0.3; z += 0.56) seats.push([-37.3 + x, y, z0 + z])
+      }
+    }
+    const im = new THREE.InstancedMesh(seatGeo, seatMat, seats.length)
+    const m4 = new THREE.Matrix4()
+    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2)
+    seats.forEach(([x, y, z], k) => im.setMatrixAt(k, m4.compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(1, 1, 1))))
+    im.castShadow = true
+    root.add(im)
   }
 
   // panouri LED

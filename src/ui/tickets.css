@@ -11,8 +11,8 @@
 }
 .tk-logo { width: 64px; height: 64px; object-fit: contain; flex: none; }
 .tk-title { min-width: 0; flex: 1; padding-right: 44px; }
-.tk-eyebrow { font: 600 11px/1.2 var(--display, sans-serif); letter-spacing: 0.06em; text-transform: uppercase; color: var(--tk-accent); }
-.tk-match { font: 800 21px/1.05 var(--display, sans-serif); text-transform: uppercase; margin: 3px 0 4px; }
+.tk-eyebrow { font: 600 11px/1.2 var(--brandface, sans-serif); letter-spacing: 0.06em; text-transform: uppercase; color: var(--tk-accent); }
+.tk-match { font: 800 21px/1.05 var(--brandface, sans-serif); text-transform: uppercase; margin: 3px 0 4px; }
 .tk-when { font-weight: 700; font-size: 13px; }
 .tk-venue { font-size: 11.5px; opacity: 0.85; }
 .tk-crest { position: absolute; top: 10px; right: 12px; height: 44px; width: auto; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.35)); }
@@ -20,14 +20,14 @@
 .tk-main { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .tk-cells { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
 .tk-cell { background: #f3f6fa; border-top: 3px solid var(--tk-bg); padding: 6px 8px; min-width: 0; }
-.tk-cell small, .tk-fields small { display: block; font: 600 10px/1.2 var(--display, sans-serif); letter-spacing: 0.06em; text-transform: uppercase; color: #5a6a82; }
-.tk-cell b { display: block; font: 800 24px/1.1 var(--display, sans-serif); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-cell small, .tk-fields small { display: block; font: 600 10px/1.2 var(--brandface, sans-serif); letter-spacing: 0.06em; text-transform: uppercase; color: #5a6a82; }
+.tk-cell b { display: block; font: 800 24px/1.1 var(--brandface, sans-serif); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tk-cell:first-child b { font-size: 16px; line-height: 1.5; }
 .tk-fields { display: grid; grid-template-columns: 1fr 0.7fr 1.3fr; gap: 8px; }
-.tk-fields b { display: block; font: 800 16px/1.2 var(--display, sans-serif); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tk-fields b { display: block; font: 800 16px/1.2 var(--brandface, sans-serif); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tk-meta { font-size: 11.5px; color: #5a6a82; }
 .tk-badges { display: flex; flex-wrap: wrap; gap: 6px; }
-.tk-status, .tk-badge { font: 600 11px/1 var(--display, sans-serif); letter-spacing: 0.05em; text-transform: uppercase; padding: 5px 8px; border-radius: 6px; }
+.tk-status, .tk-badge { font: 600 11px/1 var(--brandface, sans-serif); letter-spacing: 0.05em; text-transform: uppercase; padding: 5px 8px; border-radius: 6px; }
 .tk-status.ok { background: #dcfce7; color: #166534; }
 .tk-status.used { background: #e5e7eb; color: #374151; }
 .tk-status.off { background: #fee2e2; color: #991b1b; }
@@ -39,8 +39,8 @@
 }
 .tk-qr { width: 124px; height: 124px; background: #fff; padding: 4px; border-radius: 6px; image-rendering: pixelated; }
 .tk-qr.void { display: grid; place-items: center; color: #991b1b; font-weight: 700; }
-.tk-stub small { font: 600 10px/1.2 var(--display, sans-serif); letter-spacing: 0.06em; text-transform: uppercase; color: #5a6a82; }
-.tk-stub b { font: 800 13px/1 var(--display, sans-serif); }
+.tk-stub small { font: 600 10px/1.2 var(--brandface, sans-serif); letter-spacing: 0.06em; text-transform: uppercase; color: #5a6a82; }
+.tk-stub b { font: 800 13px/1 var(--brandface, sans-serif); }
 .tk-actions { border-top: 1px solid #e5eaf1; padding: 8px 12px; display: flex; gap: 8px; justify-content: flex-end; }
 .tk-actions .btn { padding: 8px 12px; font-size: 13px; text-decoration: none; }
 @media (max-width: 560px) {
