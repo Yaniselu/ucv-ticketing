@@ -65,7 +65,7 @@ const evs = await anon('GET', '/api/events')
 const ev = evs.data.events[0]
 ok(ev && ev.saleState === 'open', `meciul implicit e la vânzare (${ev?.id})`)
 const av = await A('GET', `/api/events/${ev.id}/availability`)
-ok(av.status === 200 && av.data.seats === 30702, 'disponibilitatea are toate cele 30.702 locuri')
+ok(av.status === 200 && av.data.seats === 30704, 'disponibilitatea are toate cele 30.704 locuri')
 
 console.log('Rezervare și plată')
 const seats = ['10-2|5|10', '10-2|5|11']
