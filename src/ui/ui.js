@@ -7,12 +7,13 @@ const lei = (n) => `${fmt(n)} lei`
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
 
 const STAND_ORDER = ['PN', 'T2', 'PS', 'T1', 'VIP']
+// textele tribunelor; numărul de locuri e calculat din harta locurilor (n = locurile tribunei)
 const STAND_NOTES = {
-  PN: 'Peluza 2: sectoarele 3–6, în spatele porții de nord (6.053 de locuri). Peluza galeriei, cele mai accesibile bilete.',
-  T2: 'Sectoarele 7–13 (10.726 de locuri); 8–12 pe două inele, sectorul 10 la centrul terenului. În față sunt cele două zone pentru persoane în scaun rulant.',
-  PS: 'Peluza 1: sectoarele 14–17, în spatele porții de sud (6.170 de locuri).',
-  T1: 'Tribuna principală (vest): sectoarele 19 și 1 la capete, G și I pe terasa de lângă presă, colțurile 2 (nord-vest) și 18 (sud-vest). Sectorul oaspeților este 18 plus jumătatea sectorului 19 dinspre colț.',
-  VIP: 'Centrul Tribunei 1: sectoarele VIP A–F (1.944 de locuri), 42 de loje (101–120 și 201–222, 440 de locuri) și presa (sectorul H).',
+  PN: (n) => `Peluza 2: sectoarele 3–6, în spatele porții de nord (${fmt(n)} de locuri). Peluza galeriei, cele mai accesibile bilete.`,
+  T2: (n) => `Sectoarele 7–13 (${fmt(n)} de locuri); 8–12 pe două inele, sectorul 10 la centrul terenului. În față sunt cele două zone pentru persoane în scaun rulant.`,
+  PS: (n) => `Peluza 1: sectoarele 14–17, în spatele porții de sud (${fmt(n)} de locuri).`,
+  T1: () => 'Tribuna principală (vest): sectoarele 19 și 1 la capete, G și I pe terasa de lângă presă, colțurile 2 (nord-vest) și 18 (sud-vest). Sectorul oaspeților este 18 plus jumătatea sectorului 19 dinspre colț.',
+  VIP: (n, boxes) => `Centrul Tribunei 1: sectoarele VIP A–F (${fmt(n)} de locuri), 42 de loje (101–120 și 201–222, ${fmt(boxes)} de locuri) și presa (sectorul H).`,
 }
 
 export function createUI(ctx) {
@@ -54,6 +55,8 @@ export function createUI(ctx) {
   const seatLabel = (i) => {
     const s = seats[i]
     if (s.kind === 'box') return { where: `Loja ${s.box} · Nivel ${s.level}`, what: `Fotoliul ${s.num}`, stand: 'Loje VIP' }
+    if (s.kind === 'press') return { where: 'Tribuna presei (H)', what: `Rând ${s.row} · Loc ${s.num}`, stand: 'Tribuna VIP & Loje' }
+    if (s.kind === 'wheelchair') return { where: `Platforma pentru scaun rulant · zona ${s.zone}`, what: `Locul ${s.num}`, stand: 'Tribuna 2' }
     const sec = sectorById.get(s.sector)
     return { where: sec.title, what: `Rând ${s.row} · Loc ${s.num}`, stand: STANDS[sec.stand].name, sec }
   }
@@ -77,20 +80,25 @@ export function createUI(ctx) {
     if (state.sector) items.push({ label: sectorById.get(state.sector).title, go: () => actions.goSector(state.sector), on: state.mode === 'sector' })
     if (state.box) items.push({ label: `Loja ${boxById.get(state.box).num}`, go: () => actions.goBox(state.box), on: state.mode === 'box' })
     if (state.mode === 'pov') items.push({ label: 'Vederea din loc', go: () => {}, on: true })
+    if (state.mode === 'route') items.push({ label: 'Traseul spre loc', go: () => {}, on: true })
     crumbs.innerHTML = items
       .map((it, k) => `${k ? '<span class="sep">›</span>' : ''}<button data-k="${k}" ${it.on ? 'aria-current="step"' : ''}>${esc(it.label)}</button>`)
       .join('')
     crumbs.querySelectorAll('button').forEach((b) => (b.onclick = () => {
       const it = items[+b.dataset.k]
       if (state.mode === 'pov' && !it.on) actions.exitPov()
-      else if (!it.on) it.go()
+      else if (state.mode === 'route' && !it.on) {
+        actions.exitRoute()
+        it.go()
+      } else if (!it.on) it.go()
     }))
   }
 
   // ─── Panou ───
   function renderPanel() {
     let html = '<div class="panel-scroll">'
-    if (state.mode === 'overview') html += overviewHTML()
+    if (state.mode === 'route') html += routeHTML()
+    else if (state.mode === 'overview') html += overviewHTML()
     else if (state.mode === 'stand') html += standHTML()
     else if (state.mode === 'box' || (state.mode === 'pov' && seats[state.povSeat].kind === 'box')) html += boxHTML()
     else html += sectorHTML()
@@ -157,7 +165,7 @@ export function createUI(ctx) {
       <button class="back" data-act="back">← Toate tribunele</button>
       <div class="eyebrow">Pasul 2 din 3</div>
       <h2>${esc(STANDS[id].name)}</h2>
-      <p>${esc(STAND_NOTES[id])}</p>
+      <p>${esc(STAND_NOTES[id](standSectors(id).reduce((a, x) => a + x.capacity, 0), layout.boxes.reduce((a, b) => a + b.seatIdx.length, 0)))}</p>
       <h3>Sectoare</h3>
       <div class="list">${rows}</div>
       ${boxes}`
@@ -215,6 +223,31 @@ export function createUI(ctx) {
       <p>Atinge un fotoliu verde ca să-l rezervi.</p>`
   }
 
+  // ─── Traseul spre loc ───
+  const walkMin = (m) => Math.max(1, Math.round(m / 1.25 / 60))
+  function routeHTML() {
+    const r = state.route
+    const l = seatLabel(r.seatIdx)
+    const optLabel = (o) => (o.type === 'bus' || o.type === 'tram'
+      ? `${o.type === 'tram' ? 'Tramvaiul' : o.lines.length > 1 ? 'Autobuzele' : 'Autobuzul'} ${o.lines.join(', ')}`
+      : o.type === 'taxi' ? 'Taxi' : 'Cu mașina')
+    const optSub = (o) => (o.type === 'bus' || o.type === 'tram' ? `stația „${o.name}” · ` : o.type === 'car' ? 'parcarea cea mai apropiată · ' : 'stația de taxi · ') + `${walkMin(o.total)} min pe jos`
+    return `
+      <button class="back" data-act="route-close">← Înapoi</button>
+      <div class="eyebrow">Cum ajungi la locul tău</div>
+      <h2>${esc(l.where)}</h2>
+      <p>${esc(l.what)} · ≈ ${r.minutes} min de la ${r.start ? (r.start.type === 'car' ? 'parcare' : r.start.type === 'taxi' ? 'taxi' : 'stație') : 'poartă'} până în scaun.</p>
+      ${r.options.length ? `<h3>Cu ce vii</h3>
+      <div class="route-from">${r.options.map((o) => `<button class="route-opt ${o.key === r.start?.key ? 'on' : ''}" data-start="${esc(o.key)}"><b>${esc(optLabel(o))}</b><span>${esc(optSub(o))}</span></button>`).join('')}</div>` : ''}
+      <h3>Pașii</h3>
+      <ol class="route-steps">${r.steps.map((st, k) => `<li><button data-step="${k}"><i>${k + 1}</i><span>${esc(st.text)}</span></button></li>`).join('')}</ol>
+      <div class="route-views">
+        <button class="btn ${state.routeView === 'out' ? 'primary' : 'ghost'}" data-act="route-out">Drumul până la poartă</button>
+        <button class="btn ${state.routeView === 'in' ? 'primary' : 'ghost'}" data-act="route-in">De la poartă la loc</button>
+      </div>
+      <p class="route-note">Străzile, stațiile și liniile RAT Craiova sunt din OpenStreetMap. Timpii sunt pentru mers pe jos obișnuit, fără aglomerație; la meciuri mari, vino cu cel puțin o oră înainte.</p>`
+  }
+
   function cartHTML() {
     if (!cart.size) return ''
     const items = [...cart].map((i) => {
@@ -232,6 +265,7 @@ export function createUI(ctx) {
       <div class="total"><span>Total</span><b>${lei(total)}</b></div>
       ${saleNote() ? `<div class="sale-note small">${esc(saleNote())}</div>` : ''}
       <button class="btn primary" data-act="checkout" ${sale.online && sale.state === 'open' ? '' : 'disabled'}>Continuă spre plată</button>
+      ${state.mode !== 'route' ? '<button class="btn ghost" data-act="route-cart">Cum ajung la locuri</button>' : ''}
     </div>`
   }
 
@@ -254,6 +288,12 @@ export function createUI(ctx) {
     panel.querySelectorAll('[data-remove]').forEach((b) => (b.onclick = () => actions.removeSeat(+b.dataset.remove)))
     const act = (name, fn) => panel.querySelectorAll(`[data-act="${name}"]`).forEach((b) => (b.onclick = fn))
     act('back', () => actions.back())
+    act('route-close', () => actions.exitRoute())
+    act('route-out', () => actions.routeFrame('out'))
+    act('route-in', () => actions.routeFrame('in'))
+    act('route-cart', () => cart.size && actions.route([...cart][0]))
+    panel.querySelectorAll('[data-start]').forEach((b) => (b.onclick = () => actions.route(state.route.seatIdx, b.dataset.start)))
+    panel.querySelectorAll('[data-step]').forEach((b) => (b.onclick = () => actions.routeStep(+b.dataset.step)))
     act('minus', () => { qty = Math.max(1, qty - 1); renderPanel() })
     act('plus', () => { qty = Math.min(maxT(), qty + 1); renderPanel() })
     act('auto', () => actions.autoPick(state.sector, qty))
@@ -282,12 +322,14 @@ export function createUI(ctx) {
         </div>
         <div class="ticket-actions">
           <button class="btn primary" data-t="pov">Vezi din loc</button>
+          <button class="btn ghost" data-t="route">Cum ajung aici</button>
           <button class="btn ghost" data-t="remove">Elimină</button>
           <button class="btn ghost" data-t="close">Alege alt loc</button>
         </div>
       </div>
       <div class="ticket-stub"><small>LEI</small><b>${fmt(s.price)}</b><div class="barcode" aria-hidden="true"></div></div>`
     ticket.querySelector('[data-t="pov"]').onclick = () => actions.goPov(i)
+    ticket.querySelector('[data-t="route"]').onclick = () => actions.route(i)
     ticket.querySelector('[data-t="remove"]').onclick = () => actions.removeSeat(i)
     ticket.querySelector('[data-t="close"]').onclick = () => actions.focusSeat(null)
   }
@@ -309,14 +351,16 @@ export function createUI(ctx) {
     povBar.innerHTML = `
       <div class="info"><b>${esc(l.where)} · ${esc(l.what)}</b><span>Trage pentru a privi în jur</span></div>
       ${inCart ? '' : status[i] === FREE ? '<button class="btn primary" data-p="add">Adaugă în coș</button>' : ''}
+      <button class="btn ghost" data-p="route">Cum ajung aici</button>
       <button class="btn ${inCart ? 'primary' : 'ghost'}" data-p="back">${inCart ? 'Confirmă locul' : 'Înapoi'}</button>`
     povBar.querySelector('[data-p="back"]').onclick = () => actions.exitPov()
+    povBar.querySelector('[data-p="route"]').onclick = () => actions.route(i)
     const add = povBar.querySelector('[data-p="add"]')
     if (add) add.onclick = () => actions.toggleSeat(i)
   }
 
   function renderLegendAndHint() {
-    legend.classList.toggle('on', state.mode !== 'overview' && state.mode !== 'pov')
+    legend.classList.toggle('on', !['overview', 'pov', 'route'].includes(state.mode))
     legend.innerHTML = state.mode === 'overview' ? '' : keysHTML().replace('class="keys"', 'class="keys" style="gap:10px 14px"')
     if (state.mode !== lastMode) {
       lastMode = state.mode
@@ -326,6 +370,7 @@ export function createUI(ctx) {
         sector: 'Atinge un loc verde ca să-l rezervi',
         box: 'Alege un fotoliu verde din lojă',
         pov: 'Așa se vede terenul din locul tău',
+        route: 'Urmează linia albastră · atinge un pas ca să-l vezi',
       }[state.mode]
       showHint(text)
     }

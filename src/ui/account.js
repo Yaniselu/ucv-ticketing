@@ -8,7 +8,7 @@ import { EVENT } from '../data/stadium-data.js'
 const $ = (id) => document.getElementById(id)
 const lei = (n) => `${Number(n).toLocaleString('ro-RO')} lei`
 
-export function createAccount({ onChange } = {}) {
+export function createAccount({ onChange, onRoute } = {}) {
   const modal = $('modal')
   const chip = $('account')
   let menuOpen = false
@@ -26,6 +26,11 @@ export function createAccount({ onChange } = {}) {
     modal.classList.remove('on')
     modal.innerHTML = ''
   }
+  // „Traseul spre loc” de pe bilete: închide fereastra și arată drumul pe hartă
+  const bindRoutes = (card) => card.querySelectorAll('[data-route]').forEach((b) => (b.onclick = () => {
+    close()
+    onRoute?.(b.dataset.route)
+  }))
 
   // ─── butonul de cont din antet ───
   function renderChip() {
@@ -99,6 +104,7 @@ export function createAccount({ onChange } = {}) {
           b.textContent = e.message
         }
       }))
+      bindRoutes(card)
       hydrateQr(card)
     } catch (e) {
       card.querySelector('.muted').textContent = e.message
@@ -232,6 +238,7 @@ export function createAccount({ onChange } = {}) {
         <a class="btn ghost" href="${pdfUrl(order.id)}" target="_blank" rel="noopener">Descarcă toate (PDF)</a>
         <button class="btn primary" data-close>Gata</button>
       </div>`, { wide: true })
+    bindRoutes(card)
     hydrateQr(card)
   }
 

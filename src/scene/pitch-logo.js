@@ -161,6 +161,8 @@ export function createPitchLogos(compId, comp, { lowSpec = false } = {}) {
       tex.needsUpdate = true
     }
     paint()
+    // pentru firele de iarbă 3D (grass.js): emblema e pictată și pe ele
+    group.userData.logo = { tex, w, h }
     const mat = new THREE.MeshStandardMaterial({
       map: tex, transparent: true, opacity: 0.92, depthWrite: false, roughness: 0.85,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,

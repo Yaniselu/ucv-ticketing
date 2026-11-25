@@ -27,7 +27,7 @@ export const ROOF_PROFILE = [
   [BB.ax + 1.8, BB.az + 1.8, SPRING_Y], [BB.ax + 0.8, BB.az - 0.6, SPRING_Y + 7.5], [84, 94, SHELL_TOP],
   [72, 82, 49.3], [60, 70, 47.2], [48, 62, 44.4], [40, 55, 41.6],
 ]
-const CONCOURSE = { ax: BB.ax + 4.8, az: BB.az + 1.5 }
+const CONCOURSE = { ax: 91.5, az: 103 } // fațada vitrată (aceeași ca în precinct.js)
 const beamGeo = (a, b, r) => beam(a.toArray(), b.toArray(), r, 6) // fațada vitrată din spatele grinzilor în X
 const PLINTH_Y = DECK_Y // soclul = parterul de sub podium; fațada vitrată pornește de pe podium
 
@@ -217,15 +217,14 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
     const w = wrap8(u)
     return w >= 6 && w < 7 && w - 6 > c[0] - 0.006 && w - 6 < c[1] + 0.006
   }
-  // vomitoarele: golurile de 3–4,5 m din primele rânduri ale blocurilor de sus (harta reală). Groapa
-  // coboară sub rândul din față, iar în peretele din spate e gura tunelului, cu numărul sectorului.
+  // vomitoarele (harta reală): tunelul iese la nivelul culoarului dintre inele, printr-o tăietură
+  // în gradene cât golul din hartă (rândurile 0…j1); gura tunelului e sub rândul j1 + 1, cu numărul
+  // sectorului. Pe lângă tăietură, rândurile din față n-au locuri: acolo încep cele două scări.
   const voms = layout.voms.map((v) => {
-    const half = Math.min(2.25, v.w / 2 - 0.1)
-    const du = half / lenPerU(v.u, 30)
-    const yF = Y2(v.j1 + 1) - 2.45
-    return { ...v, ua: v.u - du, ub: v.u + du, half, yF }
+    const k = lenPerU(v.u, 30)
+    return { ...v, ua: v.u + v.cut[0] / k, ub: v.u + v.cut[1] / k, yT: Y2(v.j1 + 1) - 0.32 }
   })
-  const vomAt = (u, j) => voms.find((v) => j >= v.j0 && j <= v.j1 + 1 && wrap8(u) > v.ua && wrap8(u) < v.ub)
+  const vomAt = (u, j) => voms.find((v) => j <= v.j1 + 1 && wrap8(u) > wrap8(v.ua) && wrap8(u) < wrap8(v.ub))
   // eșantioanele în u: la ~1,2 m, plus marginile lojelor, ale vomitoarelor și locurile unde spatele
   // gradenelor își schimbă înălțimea
   const uset = new Set()
@@ -250,7 +249,7 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
     const E = D2(n)
     const ya = Y2(n - 1)
     const Eb = Math.max(E + 2.2, backOffsetU(um) + 2.2)
-    if (!blockedAt(um, 0)) walls.quad(PU(a, D2(0), WALK_Y), PU(a, D2(0), Y2(0)), PU(b, D2(0), Y2(0)), PU(b, D2(0), WALK_Y))
+    if (!blockedAt(um, 0) && !vomAt(um, 0)) walls.quad(PU(a, D2(0), WALK_Y), PU(a, D2(0), Y2(0)), PU(b, D2(0), Y2(0)), PU(b, D2(0), WALK_Y))
     for (let j = 0; j < n; j++) {
       if (blockedAt(um, j)) continue
       const v = vomAt(um, j)
@@ -278,29 +277,25 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
     }
     prev = { n, Eb }
   }
-  // pereții vomitoarelor
+  // pereții vomitoarelor: pardoseala tăieturii (la nivelul culoarului), pereții laterali în trepte cu
+  // balustradă de sticlă, gura tunelului și buiandrugul alb de sub rândul din spate
   const vomGeo = []
   for (const v of voms) {
-    const d0 = D2(v.j0)
     const d1 = D2(v.j1 + 1)
-    const yF = v.yF
-    const yFront = v.j0 > 0 ? Y2(v.j0 - 1) : WALK_Y
-    // fundul gropii și peretele din față, cu balustradă de sticlă deasupra
-    steps.quad(PU(v.ua, d0, yF), PU(v.ua, d1, yF), PU(v.ub, d1, yF), PU(v.ub, d0, yF))
-    walls.quad(PU(v.ua, d0, yF), PU(v.ua, d0, yFront), PU(v.ub, d0, yFront), PU(v.ub, d0, yF))
-    glassQ.quad(PU(v.ua, d0 + 0.03, yFront), PU(v.ua, d0 + 0.03, yFront + 1.0), PU(v.ub, d0 + 0.03, yFront + 1.0), PU(v.ub, d0 + 0.03, yFront))
-    // pereții laterali (groși de 20 cm, cu parapet de-a lungul treptelor)
-    const tw = 0.2 / lenPerU(v.u, 30)
+    steps.quad(PU(v.ua, D2(0), WALK_Y), PU(v.ua, d1, WALK_Y), PU(v.ub, d1, WALK_Y), PU(v.ub, D2(0), WALK_Y))
+    const tw = 0.15 / lenPerU(v.u, 30)
     for (const [u, u2] of [[v.ua, v.ua - tw], [v.ub, v.ub + tw]]) {
-      for (const uu of [u, u2]) walls.quad(PU(uu, d0, yF), PU(uu, d1, yF), PU(uu, d1, Y2(v.j1) + 1.0), PU(uu, d0, yFront + 1.0))
-      walls.quad(PU(u, d0, yFront + 1.0), PU(u, d1, Y2(v.j1) + 1.0), PU(u2, d1, Y2(v.j1) + 1.0), PU(u2, d0, yFront + 1.0))
-      walls.quad(PU(u, d0, yF), PU(u, d0, yFront + 1.0), PU(u2, d0, yFront + 1.0), PU(u2, d0, yF))
+      for (let j = 0; j <= v.j1; j++) {
+        const [e0, e1] = [D2(j), D2(j + 1)]
+        walls.quad(PU(u, e0, WALK_Y), PU(u, e0, Y2(j)), PU(u, e1, Y2(j)), PU(u, e1, WALK_Y))
+        glassQ.quad(PU(u2, e0, Y2(j)), PU(u2, e0, Y2(j) + 1.0), PU(u2, e1, Y2(j) + 1.0), PU(u2, e1, Y2(j)))
+      }
+      walls.quad(PU(u, D2(0), WALK_Y), PU(u, D2(0), Y2(0)), PU(u2, D2(0), Y2(0)), PU(u2, D2(0), WALK_Y))
     }
-    // peretele din spate: gura tunelului (întunecată) și buiandrugul alb până la rândul din spate
-    darkQ.quad(PU(v.ua, d1 - 0.02, yF), PU(v.ua, d1 - 0.02, yF + 2.2), PU(v.ub, d1 - 0.02, yF + 2.2), PU(v.ub, d1 - 0.02, yF))
-    walls.quad(PU(v.ua, d1 - 0.03, yF + 2.2), PU(v.ua, d1 - 0.03, Y2(v.j1 + 1)), PU(v.ub, d1 - 0.03, Y2(v.j1 + 1)), PU(v.ub, d1 - 0.03, yF + 2.2))
+    darkQ.quad(PU(v.ua, d1 - 0.02, WALK_Y), PU(v.ua, d1 - 0.02, v.yT), PU(v.ub, d1 - 0.02, v.yT), PU(v.ub, d1 - 0.02, WALK_Y))
+    walls.quad(PU(v.ua, d1 - 0.03, v.yT), PU(v.ua, d1 - 0.03, Y2(v.j1 + 1)), PU(v.ub, d1 - 0.03, Y2(v.j1 + 1)), PU(v.ub, d1 - 0.03, v.yT))
     const s = v.sectorObj
-    vomGeo.push({ u: v.u, d: d1 - 0.06, y: yF + 1.85, label: s?.num != null ? String(s.num) : s?.letter || 'T1' })
+    vomGeo.push({ u: v.u, d: d1 - 0.06, y: v.yT - 0.42, label: s?.num != null ? String(s.num) : s?.letter || 'T1' })
   }
   // înălțimea ultimei trepte în dreptul fiecărui unghi al elipsei din spate (pentru stâlpi și vitraj)
   const NA = 720
@@ -481,7 +476,7 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   // ─── Grinda inelară, stâlpii, cupola din arce ───
   const ringQ = new Quads()
   ellipseBand(ringQ, BB.ax + 0.4, BB.az + 0.4, RING_TOP, RING_TOP + 1.0)
-  ellipseRing(ringQ, BB.ax + 0.3, BB.az + 0.3, CONCOURSE.ax, CONCOURSE.az, RING_TOP)
+  ellipseRing(ringQ, BB.ax + 0.3, BB.az + 0.3, CONCOURSE.ax, Math.max(CONCOURSE.az, BB.az + 1.3), RING_TOP)
   const ringMesh = new THREE.Mesh(ringQ.geometry(), white)
   ringMesh.castShadow = true
   root.add(ringMesh)

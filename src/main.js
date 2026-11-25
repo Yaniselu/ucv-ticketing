@@ -19,6 +19,8 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
 import { buildWorld } from './scene/world.js'
 import { addGoogleTiles, GOOGLE_KEY } from './scene/google.js'
 import { createUI } from './ui/ui.js'
+import { createRouter } from './nav/route.js'
+import { createRouteView } from './scene/route-view.js'
 
 /* global __BUILD__ */
 const sub = document.querySelector('.brand-sub')
@@ -186,9 +188,11 @@ if (!lowSpec) {
 const stadium = buildStadium(scene, layout, { lowSpec })
 const crowd = buildCrowd(layout, status, { lowSpec })
 scene.add(crowd)
+const routeView = createRouteView(scene)
 
 // împrejurimile reale (satelit + OpenStreetMap), încărcate în fundal
 let streetLabelData = []
+let worldData = null
 let googleTiles = null
 let worldLoading = true
 // randare la cerere: se desenează doar când se mișcă ceva (camera, animațiile, culorile locurilor)
@@ -199,6 +203,7 @@ function invalidate(n = 2) {
 buildWorld(scene, { lowSpec })
   .then((w) => {
     streetLabelData = w.labels
+    worldData = w.data
     // cu cheie Google: orașul fotorealist înlocuiește împrejurimile construite din OSM
     if (GOOGLE_KEY) {
       try {
@@ -449,8 +454,8 @@ function setRoofFor(mode) {
   stadium.roofParts.visible = mode === 'overview' || mode === 'pov' || mode === 'box'
   crowd.visible = mode === 'pov' || mode === 'box'
   fovTarget = { box: 66, pov: 64 }[mode] || baseFov()
-  const roof = { overview: 0.55, stand: 0.22, sector: 0.12, box: 0.6, pov: 0.7 }[mode]
-  const inner = { overview: 0.9, stand: 0.45, sector: 0.3, box: 0.8, pov: 0.9 }[mode]
+  const roof = { overview: 0.55, stand: 0.22, sector: 0.12, box: 0.6, pov: 0.7, route: 0.1 }[mode]
+  const inner = { overview: 0.9, stand: 0.45, sector: 0.3, box: 0.8, pov: 0.9, route: 0.3 }[mode]
   roofTarget = roof
   innerTarget = inner
 }
@@ -461,7 +466,7 @@ let innerTarget = 0.9
 
 function applyControls(mode) {
   // planul apropiat: mare când suntem departe (precizie pentru sol), mic în loje / din scaun
-  camera.near = { overview: 2, stand: 1, sector: 0.4, box: 0.08, pov: 0.08 }[mode]
+  camera.near = { overview: 2, stand: 1, sector: 0.4, box: 0.08, pov: 0.08, route: 0.4 }[mode]
   camera.updateProjectionMatrix()
   controls.enabled = mode !== 'pov'
   controls.autoRotate = false
@@ -471,6 +476,76 @@ function applyControls(mode) {
   if (mode === 'stand') Object.assign(controls, { minDistance: 40, maxDistance: 300 * boost(), maxPolarAngle: 1.42 })
   if (mode === 'sector') Object.assign(controls, { minDistance: 6, maxDistance: 140, maxPolarAngle: 1.5 })
   if (mode === 'box') Object.assign(controls, { minDistance: 2, maxDistance: 5.6, maxPolarAngle: 1.75 })
+  if (mode === 'route') Object.assign(controls, { minDistance: 4, maxDistance: 1400, maxPolarAngle: 1.5 })
+}
+
+// ─── Traseul spre loc ───────────────────────────────────────────────
+let router = null
+let routePrev = null
+let keyIdx = null
+function goRoute(i, startKey) {
+  if (!router && worldData) router = createRouter({ data: worldData, layout })
+  if (!router) return ui.flash('Harta orașului încă se încarcă. Încearcă din nou în câteva secunde.')
+  const plan = router.plan(i, startKey)
+  if (state.mode !== 'route') {
+    if (state.mode === 'pov') exitPov()
+    routePrev = { mode: state.mode, stand: state.stand, sector: state.sector, box: state.box }
+  }
+  state.mode = 'route'
+  state.route = plan
+  state.focusSeat = i
+  routeView.show(plan)
+  applyControls('route')
+  setRoofFor('route')
+  routeFrame(state.routeView || 'out')
+  refresh()
+}
+function routeFrame(which) {
+  const plan = state.route
+  if (!plan) return
+  state.routeView = which
+  const b = routeView.bounds(which, plan)
+  const c = b.getCenter(new THREE.Vector3())
+  const size = b.getSize(new THREE.Vector3())
+  if (which === 'out') {
+    // tot drumul de afară în cadru: sfera care îl cuprinde, privită oblic de sus
+    const R = Math.max(60, Math.hypot(size.x, size.z) / 2)
+    const d = (R / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2))) * 0.92 * boost()
+    const dir = new THREE.Vector3(0.32, 0.88, 0.5).normalize()
+    flyTo([c.x + dir.x * d, c.y + dir.y * d, c.z + dir.z * d], [c.x, c.y, c.z], 1.8)
+  } else {
+    // din fața tribunei (dinspre teren), ca să se vadă vomitorul, scara și rândul
+    const s = plan.seat
+    const n = s.nx != null ? new THREE.Vector2(s.nx, s.nz).normalize() : new THREE.Vector2(-1, 0)
+    const d = Math.max(34, Math.max(size.x, size.z) * 0.9) * Math.min(1.6, boost())
+    flyTo([s.x - n.x * d, s.y + d * 0.55, s.z - n.y * d], [s.x - n.x * 4, s.y - 2, s.z - n.y * 4], 1.8)
+  }
+  ui.render()
+}
+function routeStep(k) {
+  const st = state.route?.steps[k]
+  if (!st) return
+  const [x, y, z] = st.at
+  const far = k < 2 && state.route.start
+  const d = far ? 70 : 22
+  flyTo([x + d * 0.6, y + d * 0.8, z + d * 0.6], [x, y, z], 1.4)
+}
+function exitRoute() {
+  routeView.hide()
+  state.route = null
+  state.routeView = null
+  const p = routePrev || { mode: 'overview' }
+  routePrev = null
+  if (p.mode === 'sector' && p.sector) goSector(p.sector)
+  else if (p.mode === 'box' && p.box) goBox(p.box)
+  else if (p.mode === 'stand' && p.stand) goStand(p.stand)
+  else goOverview()
+}
+function goRouteKey(key) {
+  if (!keyIdx) keyIdx = new Map(seats.map((s, i) => [seatKey(s), i]))
+  const i = keyIdx.get(key)
+  if (i == null) return ui.flash('Locul de pe bilet nu a fost găsit pe hartă.')
+  goRoute(i)
 }
 
 function goOverview() {
@@ -542,6 +617,7 @@ function exitPov() {
 }
 function back() {
   if (modalOpen()) return ui.closeModal()
+  if (state.mode === 'route') return exitRoute()
   if (state.mode === 'pov') return exitPov()
   if (state.mode === 'sector' || state.mode === 'box') return goStand(state.stand)
   if (state.mode === 'stand') return goOverview()
@@ -646,7 +722,7 @@ function renderThumb(i) {
 }
 
 // ─── Comanda: rezervarea pe server, apoi plata ──────────────────────
-const account = createAccount({ onChange: () => refreshAvailability() })
+const account = createAccount({ onChange: () => refreshAvailability(), onRoute: (key) => goRouteKey(key) })
 async function refreshAvailability() {
   if (!sale.online) return
   try {
@@ -707,6 +783,10 @@ const ui = createUI({
     hoverBox: (id) => { state.hoverBox = id; paint() },
     hoverStand: (id) => { state.hoverStand = id; paint() },
     focusSeat: (i) => { state.focusSeat = i; refresh() },
+    route: (i, start) => goRoute(i, start),
+    routeFrame: (which) => routeFrame(which),
+    routeStep: (k) => routeStep(k),
+    exitRoute: () => exitRoute(),
     thumb: (i) => renderThumb(i),
     holdLeft: () => Math.max(0, Math.round((holdUntil - Date.now()) / 1000)),
     clearCart: () => {
@@ -736,7 +816,12 @@ function buildLabels() {
     labelsEl.appendChild(el)
     labels.push({ el, pos: new THREE.Vector3(...pos) })
   }
-  if (state.mode === 'overview') {
+  if (state.mode === 'route') {
+    for (const st of streetLabelData) add([st.x, 3, st.z], st.name, 'street')
+    const r = state.route
+    if (r?.start) add([r.start.x, 6, r.start.z], `${r.start.type === 'car' ? 'P' : r.start.type === 'taxi' ? 'Taxi' : 'Stația'} ${r.start.type === 'bus' || r.start.type === 'tram' ? `„${r.start.name}”` : ''}<small>de aici pleci</small>`, 'sec')
+    if (r) add([r.gate.x, 9.5, r.gate.z], `${r.gate.title}<small>turnichetele tale</small>`, 'sec')
+  } else if (state.mode === 'overview') {
     for (const st of streetLabelData) add([st.x, 3, st.z], st.name, 'street')
     for (const id of ['PN', 'T2', 'PS', 'T1']) {
       const v = standLabelPos(id)
@@ -821,7 +906,7 @@ function pick() {
   ndc.set(((pointer.x - r.left) / r.width) * 2 - 1, -((pointer.y - r.top) / r.height) * 2 + 1)
   ray.setFromCamera(ndc, camera)
   const m = state.mode
-  if (m === 'pov') return null
+  if (m === 'pov' || m === 'route') return null
   if (m === 'sector') {
     const seat = nearestSeat(sectorById.get(state.sector).seatIdx, 0.44)
     if (seat != null) return { seat }
@@ -964,6 +1049,8 @@ function frame(now) {
   const dt = Math.min(0.05, dtMs / 1000)
   last = now
   stepFlight(now)
+  if (routeView.update(dt, now)) invalidate(1)
+  if (stadium.grass?.update(camera)) invalidate(1)
   if (state.mode === 'pov' && !flight) {
     camera.position.copy(povPose(state.povSeat).eye)
     camera.lookAt(camera.position.clone().add(dirFromLook()))
@@ -1062,4 +1149,4 @@ if (params.get('reset')) account.openAuth({ resetToken: params.get('reset') })
 else if (params.has('bilete')) account.openTickets()
 
 // acces pentru testare din consolă
-window.__ucv = { renderer, scene, camera, controls, sale, account, checkout, refreshAvailability, layout, status, state, goStand, goSector, goBox, goPov, goOverview, toggleSeat, cart, flyTo, pickAt: (x, y) => { pointer = { x, y }; return pick() } }
+window.__ucv = { renderer, scene, camera, controls, sale, account, checkout, refreshAvailability, layout, status, state, goStand, goSector, goBox, goPov, goOverview, toggleSeat, cart, flyTo, goRoute, routeFrame, pickAt: (x, y) => { pointer = { x, y }; return pick() } }

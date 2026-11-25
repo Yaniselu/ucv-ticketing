@@ -337,6 +337,24 @@ function stairProfile(landing) {
   }
 }
 
+// ─── Pentru traseul spre loc (nav/route.js): intrările pe podium și porțile ───
+let accessInfo = null
+// scările (de la teren la podium), liftul pentru persoanele cu dizabilități și esplanada
+export const precinctAccess = () => accessInfo
+// punctul de la distanța D față de baza carcasei, la unghiul t (D < 0: sub streașină / în interior)
+export const deckPoint = (t, D) => [(FOOT.ax + D) * Math.cos(t), (FOOT.az + D) * Math.sin(t)]
+export const angleOfPoint = (x, z) => Math.atan2(z / FOOT.az, x / FOOT.ax)
+// accesele cu turnichete de pe planul stadionului, cu numele porții (ca pe indicatoare)
+export function gatePoints() {
+  const { cx, cy, rx, ry } = ACCESS_MAP
+  return ACCESS_POINTS.map(([mx, my, n, kind], i) => {
+    const t = Math.atan2(-(mx - cx) / rx, (my - cy) / ry)
+    const [title, sub] = gateName((t * 180) / Math.PI, kind)
+    const [x, z] = deckPoint(t, -3.4)
+    return { i, t, n, kind: kind || 'public', title, sub, x, z }
+  })
+}
+
 // ─── Pentru împrejurimi (world.js / city.js): ce acoperă incinta ─────
 let lastSurfaceAt = null
 let espUnion = null
@@ -421,8 +439,17 @@ export function buildPrecinct(root, { lowSpec = false } = {}) {
     const [ex, ez] = edgeXZ(t, -1)
     const w = 1.1
     bridges.push([[ex - f.tx * w, ez - f.tz * w], [ex + f.tx * w, ez + f.tz * w], [cx + f.tx * w - f.nx * 1.3, cz + f.tz * w - f.nz * 1.3], [cx - f.tx * w - f.nx * 1.3, cz - f.tz * w - f.nz * 1.3]])
-    return { x: cx, z: cz, f }
+    return { x: cx, z: cz, f, t }
   })
+  accessInfo = {
+    stairs: stairs.map((st, k) => ({
+      top: st.top, bottom: [st.top[0] + st.ax * (st.prof.total + 0.6), st.top[1] + st.az * (st.prof.total + 0.6)],
+      w: st.w, osm: k < OSM_STEPS.length,
+    })),
+    lifts: LIFTS.map((l) => ({ bottom: [l.x + l.f.nx * 1.6, l.z + l.f.nz * 1.6], top: edgeXZ(l.t, -1.5) })),
+    // esplanada dinspre Bd. Ilie Balaci: de la trotuar urcă în trepte până la nivelul podiumului
+    esplanade: [-28, 4, 38].map((x) => ({ bottom: [x, 181], top: [x, 124] })),
+  }
 
   // ── poligoanele
   const N = 720

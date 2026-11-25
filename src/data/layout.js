@@ -520,28 +520,73 @@ export function buildLayout() {
     s.normal = { x: nx / nl, z: nz / nl }
   }
 
-  // vomitoarele (golurile de 3–4,5 m din primele rânduri ale blocurilor de sus)
-  const voms = (SEATMAP.voms || []).filter((v) => v.w < 6).map((v) => ({ ...v, sectorObj: byId.get(v.s) }))
+  // poziția (metri pe contur, de la u = 0) a lui u pe rândul (inel, r) și golul din jurul ei pe acel rând
+  const arcOn = (ring, r, u) => lenU(0, wrap8(u), rowDepth(ring, r))
+  const gapAround = (ring, r, u) => {
+    const sv = arcOn(ring, r, u)
+    let lo = -Infinity
+    let hi = Infinity
+    for (const [a, b] of runs.get(`${ring}:${r}`) || []) {
+      if (b <= sv + 0.01) lo = Math.max(lo, b - sv)
+      else if (a >= sv - 0.01) hi = Math.min(hi, a - sv)
+      else return [0, 0] // un loc chiar în dreptul lui u
+    }
+    return [lo, hi]
+  }
+
+  // vomitoarele (golurile de 3–4,5 m din primele rânduri ale blocurilor de sus). Pe hartă, în fața
+  // fiecăruia primele rânduri nu au locuri pe ~12 m, iar pe lângă el urcă două scări: vomitorul iese
+  // la nivelul culoarului dintre inele, printr-o tăietură în gradene (`cut`, metri față de centru).
+  const voms = (SEATMAP.voms || []).filter((v) => v.w < 6).map((v) => {
+    let lo = -3
+    let hi = 3
+    for (let r = v.j0; r <= v.j1; r++) {
+      const [a, b] = gapAround(2, r, v.u)
+      lo = Math.max(lo, a)
+      hi = Math.min(hi, b)
+    }
+    return { ...v, cut: [lo, hi], sectorObj: byId.get(v.s) }
+  })
+  const inCut = (u, r) => voms.some((v) => r <= v.j1 && Math.abs(wrap8(u) - wrap8(v.u)) * lenPerU(v.u, 30) < Math.max(-v.cut[0], v.cut[1]) + 0.3)
 
   // scările: golurile de 0,45–2,6 m dintre locurile aceluiași rând (culoarele din harta reală)
   const aisles = []
+  const aisleAt = (ring, r, u, width) => {
+    const d = rowDepth(ring, r) - G.seatInset
+    const kind = ring === 1 ? ring1Kind(u) : null
+    aisles.push({
+      ring, r, u, width, d, y: ring === 1 ? ring1Y(r, kind) : Y2(r),
+      depth: ring === 1 ? G.depth : G.ring2.depth, rise: ring === 1 ? (kind === 'P' ? RISE_P : G.ring1.rise) : G.ring2.rise,
+    })
+  }
   for (const [rk, list] of runs) {
     const [ring, r] = rk.split(':').map(Number)
-    const d = rowDepth(ring, r) - G.seatInset
-    const T = lenU(0, 8, d + G.seatInset)
+    const d = rowDepth(ring, r)
+    const T = lenU(0, 8, d)
     list.sort((a, b) => a[0] - b[0])
     for (let k = 0; k < list.length; k++) {
       const a = list[k]
       const b = k + 1 < list.length ? list[k + 1] : [list[0][0] + T, list[0][1] + T]
       const gap = b[0] - a[1]
       if (gap < 0.45 || gap > 2.6) continue
-      const u = uAtArc((a[1] + b[0]) / 2, d + G.seatInset)
-      const kind = ring === 1 ? ring1Kind(u) : null
-      if (ring === 2 && t1Blocked(u, r, d, 0.3)) continue
-      aisles.push({
-        ring, r, u, width: gap, d, y: ring === 1 ? ring1Y(r, kind) : Y2(r),
-        depth: ring === 1 ? G.depth : G.ring2.depth, rise: ring === 1 ? (kind === 'P' ? RISE_P : G.ring1.rise) : G.ring2.rise,
-      })
+      const u = uAtArc((a[1] + b[0]) / 2, d)
+      if (ring === 2 && t1Blocked(u, r, d - G.seatInset, 0.3)) continue
+      aisleAt(ring, r, u, gap)
+    }
+  }
+  // scările inelului de sus coboară până la culoar și pe rândurile fără locuri din fața lor
+  // (ex. lângă vomitoare)
+  const cols = new Map()
+  for (const a of aisles) {
+    if (a.ring !== 2) continue
+    const k = Math.round(wrap8(a.u) / 0.003)
+    if (!cols.has(k) || cols.get(k).r > a.r) cols.set(k, a)
+  }
+  for (const a of cols.values()) {
+    for (let r = a.r - 1; r >= 0; r--) {
+      const [lo, hi] = gapAround(2, r, a.u)
+      if (hi - lo < a.width || inCut(a.u, r) || t1Blocked(a.u, r, D2(r), 0.3)) break
+      aisleAt(2, r, a.u, a.width)
     }
   }
 

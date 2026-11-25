@@ -191,6 +191,42 @@ Cum a fost importată harta (scripturile sunt în afara proiectului; rezultatul 
 
 Pasul locurilor: 0,45 m pe tribune, 0,42 m pe peluze (rândurile lor sunt mai lungi decât latura), 0,44 m în colțuri. Lojele (440 de locuri) și cele 2 × 31 de locuri pentru scaune rulante nu apar pe hartă și rămân din planul stadionului.
 
+## Traseul spre loc
+
+Pentru orice loc (din coș, din vederea din scaun sau din „Biletele mele”), butonul „Cum ajung aici” arată tot drumul, pe hartă și în pași:
+1. **Cu ce vii:** stațiile RAT Craiova din jur, cu liniile care opresc acolo (din relațiile de rută OpenStreetMap: „Ciupercă” – 7; două stații „Stadion” – 10, respectiv 20, 29b, E1T; „Helin” – 20, 29b, E1R), stația de taxi și parcarea cea mai apropiată, ordonate după cât mergi pe jos.
+2. **Pe jos până la stadion:** drumul cel mai scurt pe străzile și aleile reale (graful străzilor din OSM), cu numele străzilor, apoi pe scările podiumului, pe esplanada dinspre Bd. Ilie Balaci sau cu liftul (pentru scaune rulante, doar liftul).
+3. **Poarta:** turnichetele potrivite locului, de pe planul stadionului (Poarta 6 pentru Peluza Nord, Poarta 8 pentru Tribuna 2, Peluza Sud, Tribuna 1, accesul VIP / Loje, accesul oaspeților, accesele pentru persoane cu dizabilități), cea mai apropiată de sector.
+4. **Înăuntru:** vomitorul sectorului (cu numărul pe el), culoarul dintre inele, scara cea mai apropiată de loc, rândul și al câtelea scaun e de la scară, spre stânga sau spre dreapta. Sectoarele de sus din Tribuna 1 (G, presa, I), colțurile și sectorul oaspeților se iau pe sus, din spatele tribunei; VIP-ul prin lounge; lojele pe nivelul lor.
+
+Pe hartă, traseul e o bandă albastră cu săgeți care curg în sensul de mers; porțiunile din interior se văd și prin pereți. Fiecare pas are un reper numerotat, iar atingerea unui pas mută camera acolo.
+
+Vomitoarele sunt modelate după hartă: tunelul iese la nivelul culoarului dintre inele printr-o tăietură în gradene (3,15–4,5 m), primele rânduri din fața lui n-au locuri pe ~12 m, iar pe lângă el urcă două scări.
+
+## Iarba de aproape
+
+Gazonul are fire 3D: 20 de straturi între sol și vârful firelor (3 cm, cât gazonul de competiție), fiecare fir o celulă de 6 mm care se subțiază spre vârf, culcat după dunga de tuns. Culoarea vine din textura gazonului, deci marcajele, uzura și emblema competiției sunt pictate pe fire. Straturile se desenează doar pe ~24 m din fața camerei și doar când ești aproape de teren (din tribună, de la primele rânduri, sau când apropii camera); de departe, firele ar fi sub un pixel și rămâne gazonul plat, fără cost.
+
+## Dimensiuni (1:1)
+
+| Element | În model | Sursa |
+|---|---|---|
+| Terenul de joc | 105 × 68 m; linii de 12 cm, cercul central 9,15 m, careul mare 16,5 × 40,32 m, careul mic 5,5 × 18,32 m, punctul de la 11 m, porțile 7,32 × 2,44 m | stadiumdb.com, Regulamentul jocului (IFAB) |
+| Gazonul (până la tribune) | conturul OSM 77,2 × 113,6 m; marginea gradenelor la 79 × 115 m | OpenStreetMap (way 220474447) |
+| Amprenta stadionului | 206,6 × 229,8 m (carcasa: 206 × 230 m la 19 m înălțime) | OpenStreetMap (way 239542656) |
+| Înălțimea | 50,14 m până în vârful acoperișului | stadiumdb.com |
+| Orientarea | axa lungă a terenului rotită cu 12,4° spre vest față de nord | OpenStreetMap |
+| Inelul de jos | 22 de rânduri pe tribune, 15 pe peluze; rând de 0,80 m; 0,40 m / rând pe tribune, 0,59 m pe peluze | harta locurilor (Entertix) |
+| Culoarul dintre inele | la +11,3 m; 2,6 m lățime pe tribune, mai lat pe peluze | geometria hărții |
+| Inelul de sus | până la 33 de rânduri; rând de 0,75 m; 0,52 m / rând | harta locurilor (Entertix) |
+| Locurile | pas de 0,45 m pe tribune, 0,42 m pe peluze, 0,44 m în colțuri; culoare de 0,6–0,9 m | harta locurilor (Entertix) |
+| Vomitoarele | 14, de 3,15–4,5 m, în rândurile 2–4 ale inelului de sus | harta locurilor (Entertix) |
+| Lojele | 2 niveluri, 42 de loje (440 de locuri), etaj de 3,2 m, lounge de 2,8 m | planul stadionului, fotografii |
+| Podiumul (promenada) | +4,6 m, pe stâlpi, cu parcare dedesubt | planurile arhitecților (DICO & Țigănaș), OSM |
+| Accesele | 21, cu 2 sau 4 turnichete fiecare | planul stadionului |
+| Accesul ambulanței din colțuri | tranșee de 7 m, portal de 3,4 m, tunel acoperit de 4,4 m | fotografii |
+| Iarba | fire de 3 cm | standardul pentru gazonul de competiție |
+
 ## Interiorul, după fotografiile reale
 
 - **Cupola** e o structură spațială pe două straturi, din piramide pătrate cu grinzi albe, ca rețeaua deasă din fotografii.
@@ -272,7 +308,7 @@ Toate sectoarele au exact locurile de pe hartă, cu o excepție: sectorul 2 are 
   - În inelul de jos, sectoarele de la capetele peluzelor (3, 6, 14, 17) coboară până la scara de la intrarea colțului; intrarea sectorului 7 e mai spre Tribuna 2.
   - Zonele pentru persoane în scaun rulant (2 × 31) sunt pe o platformă în fața Tribunei 2.
 - **Accesele** de pe planul stadionului sunt construite pe podium: 21 de puncte, cu numărul lor de turnichete (2 sau 4), plus accesul oaspeților, accesele pentru persoane cu handicap și accesul VIP / Loje.
-- **Intrările în tribune:** vomitoarele sunt golurile de 3–4,5 m din primele rânduri ale inelului de sus, ca pe hartă (14, în sectoarele 1, 3, 4, 5, 8–12, 14–17 și 19). Fiecare e o groapă sub rândul din față, cu gura tunelului în peretele din spate și numărul sectorului.
+- **Intrările în tribune:** vomitoarele sunt golurile de 3–4,5 m din primele rânduri ale inelului de sus, ca pe hartă (14, în sectoarele 1, 3, 4, 5, 8–12, 14–17 și 19). Tunelul iese la nivelul culoarului dintre inele printr-o tăietură în gradene, cu numărul sectorului deasupra gurii; în fața lui, primele rânduri n-au locuri pe ~12 m, iar pe lângă el urcă două scări (ca pe hartă).
 - **Scările:** sunt culoarele din hartă (golurile de 0,45–2,6 m dintre locurile aceluiași rând), cât de late sunt pe hartă, deschise la culoare și cu o treaptă intermediară pe fiecare rând. Spatele inelului de sus se termină după ultimul rând cu locuri, deci e în trepte: blocurile mai scurte au în spate o platformă și pereți albi. `npm run verify` verifică și că niciun loc nu se suprapune cu altul.
 - **Porți:** poarta 6 servește Peluza Nord și poarta 8 Tribuna 2.
 - Terenul de 105 × 68 m, înălțimea de 50,14 m, bolul cu un singur inel de gradene acoperit integral, ecranele din colțurile NE și SV (stadiumdb.com, ucv1948.ro).

@@ -548,3 +548,30 @@ button { font: inherit; color: inherit; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* ─── Traseul spre loc ─── */
+.route-from { display: flex; flex-direction: column; gap: 7px; }
+.route-opt {
+  position: relative; display: flex; flex-direction: column; gap: 3px; width: 100%; text-align: left;
+  border: 0; border-radius: 16px; padding: 10px 13px; background: rgba(255, 255, 255, 0.46);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 1px 2px rgba(6, 20, 48, 0.05);
+  transition: background 0.2s, box-shadow 0.25s;
+}
+.route-opt b { font: 650 15px/1.2 var(--display); color: var(--navy); letter-spacing: -0.01em; }
+.route-opt span { font-size: 12.5px; color: var(--ink-2); }
+.route-opt:hover { background: rgba(255, 255, 255, 0.8); }
+.route-opt.on { background: rgba(255, 255, 255, 0.9); box-shadow: inset 0 1px 0 #fff, 0 0 0 2px #13a6d8, 0 10px 24px rgba(19, 166, 216, 0.22); }
+.route-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.route-steps button {
+  display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; width: 100%; text-align: left;
+  border: 0; border-radius: 14px; padding: 9px 11px; background: rgba(255, 255, 255, 0.38); color: var(--ink);
+  font: 450 14px/1.4 var(--body); transition: background 0.2s;
+}
+.route-steps button:hover { background: rgba(255, 255, 255, 0.78); }
+.route-steps i {
+  font: 700 13px/28px var(--display); font-style: normal; text-align: center; width: 28px; height: 28px; border-radius: 50%;
+  background: #13c8ff; color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 3px 8px rgba(19, 200, 255, 0.4);
+}
+.route-views { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.route-views .btn { padding-left: 8px; padding-right: 8px; font-size: 13.5px; }
+.route-note { font-size: 12px !important; color: var(--ink-3) !important; }

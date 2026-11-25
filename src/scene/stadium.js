@@ -9,6 +9,7 @@ import { Quads, strip } from './geom.js'
 import { buildStructure } from './structure.js'
 import { createTurf } from './turf.js'
 import { createPitchLogos } from './pitch-logo.js'
+import { createGrassShells } from './grass.js'
 import { goal as goalFrame, meshTexture } from './sports.js'
 import { COMPETITION, COMPETITION_ID } from '../data/stadium-data.js'
 
@@ -105,7 +106,11 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   const pitch = createTurf({ lowSpec })
   root.add(pitch)
   // emblema competiției pictată pe gazon
-  root.add(createPitchLogos(COMPETITION_ID, COMPETITION, { lowSpec }))
+  const logos = createPitchLogos(COMPETITION_ID, COMPETITION, { lowSpec })
+  root.add(logos)
+  // firele de iarbă 3D, de aproape
+  out.grass = createGrassShells(pitch, logos, { lowSpec })
+  if (out.grass) root.add(out.grass.mesh)
 
   // steagurile de corner
   for (const [x, z] of [[-34, -52.5], [34, -52.5], [-34, 52.5], [34, 52.5]]) {

@@ -53,7 +53,7 @@ export function ticketHTML(t, { orderId, orderCode, testMode = false, actions = 
         <b>${esc(t.number)}</b>
       </div>
     </div>
-    ${actions && orderId ? `<footer class="tk-actions"><a class="btn ghost" href="${pdfUrl(orderId, t.id)}" target="_blank" rel="noopener">Descarcă PDF</a></footer>` : ''}
+    ${actions && orderId ? `<footer class="tk-actions">${t.seatKey && t.status !== 'cancelled' ? `<button class="btn ghost" data-route="${esc(t.seatKey)}">Traseul spre loc</button>` : ''}<a class="btn ghost" href="${pdfUrl(orderId, t.id)}" target="_blank" rel="noopener">Descarcă PDF</a></footer>` : ''}
   </article>`
 }
 

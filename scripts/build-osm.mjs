@@ -155,6 +155,63 @@ function roadClass(t) {
   return null
 }
 
+// Pentru traseul spre stadion: stațiile RAT Craiova (cu liniile care opresc acolo, din relațiile de
+// rută), stațiile de taxi și parcările din jur.
+const POI_RADIUS = 800
+function pointsOfInterest(osm) {
+  const lines = new Map() // nod → liniile care îl au ca membru
+  for (const [, r] of osm.rels) {
+    const t = r.tags
+    if (t.type !== 'route' || !['bus', 'tram', 'trolleybus'].includes(t.route)) continue
+    const label = t.ref || (t.name || '').replace(/^(Bus|Tram|Autobuz|Tramvai)\s*\d*\s*:?\s*/i, '').replace(/\s*=>\s*/g, ' → ')
+    if (!label) continue
+    for (const m of r.mem) {
+      if (m.type !== 'node') continue
+      if (!lines.has(m.ref)) lines.set(m.ref, new Map())
+      lines.get(m.ref).set(label, t.route)
+    }
+  }
+  const near = []
+  for (const [id, n] of osm.nodes) {
+    const t = n.tags
+    if (!t.name && t.amenity !== 'taxi') continue
+    const p = toLocal(n.lat, n.lon)
+    if (Math.hypot(...p) > POI_RADIUS) continue
+    near.push({ id, t, p })
+  }
+  const stops = []
+  for (const a of near) {
+    const t = a.t
+    const platform = t.public_transport === 'platform' || t.highway === 'bus_stop' || t.railway === 'tram_stop'
+    if (!platform) continue
+    // liniile: ale peronului și ale opririlor cu același nume de lângă el (unele rute le leagă doar pe ele)
+    const ls = new Map()
+    for (const b of near) {
+      if (b.t.name !== t.name || Math.hypot(b.p[0] - a.p[0], b.p[1] - a.p[1]) > 30) continue
+      for (const [k, v] of lines.get(b.id) || []) ls.set(k, v)
+    }
+    if (!ls.size) continue
+    const mode = [...ls.values()].includes('tram') ? 'tram' : 'bus'
+    // numerele liniilor; rutele fără număr (doar „A → B”) apar numai dacă stația n-are altele
+    const all = [...ls.keys()]
+    const numbered = all.filter((k) => !k.includes('→'))
+    const refs = (numbered.length ? numbered : all).sort((x, y) => x.localeCompare(y, 'ro', { numeric: true }))
+    stops.push([t.name, r1(a.p[0]), r1(a.p[1]), mode, refs])
+  }
+  const taxi = near.filter((a) => a.t.amenity === 'taxi').map((a) => a.p.map(r1))
+  const parking = []
+  for (const [id, w] of osm.ways) {
+    const t = w.tags
+    if (t.amenity !== 'parking' || t.access === 'private') continue
+    const pts = ring(osm, id)
+    if (!pts || pts.length < 3) continue
+    const c = pts.length > 3 && pts[0][0] === pts[pts.length - 1][0] ? centroid(pts) : pts[Math.floor(pts.length / 2)]
+    if (Math.hypot(...c) > 600) continue
+    parking.push([r1(c[0]), r1(c[1]), t.name || '', +t.capacity || 0, t.parking || 'surface', t.fee === 'yes' ? 1 : 0])
+  }
+  return { stops, taxi, parking }
+}
+
 async function main() {
   const osm = parse(await fetchTiles())
   console.log(`OSM: ${osm.nodes.size} noduri, ${osm.ways.size} căi, ${osm.rels.size} relații`)
@@ -264,6 +321,8 @@ async function main() {
       if (Math.hypot(...c) < RADIUS_ROADS) out.crossings.push(c.map(r1))
     }
   }
+
+  out.pois = pointsOfInterest(osm)
 
   fs.mkdirSync(path.dirname(OUT), { recursive: true })
   fs.writeFileSync(OUT, JSON.stringify(out))
