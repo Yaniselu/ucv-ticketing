@@ -127,3 +127,10 @@ table.t input[type='number'] { width: 92px; padding: 6px 8px; }
 .result .sub { font-size: 17px; opacity: 0.92; }
 .result .btn { margin-top: 14px; background: rgba(255, 255, 255, 0.18); color: #fff; }
 .scan-count { font-size: 14px; color: var(--ink-2); text-align: center; }
+
+/* verificarea anti-vânzare dublă și cardul cu datele demo */
+.integrity { font-size: 13.5px; padding: 8px 12px; border-radius: 10px; }
+.integrity.ok { background: #dcfce7; color: #166534; }
+.integrity.bad { background: #fee2e2; color: #991b1b; font-weight: 600; }
+.demo-card { margin-bottom: 14px; border: 1.5px dashed rgba(10, 91, 214, 0.35); }
+.demo-card h2 { margin: 0 0 4px; }

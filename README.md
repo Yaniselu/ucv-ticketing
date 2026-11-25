@@ -137,6 +137,73 @@ Modelată după planurile și fotografiile arhitecților (DICO & ȚIGĂNAȘ) și
 - Toate interogările sunt parametrizate; datele introduse sunt validate și curățate; acțiunile de administrare sunt jurnalizate.
 - Antete de securitate pe tot site-ul (HSTS, `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`).
 
+### Date demo pentru administrare
+Ca să vezi panoul plin, fără vânzări reale:
+- **Local:** `npm run demo` umple baza locală (`.data/pglite`) și creează contul de administrator demo (`admin@demo.test`, parola `Admin-Demo-2026`; pe o bază la distanță, adică cu `DATABASE_URL`, parola e aleatoare și se afișează o singură dată). Apoi `npm run api` și `npm run dev` → http://localhost:5173/admin. `npm run demo -- --sterge` șterge datele demo.
+- **Pe site:** în `/admin` → „Meciuri” e cardul „Date demo”, cu butoanele „Generează date demo” / „Șterge datele demo” (API: `POST` / `DELETE /api/admin/demo`). Funcționează doar cât timp plățile sunt în modul de test (`PAYMENT_MODE=test`).
+
+Ce conține:
+- **4 meciuri:** Craiova – FCSB (la vânzare, ~3.500 de bilete vândute), Craiova – Rapid în Cupa României (vânzarea începe peste 3 zile), Craiova – CFR Cluj (jucat acum 4 zile, ~2.400 de bilete, ~85% intrați la poartă), Craiova – Lazio în Europa League (ciornă).
+- **Restul:** 3.000 de cumpărători cu nume românești și emailuri `@demo.test` (domeniu rezervat, nu pleacă niciun email; în conturi nu se poate intra), comenzi de 1–4 locuri alăturate, o comandă anulată, 3 coșuri în lucru, rândurile 30–32 din 10-2 blocate (platforma TV), sectorul 12-1 scos de la vânzare, un steward care a scanat biletele.
+
+Comenzile demo se scriu în aceleași tabele, cu aceleași constrângeri ca vânzarea reală: locul trebuie să fie la vânzare și liber, iar prețul vine din configurația meciului. Ștergerea atinge doar meciurile `demo-…` și conturile `@demo.test`; meciurile și comenzile reale rămân neatinse.
+
+### API-ul pentru punerea biletelor în vânzare
+Toate cererile care modifică date trebuie să vină de pe același site (sau de la `curl`, fără antet `Origin`) și să aibă antetul `X-UCV: 1`. Sesiunea e în cookie.
+
+```bash
+API=http://localhost:3001
+# 1. intră ca administrator (sesiunea se păstrează în cookies.txt)
+curl -s -c cookies.txt -H 'Content-Type: application/json' -H 'X-UCV: 1' \
+  -d '{"email":"admin@demo.test","password":"Admin-Demo-2026"}' $API/api/auth/login
+# 2. meci nou, ca ciornă (nu apare pe site)
+curl -s -b cookies.txt -H 'Content-Type: application/json' -H 'X-UCV: 1' \
+  -d '{"home":"Universitatea Craiova","away":"Petrolul Ploiești","competitionId":"superliga","phase":"Etapa 20","kickoff":"2026-12-12T18:00:00Z","status":"draft"}' \
+  $API/api/admin/events
+# 3. prețuri, sectoare, limite și publicarea cu începutul vânzării (aici: acum)
+curl -s -b cookies.txt -X PUT -H 'Content-Type: application/json' -H 'X-UCV: 1' \
+  -d '{"status":"published","saleStart":"2026-11-25T12:00:00Z","config":{"sectors":{"3":{"onSale":true,"price":40},"12-1":{"onSale":false}},"maxPerUser":4}}' \
+  $API/api/admin/events/universitatea-petrolul-ploiesti-2026-12-12
+# 4. situația vânzării și verificarea anti-vânzare dublă
+curl -s -b cookies.txt $API/api/admin/events/universitatea-petrolul-ploiesti-2026-12-12/stats
+curl -s -b cookies.txt $API/api/admin/events/universitatea-petrolul-ploiesti-2026-12-12/integrity
+```
+
+| Metodă și cale | Ce face |
+|---|---|
+| `POST /api/admin/events` | meci nou (`home`, `away`, `competitionId`, `phase`, `kickoff`, `status`, `saleStart`, `saleEnd`, `config`) |
+| `PUT /api/admin/events/:id` | modifică meciul; doar câmpurile trimise (ex. `status: "published"`, `saleStart`, `config`) |
+| `GET /api/admin/events/:id/stats` | pe sector: locuri, vândute, rezervate acum, blocate, încasări, intrați la poartă |
+| `GET /api/admin/events/:id/integrity` | verificarea: niciun loc cu două bilete active, fiecare bilet are locul vândut pe comanda lui |
+| `POST /api/admin/events/:id/blocks` | blochează / deblochează (`action`, `seats` sau `sector` + `rowFrom`/`rowTo`) |
+| `POST /api/admin/orders/:id/cancel` | anulează o comandă: biletele nu mai intră, locurile revin la vânzare |
+| `POST /api/checkout/hold` → `POST /api/checkout/pay` | cumpărătorul rezervă locurile (10 minute), apoi plătește (în modul de test, fără card) |
+| `POST /api/scan` | scanarea la poartă (rol „Scanare” sau „Administrator”) |
+| `POST` / `DELETE /api/admin/demo` | generează / șterge datele demo |
+
+Cheile locurilor sunt `sector|rând|loc` (ex. `10-2|5|11`), cele din harta 3D. Configurația (`config.sectors`) are pentru fiecare sector `onSale` și `price`; ce nu trimiți rămâne cum era.
+
+### Un loc nu se poate vinde de două ori
+`npm run test:vanzare` face tot drumul prin API: adminul creează meciul, pune prețurile și deschide vânzarea, apoi încearcă în toate felurile să vândă același loc de două ori:
+- 50 de cumpărători pe același loc în aceeași clipă: exact unul reușește;
+- „Plătește” apăsat de 5 ori în paralel: o singură plată, un singur bilet;
+- comenzi care se suprapun, trimise simultan: una reușește, cealaltă nu păstrează niciun loc (tot sau nimic);
+- rezervare expirată: locul trece la altcineva, iar plata întârziată e refuzată;
+- cheile de loc modificate (`|05`, spații, injecție SQL) sunt refuzate;
+- blocarea de către admin nu anulează pe ascuns un loc vândut sau rezervat;
+- limita de bilete pe cont și două rezervări paralele de pe același cont;
+- scrierea direct în baza de date a unui al doilea bilet sau a unei a doua vânzări pe același loc e respinsă de constrângeri;
+- doi stewarzi scanează același bilet simultan: o singură intrare;
+- 120 de cumpărători pe aceleași 30 de locuri, în două valuri: fiecare loc se vinde o singură dată;
+- la final, verificarea integrității și statisticile din panou trebuie să se potrivească exact cu baza de date.
+
+Garanțiile sunt în baza de date, nu doar în cod:
+- Tabelul `seat_locks` are cheia primară (meci, loc). Un loc poate fi într-o singură stare: rezervat, vândut sau blocat.
+- `tickets` are un index unic pe (meci, loc) pentru biletele neanulate.
+- Rezervarea, plata, anularea și scanarea rulează în tranzacții, cu rândurile blocate (`FOR UPDATE`).
+
+Testul rulează implicit pe PGlite. Cu `TEST_DATABASE_URL=postgres://…` rulează pe Postgres real, cu cereri cu adevărat paralele (24 de conexiuni). Toate verificările trec pe ambele.
+
 ### Configurarea pe Vercel (variabile de mediu)
 | Variabilă | Ce face |
 | --- | --- |
@@ -252,6 +319,8 @@ npm run verify   # verifică locurile pe fiecare sector, după harta reală (30.
 npm run osm      # regenerează datele OpenStreetMap din jurul stadionului
 npm run api      # API-ul local pe :3001 (cu DATABASE_URL sau, fără ea, PGlite în .data/)
 npm run test:api # testele automate ale API-ului (conturi, securitate, concurență, plată, admin, scanare)
+npm run test:vanzare # punerea biletelor în vânzare + toate atacurile de vânzare dublă (TEST_DATABASE_URL pentru Postgres real)
+npm run demo     # date demo pentru /admin + contul admin@demo.test (npm run demo -- --sterge le șterge)
 ```
 
 Local, `npm run dev` și `npm run preview` trimit cererile `/api` către `npm run api`.

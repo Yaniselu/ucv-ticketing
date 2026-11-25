@@ -10,7 +10,9 @@
     "verify": "node scripts/verify-capacity.mjs",
     "osm": "node scripts/build-osm.mjs",
     "api": "node server/dev.js",
-    "test:api": "node scripts/test-api.mjs"
+    "test:api": "node scripts/test-api.mjs",
+    "test:vanzare": "node scripts/test-sale.mjs",
+    "demo": "node scripts/demo.mjs"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",

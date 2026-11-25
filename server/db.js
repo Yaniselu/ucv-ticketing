@@ -11,7 +11,7 @@ async function open() {
   const url = process.env.DATABASE_URL || process.env.POSTGRES_URL
   if (url) {
     const { default: pg } = await import('pg')
-    const pool = new pg.Pool({ connectionString: url, max: 4, idleTimeoutMillis: 10000, connectionTimeoutMillis: 8000 })
+    const pool = new pg.Pool({ connectionString: url, max: Number(process.env.PG_POOL_MAX) || 4, idleTimeoutMillis: 10000, connectionTimeoutMillis: 8000 })
     pool.on('error', () => {})
     backend = {
       kind: 'postgres',
@@ -36,6 +36,7 @@ async function open() {
     if (process.env.VERCEL) throw new DbUnavailable('DATABASE_URL lipsește')
     const { PGlite } = await import('@electric-sql/pglite')
     const dir = process.env.PGLITE_DIR || '.data/pglite'
+    if (dir !== 'memory') (await import('node:fs')).mkdirSync(dir, { recursive: true })
     const lite = dir === 'memory' ? new PGlite() : new PGlite(dir)
     await lite.waitReady
     let chain = Promise.resolve()

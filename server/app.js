@@ -5,6 +5,7 @@ import { currentUser, requireUser, requireRole, checkCsrf, rateLimit } from './s
 import * as auth from './auth.js'
 import * as sales from './sales.js'
 import * as admin from './admin.js'
+import * as demo from './demo.js'
 import { ticketsPdf } from './pdf.js'
 import { mailEnabled, sendMail, ticketsEmail } from './mail.js'
 
@@ -116,11 +117,15 @@ route('POST', '/api/admin/events', A((u, p, body) => admin.createEvent(u, body))
 route('PUT', '/api/admin/events/:id', A((u, p, body) => admin.updateEvent(u, p.id, body)))
 route('GET', '/api/admin/events/:id/stats', A((u, p) => admin.eventStats(p.id)))
 route('POST', '/api/admin/events/:id/blocks', A((u, p, body) => admin.blockSeats(u, p.id, body)))
+route('GET', '/api/admin/events/:id/integrity', A((u, p) => admin.integrity(p.id)))
 route('GET', '/api/admin/orders', A((u, p, body, req) => admin.searchOrders(new URL(req.url, 'http://x').searchParams)))
 route('POST', '/api/admin/orders/:id/cancel', A((u, p) => admin.cancelOrder(u, p.id)))
 route('GET', '/api/admin/users', A((u, p, body, req) => admin.listUsers(new URL(req.url, 'http://x').searchParams)))
 route('PUT', '/api/admin/users/:id', A((u, p, body) => admin.setRole(u, p.id, body)))
 route('GET', '/api/admin/audit', A(() => admin.auditLog()))
+// date demo (meciuri, cumpărători, comenzi, scanări) — doar cu plățile în modul de test
+route('POST', '/api/admin/demo', A((u) => demo.seedDemo(u)))
+route('DELETE', '/api/admin/demo', A((u) => demo.clearDemo(u)))
 
 export async function handle(req, res) {
   try {

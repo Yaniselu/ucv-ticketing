@@ -6,7 +6,7 @@ import { audit } from './security.js'
 import { venue, evaluate } from './venue.js'
 import { defaultConfig, normalizeConfig, BLOCKED, seatKey } from '../src/data/sale.js'
 import { COMPETITIONS } from '../src/data/stadium-data.js'
-import { eventView, eventConfig, getEvent, orderView, ticketView, saleState } from './sales.js'
+import { eventView, eventConfig, getEvent, orderView, ticketView, saleState, paymentMode } from './sales.js'
 import { verifyQr } from './qr.js'
 import { cleanText } from './auth.js'
 
@@ -29,7 +29,11 @@ export async function adminEvents() {
      FROM tickets GROUP BY event_id`,
   )
   const by = new Map(stats.map((s) => [s.event_id, s]))
-  return { events: rows.map((e) => ({ ...eventView(e), stats: by.get(e.id) || { sold: 0, revenue: 0, used: 0 } })), competitions: Object.entries(COMPETITIONS).map(([id, c]) => ({ id, name: c.name })) }
+  return {
+    events: rows.map((e) => ({ ...eventView(e), stats: by.get(e.id) || { sold: 0, revenue: 0, used: 0 } })),
+    competitions: Object.entries(COMPETITIONS).map(([id, c]) => ({ id, name: c.name })),
+    demo: { allowed: paymentMode() === 'test', present: rows.some((e) => e.id.startsWith('demo-')) },
+  }
 }
 
 function eventFields(body, current) {
@@ -61,10 +65,21 @@ export async function createEvent(user, body) {
   return { event: eventView((await query('SELECT * FROM events WHERE id = $1', [id]))[0]) }
 }
 
+// configurația trimisă parțial (ex. un singur sector) se aplică peste cea curentă: ce nu e trimis rămâne
+function mergeConfig(cur, patch) {
+  if (!patch || typeof patch !== 'object') return cur
+  const out = { ...cur, ...patch }
+  out.sectors = { ...cur.sectors }
+  for (const [id, v] of Object.entries(patch.sectors || {})) if (out.sectors[id] && v && typeof v === 'object') out.sectors[id] = { ...out.sectors[id], ...v }
+  out.boxes = { ...cur.boxes, ...(patch.boxes || {}) }
+  out.away = { ...cur.away, ...(patch.away || {}) }
+  return out
+}
+
 export async function updateEvent(user, id, body) {
   const cur = await getEvent(id, { admin: true })
   const f = eventFields(body, cur)
-  const cfg = body.config !== undefined ? normalizeConfig(body.config, venue().layout) : eventConfig(cur)
+  const cfg = body.config !== undefined ? normalizeConfig(mergeConfig(eventConfig(cur), body.config), venue().layout) : eventConfig(cur)
   const rows = await query(
     `UPDATE events SET home=$2, away=$3, competition_id=$4, phase=$5, kickoff=$6, status=$7, sale_start=$8, sale_end=$9, config=$10, updated_at=now()
      WHERE id = $1 RETURNING *`,
@@ -112,6 +127,29 @@ export async function eventStats(id) {
   return { event: eventView(ev), sectors: rows, total, saleState: saleState(ev) }
 }
 
+// verificarea anti-vânzare dublă: fiecare loc are cel mult un bilet activ, fiecare bilet activ are
+// locul marcat „vândut” pe aceeași comandă, iar fiecare loc vândut are bilet
+export async function integrity(id) {
+  const ev = await getEvent(id, { admin: true })
+  const [dup] = await query(
+    `SELECT count(*)::int AS n FROM (SELECT seat_key FROM tickets WHERE event_id = $1 AND status <> 'cancelled' GROUP BY seat_key HAVING count(*) > 1) d`,
+    [ev.id],
+  )
+  const [noLock] = await query(
+    `SELECT count(*)::int AS n FROM tickets t WHERE t.event_id = $1 AND t.status <> 'cancelled'
+       AND NOT EXISTS (SELECT 1 FROM seat_locks l WHERE l.event_id = t.event_id AND l.seat_key = t.seat_key AND l.kind = 'sold' AND l.order_id = t.order_id)`,
+    [ev.id],
+  )
+  const [noTicket] = await query(
+    `SELECT count(*)::int AS n FROM seat_locks l WHERE l.event_id = $1 AND l.kind = 'sold'
+       AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t.event_id = l.event_id AND t.seat_key = l.seat_key AND t.status <> 'cancelled')`,
+    [ev.id],
+  )
+  const [tickets] = await query(`SELECT count(*)::int AS n FROM tickets WHERE event_id = $1 AND status <> 'cancelled'`, [ev.id])
+  const ok = !dup.n && !noLock.n && !noTicket.n
+  return { ok, activeTickets: tickets.n, duplicateSeats: dup.n, ticketsWithoutSoldSeat: noLock.n, soldSeatsWithoutTicket: noTicket.n }
+}
+
 // blochează / deblochează locuri: un sector întreg, un interval de rânduri sau locuri anume
 export async function blockSeats(user, id, body) {
   const ev = await getEvent(id, { admin: true })
@@ -133,10 +171,14 @@ export async function blockSeats(user, id, body) {
   if (keys.length > 6000) fail(400, 'Selecția e prea mare (maximum 6.000 de locuri odată).')
   let n = 0
   if (action === 'block') {
-    const r = await query(
-      `INSERT INTO seat_locks (event_id, seat_key, kind) SELECT $1, k, 'blocked' FROM unnest($2::text[]) AS t(k) ON CONFLICT DO NOTHING RETURNING seat_key`,
-      [ev.id, keys],
-    )
+    // rezervările expirate nu mai țin locul; cele active și locurile vândute rămân neatinse
+    const r = await tx(async (q) => {
+      await q(`DELETE FROM seat_locks WHERE event_id = $1 AND seat_key = ANY($2::text[]) AND kind = 'hold' AND expires_at < now()`, [ev.id, keys])
+      return q(
+        `INSERT INTO seat_locks (event_id, seat_key, kind) SELECT $1, k, 'blocked' FROM unnest($2::text[]) AS t(k) ON CONFLICT DO NOTHING RETURNING seat_key`,
+        [ev.id, keys],
+      )
+    })
     n = r.length
   } else {
     const r = await query(`DELETE FROM seat_locks WHERE event_id = $1 AND kind = 'blocked' AND seat_key = ANY($2::text[]) RETURNING seat_key`, [ev.id, keys])

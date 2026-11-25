@@ -76,6 +76,7 @@ async function loadEvents() {
   const r = await api('GET', '/api/admin/events')
   S.events = r.events
   S.comps = r.competitions
+  S.demo = r.demo
   if (!S.events.some((e) => e.id === S.eventId)) S.eventId = S.events[0]?.id || ''
 }
 
@@ -121,6 +122,10 @@ async function viewEvents() {
   await loadEvents()
   main.innerHTML = `<div class="row spread"><h1>Meciuri</h1><button class="btn primary" data-new>Meci nou</button></div>
     ${S.events.length ? '' : '<p class="muted">Nu există meciuri. Adaugă primul meci.</p>'}
+    ${S.demo?.allowed ? `<div class="card demo-card"><div><h2>Date demo</h2><p class="muted">${S.demo.present
+      ? 'Datele demo sunt încărcate: meciurile „demo-…”, 3.000 de cumpărători (@demo.test), comenzi plătite, bilete scanate, o comandă anulată, locuri blocate și coșuri în lucru.'
+      : 'Umple panoul cu date de probă: 4 meciuri (la vânzare, vânzarea începe curând, jucat, ciornă), 3.000 de cumpărători, ~6.000 de bilete, scanări la poartă. Se generează prin aceleași reguli ca vânzarea reală și se pot șterge oricând.'}</p></div>
+      <div class="row"><button class="btn primary" data-demo="seed">${S.demo.present ? 'Regenerează datele demo' : 'Generează date demo'}</button>${S.demo.present ? '<button class="btn danger" data-demo="clear">Șterge datele demo</button>' : ''}</div><div class="form-msg" role="alert"></div></div>` : ''}
     <div class="grid">${S.events.map((e) => {
       const [sl, sc] = STATUS_LABEL[e.status]
       const [vl, vc] = SALE_LABEL[e.saleState]
@@ -134,6 +139,27 @@ async function viewEvents() {
       </div>`
     }).join('')}</div>`
   $('[data-new]').onclick = () => eventForm(null)
+  main.querySelectorAll('[data-demo]').forEach((b) => (b.onclick = async () => {
+    const seed = b.dataset.demo === 'seed'
+    if (!seed && !(await confirmBox('Ștergi datele demo?', 'Se șterg meciurile „demo-…”, comenzile, biletele și conturile @demo.test. Meciurile și comenzile reale rămân neatinse.', 'Șterge'))) return
+    const msg = $('.demo-card .form-msg')
+    b.disabled = true
+    msg.className = 'form-msg'
+    msg.textContent = seed ? 'Se generează…' : 'Se șterg…'
+    try {
+      const r = await api(seed ? 'POST' : 'DELETE', '/api/admin/demo')
+      await viewEvents()
+      const m = $('.demo-card .form-msg')
+      m.className = 'form-msg ok'
+      m.textContent = seed
+        ? `Gata: ${fmt(r.orders)} comenzi, ${fmt(r.tickets)} bilete, ${fmt(r.scanned)} intrați la poartă, ${r.holds} coșuri în lucru.`
+        : `Șters: ${r.events} meciuri, ${fmt(r.orders)} comenzi, ${fmt(r.tickets)} bilete, ${fmt(r.users)} conturi.`
+    } catch (err) {
+      msg.className = 'form-msg err'
+      msg.textContent = err.message
+      b.disabled = false
+    }
+  }))
   main.querySelectorAll('[data-edit]').forEach((b) => (b.onclick = () => eventForm(S.events.find((e) => e.id === b.dataset.edit))))
   main.querySelectorAll('[data-sel]').forEach((a) => (a.onclick = () => { S.eventId = a.dataset.sel; localStorage.setItem('adm-ev', a.dataset.sel) }))
 }
@@ -176,7 +202,10 @@ function eventForm(ev) {
 async function viewSale() {
   const ev = selected()
   if (!ev) return viewEvents()
-  const st = await api('GET', `/api/admin/events/${encodeURIComponent(ev.id)}/stats`)
+  const [st, chk] = await Promise.all([
+    api('GET', `/api/admin/events/${encodeURIComponent(ev.id)}/stats`),
+    api('GET', `/api/admin/events/${encodeURIComponent(ev.id)}/integrity`).catch(() => null),
+  ])
   const cfg = structuredClone(st.event.config)
   const by = new Map(st.sectors.map((r) => [r.id, r]))
   let dirty = false
@@ -189,7 +218,10 @@ async function viewSale() {
       <div class="kpi"><b>${fmt(t.held)}</b><span>rezervate acum (10 min)</span></div>
       <div class="kpi"><b>${fmt(t.blocked)}</b><span>blocate de administrator</span></div>
       <div class="kpi"><b>${fmt(t.used)}</b><span>intrați la poartă</span></div>
-    </div><div><span class="chip ${SALE_LABEL[st.saleState][1]}">${SALE_LABEL[st.saleState][0]}</span> <span class="muted" style="font-size:13px">Perioada și starea meciului se schimbă din „Meciuri” → Editează.</span></div></div>
+    </div><div><span class="chip ${SALE_LABEL[st.saleState][1]}">${SALE_LABEL[st.saleState][0]}</span> <span class="muted" style="font-size:13px">Perioada și starea meciului se schimbă din „Meciuri” → Editează.</span></div>
+    ${chk ? `<div class="integrity ${chk.ok ? 'ok' : 'bad'}">${chk.ok
+      ? `✓ Verificat acum: ${fmt(chk.activeTickets)} bilete active, fiecare loc vândut o singură dată.`
+      : `✗ Probleme: ${chk.duplicateSeats} locuri cu mai multe bilete, ${chk.ticketsWithoutSoldSeat} bilete fără loc vândut, ${chk.soldSeatsWithoutTicket} locuri vândute fără bilet.`}</div>` : ''}</div>
     <div class="card"><h3>Reguli</h3><div class="form">
       <label>Bilete pe comandă (maximum)<input type="number" min="1" max="20" data-k="maxPerOrder" value="${cfg.maxPerOrder}" /></label>
       <label>Bilete pe cont pentru acest meci<input type="number" min="1" max="50" data-k="maxPerUser" value="${cfg.maxPerUser}" /></label>
