@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
   G, D1, Y1, D2, Y2, WALK_Y, uRanges, pointU, PRESS_Y, PRESS_J, PRESS_ROWS, boxFloorY, boxFrontD, UPPER_Y0,
-  T1_HALF, T1_ROWS, T1_ZC,
+  T1_HALF, T1_ROWS,
 } from '../data/layout.js'
 import * as TX from './textures.js'
 import { Quads, strip } from './geom.js'
@@ -223,7 +223,6 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   const L2 = boxFloorY(2)
   const LT = UPPER_Y0
   const [H0, H1, H2] = T1_HALF
-  const ZC = T1_ZC
   const BACK = 6.4 // adâncimea camerelor din spatele geamului
   const box = (w, h, d, x, y, z, list) => {
     const g = new THREE.BoxGeometry(w, h, d)
@@ -241,33 +240,33 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
     [LT, boxFrontD(2), D2(T1_ROWS[2]), H2],
   ]
   for (const [y, d0, d1, h] of slabs) {
-    box(d1 - d0, 0.4, h * 2, X((d0 + d1) / 2), y - 0.2, ZC, slabGeo)
-    box(0.3, 0.55, h * 2, X(d0) - 0.15, y - 0.27, ZC, fasciaGeo)
+    box(d1 - d0, 0.4, h * 2, X((d0 + d1) / 2), y - 0.2, 0, slabGeo)
+    box(0.3, 0.55, h * 2, X(d0) - 0.15, y - 0.27, 0, fasciaGeo)
     // suprafața de beton a acoperișului (vizibilă de sus, între parapet și primul rând)
-    box(d1 - d0 - 0.3, 0.03, h * 2 - 0.1, X((d0 + d1) / 2 + 0.15), y + 0.015, ZC, roofGeo)
+    box(d1 - d0 - 0.3, 0.03, h * 2 - 0.1, X((d0 + d1) / 2 + 0.15), y + 0.015, 0, roofGeo)
   }
   // sub nivelurile superioare, plăcile continuă până la gradenele din spate (camerele lojelor)
-  box(D2(T1_ROWS[1]) - D2(T1_ROWS[0]), 0.4, H1 * 2, X((D2(T1_ROWS[0]) + D2(T1_ROWS[1])) / 2), L1 - 0.2, ZC, slabGeo)
-  box(D2(T1_ROWS[2]) - D2(T1_ROWS[1]), 0.4, H2 * 2, X((D2(T1_ROWS[1]) + D2(T1_ROWS[2])) / 2), L2 - 0.2, ZC, slabGeo)
+  box(D2(T1_ROWS[1]) - D2(T1_ROWS[0]), 0.4, H1 * 2, X((D2(T1_ROWS[0]) + D2(T1_ROWS[1])) / 2), L1 - 0.2, 0, slabGeo)
+  box(D2(T1_ROWS[2]) - D2(T1_ROWS[1]), 0.4, H2 * 2, X((D2(T1_ROWS[1]) + D2(T1_ROWS[2])) / 2), L2 - 0.2, 0, slabGeo)
   // parapetul alb de deasupra lojelor de la nivelul 2 (în fotografie, linia albă sub scaunele de sus)
-  box(0.3, 1.05, H2 * 2, X(boxFrontD(2)) - 0.15, LT + 0.52, ZC, fasciaGeo)
-  box(0.5, 0.08, H2 * 2, X(boxFrontD(2)) - 0.25, LT + 1.09, ZC, fasciaGeo)
+  box(0.3, 1.05, H2 * 2, X(boxFrontD(2)) - 0.15, LT + 0.52, 0, fasciaGeo)
+  box(0.5, 0.08, H2 * 2, X(boxFrontD(2)) - 0.25, LT + 1.09, 0, fasciaGeo)
   // podeaua lounge-ului și pereții din spatele camerelor
   const warm = new THREE.MeshStandardMaterial({ color: 0x5f4a3a, roughness: 0.8 })
   const loungeFloor = new THREE.Mesh(new THREE.BoxGeometry(BACK, 0.05, H0 * 2), warm)
-  loungeFloor.position.set(X(loungeD) - BACK / 2, L0 + 0.03, ZC)
+  loungeFloor.position.set(X(loungeD) - BACK / 2, L0 + 0.03, 0)
   block.add(loungeFloor)
   const inner = new THREE.MeshStandardMaterial({ color: 0xd9cfc2, roughness: 0.9 })
   for (const [y0, y1, d, h] of [[L0, L1, loungeD + BACK, H0], [L1, L2, glass1 + BACK - 2, H1], [L2, LT, glass2 + BACK - 2, H2]]) {
     const w = new THREE.Mesh(new THREE.BoxGeometry(0.2, y1 - y0, h * 2), inner)
-    w.position.set(X(d), (y0 + y1) / 2, ZC)
+    w.position.set(X(d), (y0 + y1) / 2, 0)
     block.add(w)
   }
   // tavane luminoase în lounge și în loje
   const ceilMat = new THREE.MeshStandardMaterial({ color: 0xfff6e8, emissive: 0xffe9c7, emissiveIntensity: 0.45 })
   for (const [y, d, h] of [[L1 - 0.42, loungeD, H0], [L2 - 0.42, glass1, H1], [LT - 0.42, glass2, H2]]) {
     const c = new THREE.Mesh(new THREE.BoxGeometry(BACK - 0.6, 0.04, h * 2 - 0.4), ceilMat)
-    c.position.set(X(d) - BACK / 2, y, ZC)
+    c.position.set(X(d) - BACK / 2, y, 0)
     block.add(c)
   }
   // lojele: pereți între loje, despărțitoare joase pe balcon, treapta pentru rândul 2
@@ -302,7 +301,7 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
     for (const sd of [-1, 1]) {
       const g = new THREE.ShapeGeometry(sh)
       const p = g.attributes.position
-      for (let i = 0; i < p.count; i++) p.setXYZ(i, X(p.getX(i)), p.getY(i), ZC + sd * (h + 0.02))
+      for (let i = 0; i < p.count; i++) p.setXYZ(i, X(p.getX(i)), p.getY(i), sd * (h + 0.02))
       g.computeVertexNormals()
       const end = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0xf2f2ef, roughness: 0.7, side: THREE.DoubleSide }))
       end.castShadow = true
@@ -327,19 +326,19 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   for (const [y0, y1, d, h] of [[L0, L1 - 0.4, loungeD, H0], [L1, L2 - 0.4, glass1, H1], [L2, LT - 0.4, glass2, H2]]) {
     const gp = new THREE.Mesh(new THREE.PlaneGeometry(h * 2, y1 - y0), glass)
     gp.rotation.y = -Math.PI / 2
-    gp.position.set(X(d), (y0 + y1) / 2, ZC)
+    gp.position.set(X(d), (y0 + y1) / 2, 0)
     block.add(gp)
-    for (let z = -h; z <= h + 0.01; z += 1.2) box(0.07, y1 - y0, 0.07, X(d), (y0 + y1) / 2, ZC + z, mullGeo)
-    box(0.07, 0.07, h * 2, X(d), y0 + 0.05, ZC, mullGeo)
-    box(0.07, 0.07, h * 2, X(d), y1 - 0.05, ZC, mullGeo)
+    for (let z = -h; z <= h + 0.01; z += 1.2) box(0.07, y1 - y0, 0.07, X(d), (y0 + y1) / 2, z, mullGeo)
+    box(0.07, 0.07, h * 2, X(d), y0 + 0.05, 0, mullGeo)
+    box(0.07, 0.07, h * 2, X(d), y1 - 0.05, 0, mullGeo)
   }
   // balustradele de sticlă ale balcoanelor (lojele 1 pe acoperișul lounge-ului, lojele 2 pe al lojelor 1)
   for (const [y, d, h] of [[L1, boxFrontD(1), H0], [L2, boxFrontD(2), H1]]) {
     const rail = new THREE.Mesh(new THREE.PlaneGeometry(h * 2, 1.0), glass)
     rail.rotation.y = -Math.PI / 2
-    rail.position.set(X(d) - 0.08, y + 0.5, ZC)
+    rail.position.set(X(d) - 0.08, y + 0.5, 0)
     block.add(rail)
-    box(0.06, 0.06, h * 2, X(d) - 0.08, y + 1.02, ZC, mullGeo)
+    box(0.06, 0.06, h * 2, X(d) - 0.08, y + 1.02, 0, mullGeo)
   }
   block.add(new THREE.Mesh(mergeGeometries(mullGeo), new THREE.MeshStandardMaterial({ color: 0x9aa4ad, metalness: 0.6, roughness: 0.3 })))
 
@@ -347,9 +346,8 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   const boxIdx = layout.boxes.flatMap((b) => b.seatIdx)
   const leather = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, side: THREE.DoubleSide })
   const boxMesh = new THREE.InstancedMesh(armchairGeometry(), leather, boxIdx.length)
-  const boxPitch = new Map(layout.boxes.flatMap((b) => b.seatIdx.map((i) => [i, b.pitch])))
   boxIdx.forEach((i, k) => {
-    place(boxMesh, k, layout.seats[i], Math.min(1, boxPitch.get(i) / 0.54))
+    place(boxMesh, k, layout.seats[i])
     boxMesh.setColorAt(k, new THREE.Color(0x24211f))
     out.seatRef[i] = { mesh: boxMesh, k }
   })
@@ -470,7 +468,10 @@ export function buildStadium(scene, layout, { lowSpec = false } = {}) {
   const proxyMat = new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide })
   for (const s of layout.sectors) {
     const q = new Quads()
-    for (const pt of s.parts) strip(q, uRanges(pt.u0 - 0.002, pt.u1 + 0.002).map((r) => r.slice(0, 3)), pt.d0, pt.y0 + 0.9, pt.d1, pt.y1 + 1.1)
+    for (const pt of s.parts) {
+      const D = pt.ring === 1 ? D1 : D2
+      strip(q, uRanges(pt.u0 - 0.002, pt.u1 + 0.002).map((r) => r.slice(0, 3)), D(pt.r0), pt.y0 + 0.9, D(pt.r1 + 1), pt.y1 + 1.1)
+    }
     const mesh = new THREE.Mesh(q.geometry(), proxyMat)
     mesh.userData = { sector: s.id }
     root.add(mesh)

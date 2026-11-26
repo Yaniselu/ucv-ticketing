@@ -57,20 +57,21 @@ export function setEvent(ev) {
 setEvent(null)
 
 // Harta reală a locurilor (Entertix, meciul Universitatea Craiova – Dinamo): fiecare loc e pe rândul
-// și la poziția lui din hartă (src/data/seatmap.js). Total 30.704 = 30.202 de locuri pe hartă
-// (presa 315, VIP A–F 1.910) + 440 în loje + 2 × 31 pentru persoane în scaun rulant (în fața Tribunei 2).
+// și la poziția lui din hartă (src/data/seatmap.js). Total 30.702 = 30.200 de locuri pe hartă
+// (presa 315, VIP A–F 1.910; harta are 30.202, 2 locuri din colțul NV nu încap) + 440 în loje + 2 × 31 pentru persoane în scaun rulant (în fața Tribunei 2).
 export const CAPACITY = {
-  total: 30704,
-  public: 27977,
+  total: 30702,
+  public: 27975,
   vip: 1910,
   boxes: 440,
   press: 315,
   wheelchair: 62,
   companion: 0,
 }
-// locurile fiecărui sector pe harta reală (inelul de jos + inelul de sus)
+// locurile fiecărui sector pe harta reală (inelul de jos + inelul de sus); sectorul 2 are 957 pe hartă,
+// dar 2 locuri nu încap pe arcul colțului din stadionul 3D
 export const SECTOR_SEATS = {
-  1: 1251, 2: 957, 3: 1336, 4: 1625, 5: 1762, 6: 1271, 7: 964, 8: 1365, 9: 1962, 10: 2114,
+  1: 1251, 2: 955, 3: 1336, 4: 1625, 5: 1762, 6: 1271, 7: 964, 8: 1365, 9: 1962, 10: 2114,
   11: 1922, 12: 1440, 13: 923, 14: 1324, 15: 1735, 16: 1797, 17: 1338, 18: 916, 19: 1267,
   A: 190, B: 399, C: 366, D: 366, E: 399, F: 190, G: 353, I: 355,
 }

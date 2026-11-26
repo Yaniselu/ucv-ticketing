@@ -47,32 +47,6 @@ export const Y1P = (i) => G.ring1.y0 + i * RISE_P
 export const WALK_DP = G.ring1.rowsP * G.depth
 export const D2 = (j) => WALK_D + G.walkway + j * G.ring2.depth
 export const Y2 = (j) => WALK_Y + G.ring2.wall + j * G.ring2.rise
-// Peluzele (după secțiunile arhitecților și fotografii): culoarul dintre inele e la fel de îngust ca
-// pe tribune, deci inelul de sus începe mai în față (la 14,6 m, nu la 20,2 m), iar rândurile lui
-// sunt mai adânci și urcă mai abrupt — peluzele sunt mai înalte decât Tribuna 2 și VIP-ul. Spre
-// colțuri, geometria trece lin în cea a tribunelor.
-export const RING2_P = { front: G.ring1.rowsP * G.depth + G.walkway, depth: 0.8, rise: 0.6 }
-const P_ENDS = 0.16 // pe ultimele 16% ale peluzei (spre colțuri) se face trecerea
-const sstep = (e0, e1, x) => {
-  const q = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)))
-  return q * q * (3 - 2 * q)
-}
-// 1 = geometria tribunelor (laturi, colțuri), 0 = peluza
-export function sideK(u) {
-  const w = ((u % 8) + 8) % 8
-  const p = Math.min(7, Math.floor(w + 1e-9))
-  if (p !== 0 && p !== 4) return 1
-  const t = w - p
-  return Math.max(1 - sstep(0, P_ENDS, t), sstep(1 - P_ENDS, 1, t))
-}
-// marginea din față a rândului j din inelul de sus și înălțimea lui, în dreptul lui u
-export const D2u = (j, u) => {
-  const k = sideK(u)
-  return RING2_P.front + (D2(0) - RING2_P.front) * k + j * (RING2_P.depth + (G.ring2.depth - RING2_P.depth) * k)
-}
-export const Y2u = (j, u) => Y2(0) + j * (RING2_P.rise + (G.ring2.rise - RING2_P.rise) * sideK(u))
-export const depth2u = (u) => RING2_P.depth + (G.ring2.depth - RING2_P.depth) * sideK(u)
-export const rise2u = (u) => RING2_P.rise + (G.ring2.rise - RING2_P.rise) * sideK(u)
 
 const AX = G.hx - G.r
 const AZ = G.hz - G.r
@@ -217,14 +191,9 @@ const BACK_ROWS = (() => {
       }
     }
   }
-  // culoarele și golurile mici dintre blocuri: maximul vecinilor pe ±6 diviziuni (≈ 1,5–2 m); unde
-  // sunt locuri, spatele e chiar după ultimul rând (fără trepte goale la capetele rândurilor scurtate)
+  // culoarele și golurile mici dintre blocuri: maximul vecinilor pe ±6 diviziuni (≈ 1,5–2 m)
   const win = new Int16Array(NB).fill(-1)
   for (let i = 0; i < NB; i++) {
-    if (raw[i] >= 0) {
-      win[i] = raw[i]
-      continue
-    }
     for (let k = -6; k <= 6; k++) win[i] = Math.max(win[i], raw[(i + k + NB) % NB])
   }
   // golurile mari (fără locuri): interpolare între blocurile vecine
@@ -248,8 +217,7 @@ export const backRowsAt = (u) => BACK_ROWS[Math.floor((wrap8(u) / 8) * NB) % NB]
 export const BACK_DIV = 8 / NB // lățimea unei diviziuni în u
 export const MAX_R2 = Math.max(...BACK_ROWS)
 export const BACK_D = D2(MAX_R2)
-// cea mai înaltă treaptă (pe peluze, rândurile urcă mai abrupt)
-export const TOP_Y = Math.max(...Array.from(BACK_ROWS, (n, i) => Y2u(n - 1, (i + 0.5) * (8 / NB))))
+export const TOP_Y = Y2(MAX_R2 - 1)
 export const RING_TOP = TOP_Y + 1.6 // peretele alb din spatele tribunelor / grinda inelară
 
 const zToT = (z) => (AZ - z) / (2 * AZ) // tronsonul vest (W)
@@ -261,10 +229,7 @@ export const BOX_SETBACK = [0, 1.4]
 export const boxFloorY = (level) => WALK_Y + LOUNGE_H + (level - 1) * G.boxH
 export const boxFrontD = (level) => D2(0) + BOX_SETBACK[level - 1]
 export const UPPER_Y0 = WALK_Y + LOUNGE_H + 2 * G.boxH // acoperișul lojelor de la nivelul 2
-// blocul lojelor din T1, după planul oficial: lounge + loje nivel 1 pe 74,4 m, loje nivel 2 + presa
-// pe 56,2 m, cu axa la 2 m spre sud de centrul terenului (sectoarele 1-2 și 19-2 îl încadrează)
-export const T1_HALF = [37.2, 37.2, 28.1]
-export const T1_ZC = -2.0
+export const T1_HALF = [G.blockHalf, G.blockHalf - 3, G.blockHalf - 6]
 const firstRowAbove = (y) => {
   let j = 0
   while (Y2(j) < y + 0.25) j++
@@ -277,7 +242,7 @@ export function t1Blocked(u, j, d, pad = 0) {
   const w = wrap8(u)
   if (w < 6 || w >= 7) return false
   const e = t1EdgeZ(j)
-  return e > 0 && Math.abs(pointU(u, d).z - T1_ZC) < e + pad
+  return e > 0 && Math.abs(pointU(u, d).z) < e + pad
 }
 // presa (H): 5 rânduri cu pupitre, din două în două rânduri ale pantei (harta reală)
 export const PRESS_ROWS = 5
@@ -286,7 +251,7 @@ export const PRESS_Y = (k) => Y2(PRESS_J(k))
 export const zToTW = (z) => 6 + (AZ - z) / (2 * AZ)
 export const t1CutT = (j) => {
   const e = t1EdgeZ(j)
-  return e > 0 ? [zToT(T1_ZC + e), zToT(T1_ZC - e)] : null
+  return e > 0 ? [zToT(e), zToT(-e)] : null
 }
 
 // ─── Sectoarele ──────────────────────────────────────────────────────
@@ -366,7 +331,7 @@ function buildBoxes() {
     const half = T1_HALF[level]
     const cell = (2 * half) / 22
     const pitch = Math.min(0.62, (cell - 0.75) / 4)
-    let z1 = T1_ZC + half
+    let z1 = half
     for (const [num, wcells] of list) {
       const z0 = z1 - wcells * cell
       const zc = (z0 + z1) / 2
@@ -379,7 +344,7 @@ function buildBoxes() {
           seats.push({ row, num: (row - 1) * per + i + 1, x: -(G.hx + frontD + dx), y: floorY + dy, z: zc + ((per - 1) / 2 - i) * pitch })
         }
       }
-      boxes.push({ id: `L${num}`, num, level, z0, z1, zc, floorY, frontD, pitch, seats })
+      boxes.push({ id: `L${num}`, num, level, z0, z1, zc, floorY, frontD, seats })
       z1 = z0
     }
   }
@@ -415,8 +380,7 @@ export function buildLayout() {
         for (let m = 0; m < n; m++) {
           const u = uAtArc(s0 + m * w, d)
           const rake = b.ring === 1 ? b.rake || ring1Kind(u) : null
-          if (b.ring === 2) raw.push({ ring: 2, r, u, d: D2u(r, u) + G.seatInset, w, y: Y2u(r, u), block: bi })
-          else raw.push({ ring: b.ring, r, u, d, w, y: rowY(b.ring, r, rake), block: bi })
+          raw.push({ ring: b.ring, r, u, d, w, y: rowY(b.ring, r, rake), block: bi })
         }
       }
     }
@@ -470,7 +434,7 @@ export function buildLayout() {
         const seat = push({
           sector: s.id, stand: s.stand, kind: s.kind, row: kr + 1, ring: p.ring, ringRow: p.r + 1, num: k + 1,
           away: s.away || half, awayHalf: half,
-          x: q.x, y: p.y, z: q.z, rot: Math.atan2(-q.nx, -q.nz), nx: q.nx, nz: q.nz, u: p.u, w: p.w, d: p.d,
+          x: q.x, y: p.y, z: q.z, rot: Math.atan2(-q.nx, -q.nz), nx: q.nx, nz: q.nz, u: p.u, w: p.w,
           price: s.price, block: p.block,
         })
         s.seatIdx.push(seat.i)
@@ -490,11 +454,9 @@ export function buildLayout() {
       if (!ps.length) continue
       const rs = ps.map((p) => p.ringRow - 1)
       const ys = ps.map((p) => p.y)
-      const ds = ps.map((p) => p.d)
       s.parts.push({
         ring, u0: start + Math.min(...ps.map((p) => rel(p.u))), u1: start + Math.max(...ps.map((p) => rel(p.u))),
         r0: Math.min(...rs), r1: Math.max(...rs), y0: Math.min(...ys), y1: Math.max(...ys),
-        d0: Math.min(...ds) - G.seatInset - 0.1, d1: Math.max(...ds) + 0.45,
       })
     }
   }
@@ -575,11 +537,9 @@ export function buildLayout() {
   // vomitoarele (golurile de 3–4,5 m din primele rânduri ale blocurilor de sus). Pe hartă, în fața
   // fiecăruia primele rânduri nu au locuri pe ~12 m, iar pe lângă el urcă două scări: vomitorul iese
   // la nivelul culoarului dintre inele, printr-o tăietură în gradene (`cut`, metri față de centru).
-  // (golurile foarte late de pe primele două rânduri sunt platformele din fața vomitoarelor, nu tuneluri;
-  // tunelul are cel mult 4,8 m, iar la golurile mai late restul rămâne palier lângă scări)
-  const voms = (SEATMAP.voms || []).filter((v) => v.w < 10.5).map((v) => {
-    let lo = -2.4
-    let hi = 2.4
+  const voms = (SEATMAP.voms || []).filter((v) => v.w < 6).map((v) => {
+    let lo = -3
+    let hi = 3
     for (let r = v.j0; r <= v.j1; r++) {
       const [a, b] = gapAround(2, r, v.u)
       lo = Math.max(lo, a)
@@ -589,35 +549,15 @@ export function buildLayout() {
   })
   const inCut = (u, r) => voms.some((v) => r <= v.j1 && Math.abs(wrap8(u) - wrap8(v.u)) * lenPerU(v.u, 30) < Math.max(-v.cut[0], v.cut[1]) + 0.3)
 
-  // Tribuna 1, lângă lojele de la nivelul 2: harta n-are locuri pe rândurile din dreptul lor, între
-  // capătul lojelor și sectoarele 19 / 1. Acolo e un palier la nivelul lojelor 2, cu gura unui vomitor
-  // în peretele de sub primul rând de deasupra (accesul spre partea de sus a sectoarelor 19, 1, G, I).
-  const landings = []
-  for (const sgn of [1, -1]) {
-    const uIn = zToTW(T1_ZC + sgn * T1_HALF[2])
-    const uMid = zToTW(T1_ZC + (sgn * (T1_HALF[1] + T1_HALF[2])) / 2)
-    let j1 = -1
-    let far = Infinity
-    for (let r = T1_ROWS[1]; r < T1_ROWS[2]; r++) {
-      const [lo, hi] = gapAround(2, r, uMid)
-      if (hi - lo < 3) break
-      far = Math.min(far, sgn > 0 ? -lo : hi) // spre exterior: la sud u scade, la nord crește
-      j1 = r
-    }
-    if (j1 < T1_ROWS[1] || !Number.isFinite(far)) continue
-    const uOut = uMid - (sgn * (far - 0.05)) / lenPerU(uMid, D2(T1_ROWS[1]))
-    const s = byId.get(sgn > 0 ? '19-2' : '1-2')
-    landings.push({ j0: T1_ROWS[1], j1, ua: Math.min(uIn, uOut), ub: Math.max(uIn, uOut), uIn, uOut, y: boxFloorY(2), sectorObj: s })
-  }
-  const inLanding = (u, r) => landings.some((l) => r >= l.j0 && r <= l.j1 && wrap8(u) > l.ua && wrap8(u) < l.ub)
-
-  // scările: golurile de 0,45–4,5 m dintre locurile aceluiași rând (culoarele din harta reală)
+  // scările: golurile de 0,45–2,6 m dintre locurile aceluiași rând (culoarele din harta reală)
   const aisles = []
   const aisleAt = (ring, r, u, width) => {
+    const d = rowDepth(ring, r) - G.seatInset
     const kind = ring === 1 ? ring1Kind(u) : null
-    aisles.push(ring === 1
-      ? { ring, r, u, width, d: D1(r), y: ring1Y(r, kind), depth: G.depth, rise: kind === 'P' ? RISE_P : G.ring1.rise }
-      : { ring, r, u, width, d: D2u(r, u), y: Y2u(r, u), depth: depth2u(u), rise: rise2u(u) })
+    aisles.push({
+      ring, r, u, width, d, y: ring === 1 ? ring1Y(r, kind) : Y2(r),
+      depth: ring === 1 ? G.depth : G.ring2.depth, rise: ring === 1 ? (kind === 'P' ? RISE_P : G.ring1.rise) : G.ring2.rise,
+    })
   }
   for (const [rk, list] of runs) {
     const [ring, r] = rk.split(':').map(Number)
@@ -628,9 +568,9 @@ export function buildLayout() {
       const a = list[k]
       const b = k + 1 < list.length ? list[k + 1] : [list[0][0] + T, list[0][1] + T]
       const gap = b[0] - a[1]
-      if (gap < 0.45 || gap > 4.5) continue
+      if (gap < 0.45 || gap > 2.6) continue
       const u = uAtArc((a[1] + b[0]) / 2, d)
-      if (ring === 2 && (t1Blocked(u, r, d - G.seatInset, 0.3) || inCut(u, r))) continue
+      if (ring === 2 && t1Blocked(u, r, d - G.seatInset, 0.3)) continue
       aisleAt(ring, r, u, gap)
     }
   }
@@ -645,41 +585,12 @@ export function buildLayout() {
   for (const a of cols.values()) {
     for (let r = a.r - 1; r >= 0; r--) {
       const [lo, hi] = gapAround(2, r, a.u)
-      if (hi - lo < a.width || inCut(a.u, r) || inLanding(a.u, r) || t1Blocked(a.u, r, D2(r), 0.3)) break
+      if (hi - lo < a.width || inCut(a.u, r) || t1Blocked(a.u, r, D2(r), 0.3)) break
       aisleAt(2, r, a.u, a.width)
     }
   }
 
-  // Tribuna 1: în spatele locurilor VIP, ultimele rânduri ale inelului de jos n-au locuri pe hartă; acolo
-  // e terasa din fața lounge-ului, la nivelul culoarului (de la rândul `r` până la culoar, între u0 și u1)
-  let terrace = null
-  {
-    const uc = 6.5
-    let lo = -Infinity
-    let hi = Infinity
-    let r0 = null
-    for (let r = G.ring1.rows - 1; r >= 0; r--) {
-      const [a, b] = gapAround(1, r, uc)
-      if (b - a < 30) break
-      lo = Math.max(lo, a)
-      hi = Math.min(hi, b)
-      r0 = r
-    }
-    if (r0 != null) {
-      const k = lenPerU(uc, D1(r0))
-      terrace = { r: r0, u0: uc + (lo + 0.1) / k, u1: uc + (hi - 0.1) / k, cuts: [] }
-      // scările VIP urcă prin terasă până la culoar (tăieturi în terasă, cu treptele rândurilor)
-      const tops = aisles.filter((a) => a.ring === 1 && a.r === r0 - 1 && a.u > terrace.u0 && a.u < terrace.u1)
-      for (const a of tops) {
-        for (let r = r0; r < G.ring1.rows; r++) aisleAt(1, r, a.u, a.width)
-        const h = (a.width / 2 + 0.05) / k
-        terrace.cuts.push([a.u - h, a.u + h])
-      }
-      terrace.cuts.sort((x, y) => x[0] - y[0])
-    }
-  }
-
-  return { sectors, boxes, seats, pressIdx, accessibleIdx, zones, pressSpan, pressRows, voms, aisles, terrace, landings }
+  return { sectors, boxes, seats, pressIdx, accessibleIdx, zones, pressSpan, pressRows, voms, aisles }
 }
 
 export function summarize(layout) {

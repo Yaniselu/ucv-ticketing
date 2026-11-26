@@ -221,7 +221,7 @@ Fără `DATABASE_URL`, site-ul funcționează doar ca hartă: se pot explora loc
 - **Solul** este imaginea satelit reală (Esri World Imagery), încărcată în browser pe trei niveluri de detaliu: aproximativ 0,4 m/pixel lângă stadion, apoi tot mai puțin detaliat spre marginea orașului.
 - **Clădirile și străzile** vin din OpenStreetMap (`public/data/craiova.json`, generat de `npm run osm`): 6.024 de clădiri pe o rază de 1 km, extrudate după contur și numărul de etaje (Sala Polivalentă, Malmo Office Tower, blocurile A0–A4 etc.). Acoperișurile sunt texturate cu imaginea satelit, iar numele străzilor apar în vederea de ansamblu.
 - **Copacii** sunt detectați automat din imaginea satelit (coroanele verzi), deci stau unde sunt și în realitate.
-- **Tribunele** sunt reconstituite după harta locurilor și fotografiile din interior: inelul de jos are 22 de rânduri pe tribune și 15 pe peluze; inelul de sus are până la 33 de rânduri. Pe peluze, inelul de sus începe mai aproape de teren și urcă mai abrupt, deci peluzele sunt mai înalte decât tribunele, ca în fotografia din Peluza Sud. Colțurile sunt mai joase. Marginea de sus urcă și coboară în trepte, exact după ultimul rând cu locuri, cu pereți albi în spate. Mai sunt modelate vomitoarele, balustrada de sticlă de pe culoar, grinda inelară cu stâlpi și cupola din arce de oțel.
+- **Tribunele** sunt reconstituite după fotografiile din interior: inelul de jos are 16 rânduri peste tot, iar cel de sus are de la 38 de rânduri la mijlocul laturilor până la 16 în colțuri. Marginea de sus urcă și coboară în trepte, cu pereți albi în spate, vomitoare la jumătatea inelului, balustradă de sticlă pe culoar, grindă inelară cu stâlpi și cupolă din arce de oțel.
 - **Fațada:** placajul alb e doar deasupra „valului”. Dedesubt se văd structura albă în X, lamelele de aluminiu și clădirea vitrată de pe mai multe niveluri.
 - **Detalii verificate pe fotografiile stadionului nou:**
   - scaunele sunt toate albastre;
@@ -254,7 +254,7 @@ Cum a fost importată harta (scripturile sunt în afara proiectului; rezultatul 
 1. Punctele de pe fiecare captură sunt detectate automat, iar capturile sunt lipite între ele după punctele comune. Ocolul complet se închide la ~0,1 px.
 2. Fiecare bloc de locuri e reconstruit pe grila lui (pas de 6 px pe hartă), ca să nu lipsească și să nu se dubleze niciun loc: 30.202 locuri.
 3. Blocurile sunt atribuite tribunelor și sectoarelor după poziție (Tribuna 1 sus, Peluza Nord în dreapta, Tribuna 2 jos, Peluza Sud în stânga), iar rândurile după adâncime: inelul de jos are 22 de rânduri pe tribune și 15 pe peluze, inelul de sus până la 33.
-4. Pe laturi, blocurile sunt așezate exact ca pe hartă (rânduri, locuri, goluri). În colțuri, harta are blocuri rotite. Acolo, locurile fiecărui colț (numărul real) umplu arcul rămas liber dintre tranșeea pentru ambulanță și sectoarele vecine. Rândurile se umplu complet, de jos în sus, iar scările sunt la poziții fixe; rândurile din spate rămân fără gradene, deci colțurile sunt mai joase decât laturile.
+4. Pe laturi, blocurile sunt așezate exact ca pe hartă (rânduri, locuri, goluri). În colțuri, harta are blocuri rotite: acolo locurile fiecărui colț (numărul real) umplu arcul rămas liber între tranșeea pentru ambulanță și sectoarele vecine.
 
 Pasul locurilor: 0,45 m pe tribune, 0,42 m pe peluze (rândurile lor sunt mai lungi decât latura), 0,44 m în colțuri. Lojele (440 de locuri) și cele 2 × 31 de locuri pentru scaune rulante nu apar pe hartă și rămân din planul stadionului.
 
@@ -284,11 +284,11 @@ Gazonul are fire 3D: 20 de straturi între sol și vârful firelor (3 cm, cât g
 | Înălțimea | 50,14 m până în vârful acoperișului | stadiumdb.com |
 | Orientarea | axa lungă a terenului rotită cu 12,4° spre vest față de nord | OpenStreetMap |
 | Inelul de jos | 22 de rânduri pe tribune, 15 pe peluze; rând de 0,80 m; 0,40 m / rând pe tribune, 0,59 m pe peluze | harta locurilor (Entertix) |
-| Culoarul dintre inele | la +11,3 m; 2,6 m lățime pe tribune și pe peluze; de la culoar, fiecare scară a inelului de sus pornește cu 5 trepte de 0,22 m | geometria hărții, fotografia din Peluza Sud |
-| Inelul de sus | până la 33 de rânduri. Pe tribune: rând de 0,75 m, 0,52 m / rând. Pe peluze: începe la 14,6 m de teren, rând de 0,80 m, 0,60 m / rând, deci spatele peluzelor e cu ~2 m mai sus | harta locurilor (Entertix), secțiunile stadionului, fotografii |
+| Culoarul dintre inele | la +11,3 m; 2,6 m lățime pe tribune, mai lat pe peluze | geometria hărții |
+| Inelul de sus | până la 33 de rânduri; rând de 0,75 m; 0,52 m / rând | harta locurilor (Entertix) |
 | Locurile | pas de 0,45 m pe tribune, 0,42 m pe peluze, 0,44 m în colțuri; culoare de 0,6–0,9 m | harta locurilor (Entertix) |
-| Vomitoarele | 15 la culoarul dintre inele, de 3,15–4,8 m, în rândurile 0–4 ale inelului de sus (inclusiv al sectorului 6, între două blocuri); plus 2 în Tribuna 1, la nivelul lojelor 2 | harta locurilor (Entertix) |
-| Lojele | 2 niveluri, 42 de loje (440 de locuri), etaj de 3,2 m, lounge de 2,8 m; lounge-ul și lojele 1 pe 74,4 m, lojele 2 pe 56,2 m, cu axa la 2 m spre sud de mijlocul terenului | planul stadionului (poziția sectoarelor 19 și 1), fotografii |
+| Vomitoarele | 14, de 3,15–4,5 m, în rândurile 2–4 ale inelului de sus | harta locurilor (Entertix) |
+| Lojele | 2 niveluri, 42 de loje (440 de locuri), etaj de 3,2 m, lounge de 2,8 m | planul stadionului, fotografii |
 | Podiumul (promenada) | +4,6 m, pe stâlpi, cu parcare dedesubt | planurile arhitecților (DICO & Țigănaș), OSM |
 | Accesele | 21, cu 2 sau 4 turnichete fiecare | planul stadionului |
 | Accesul ambulanței din colțuri | tranșee de 7 m, portal de 3,4 m, tunel acoperit de 4,4 m | fotografii |
@@ -315,7 +315,7 @@ Pentru ca împrejurimile să arate exact ca în realitate, aplicația poate înc
 npm install
 npm run dev      # http://localhost:5173
 npm run build    # build static în dist/
-npm run verify   # verifică locurile pe fiecare sector, după harta reală (30.704 în total)
+npm run verify   # verifică locurile pe fiecare sector, după harta reală (30.702 în total)
 npm run osm      # regenerează datele OpenStreetMap din jurul stadionului
 npm run api      # API-ul local pe :3001 (cu DATABASE_URL sau, fără ea, PGlite în .data/)
 npm run test:api # testele automate ale API-ului (conturi, securitate, concurență, plată, admin, scanare)
@@ -329,14 +329,14 @@ Stack: Vite + three.js, fără framework, pe trei pagini (harta, `/admin`, `/sca
 
 ## Capacitatea, exact la număr
 
-Sursa este harta reală a locurilor (Entertix): **30.202 locuri pe hartă**, toate în stadionul 3D, plus 440 în loje și 62 pentru scaune rulante, deci **30.704 în total**. Planul oficial al stadionului dă 30.803; diferențele pe sector sunt în coloana „plan oficial” din `npm run verify`. `src/data/layout.js` generează fiecare loc (sector, rând, număr, poziție 3D) din `src/data/seatmap.js`, iar `npm run verify` verifică:
+Sursa este harta reală a locurilor (Entertix): **30.202 locuri pe hartă**, din care 30.200 în stadionul 3D, plus 440 în loje și 62 pentru scaune rulante, deci **30.702 în total**. Planul oficial al stadionului dă 30.803; diferențele pe sector sunt în coloana „plan oficial” din `npm run verify`. `src/data/layout.js` generează fiecare loc (sector, rând, număr, poziție 3D) din `src/data/seatmap.js`, iar `npm run verify` verifică:
 - că fiecare sector are exact numărul de locuri de pe hartă;
 - că totalul este exact;
 - că niciun loc nu se suprapune cu altul.
 
 | Zonă | Sectoare (locuri) | Total |
 |---|---|---:|
-| Tribuna 1 | 18 (916, oaspeți), 19 (1.267, jumătatea dinspre colț pentru oaspeți), G (353), I (355), 1 (1.251), 2 (957) | 5.099 |
+| Tribuna 1 | 18 (916, oaspeți), 19 (1.267, jumătatea dinspre colț pentru oaspeți), G (353), I (355), 1 (1.251), 2 (955) | 5.097 |
 | VIP | A (190), B (399), C (366), D (366), E (399), F (190) | 1.910 |
 | Loje | 101–120 și 201–222 | 440 |
 | Presă | H (5 rânduri cu pupitre și locuri pe margini) | 315 |
@@ -344,9 +344,9 @@ Sursa este harta reală a locurilor (Entertix): **30.202 locuri pe hartă**, toa
 | Peluza 2 (Nord) | 3 (1.336), 4 (1.625), 5 (1.762), 6 (1.271) | 5.994 |
 | Tribuna 2 | 7 (964), 8 (1.365), 9 (1.962), 10 (2.114), 11 (1.922), 12 (1.440), 13 (923) | 10.690 |
 | Persoane în scaun rulant | 2 zone în fața Tribunei 2 (sectoarele 8–9 și 11–12) | 62 |
-| **Total** | | **30.704** |
+| **Total** | | **30.702** |
 
-Toate sectoarele au exact locurile de pe hartă. În colțuri, locurile care nu încap în inelul de jos trec în inelul de sus al aceluiași sector.
+Toate sectoarele au exact locurile de pe hartă, cu o excepție: sectorul 2 are 955 în loc de 957, pentru că 2 locuri nu încap pe arcul colțului. În colțuri, locurile care nu încap în inelul de jos trec în inelul de sus al aceluiași sector.
 
 ## Ce este real și ce este estimat
 
@@ -365,9 +365,7 @@ Toate sectoarele au exact locurile de pe hartă. În colțuri, locurile care nu 
     - VIP A–F, la nivelul terenului;
     - un nivel lounge vitrat de la podea la tavan, fără locuri în față;
     - lojele 101–120 (119 și 120 sunt duble) și 201–222, fiecare cu balcon și scaune în fața geamului; nivelurile se retrag ușor în trepte;
-    - lounge-ul și lojele 1 au 74,4 m, lojele 2 au 56,2 m, iar blocul e cu 2 m mai spre sud decât mijlocul terenului: așa ies pozițiile sectoarelor 19 și 1 de pe plan. Rândurile acestor sectoare din inelul de sus coboară în trepte pe lângă capete, ca în fotografie;
-    - lângă lojele 2, pe rândurile 11–15 (11–16 la nord) ale inelului de sus, harta n-are locuri. Acolo e un palier la nivelul lojelor, cu gura unui vomitor în peretele din spate: accesul spre partea de sus a sectoarelor 19 și 1;
-    - în spatele locurilor VIP, ultimele 3 rânduri ale inelului de jos n-au locuri pe hartă. Acolo e terasa din fața lounge-ului, la nivelul culoarului, cu scările VIP tăiate în ea;
+    - fiecare nivel e mai scurt decât cel de dedesubt (lounge-ul ±40 m, lojele 1 ±37 m, lojele 2 ±34 m), iar rândurile sectoarelor 19 și 1 din inelul de sus coboară în trepte pe lângă capete, ca în fotografie;
     - deasupra lojelor, după un parapet alb, G, presa H și I sunt pe aceeași pantă și la aceeași înălțime ca rândurile vecine ale sectoarelor 19 și 1 (de la rândul 22 al inelului de sus până sus). Presa are 5 rânduri cu pupitre, din două în două rânduri ale pantei, și locuri obișnuite pe margini (ca pe hartă).
   - Colțurile interioare sunt aproape drepte, ca pe plan, deci laturile au lungimea reală (Tribuna 1 are ~109 m). Sectoarele de peluză și de tribună stau pe porțiunile drepte, iar colțurile aparțin sectoarelor de colț 2, 7, 13 și 18.
   - În fiecare colț e o deschidere diagonală prin inelul de jos, care se termină într-un tunel sub culoar, ca pe plan. În inelul de jos, sectoarele de peluză (3, 6, 14, 17) ajung până la deschidere. Intrarea fiecărui colț e de partea tribunei.
@@ -385,9 +383,7 @@ Toate sectoarele au exact locurile de pe hartă. În colțuri, locurile care nu 
 - Terenul de 105 × 68 m, înălțimea de 50,14 m, bolul cu un singur inel de gradene acoperit integral, ecranele din colțurile NE și SV (stadiumdb.com, ucv1948.ro).
 
 **Estimat:**
-- Colțurile: harta are acolo blocuri rotite, iar stadionul 3D are colțuri aproape drepte. Numărul de locuri al fiecărui colț e cel de pe hartă, dar așezarea pe rânduri e calculată pe arcul liber (rânduri pline, de jos în sus).
-- Panta și adâncimea inelului de sus pe peluze: din secțiunile stadionului și din fotografia din Peluza Sud. Nu sunt cote exacte.
-- Palierele de lângă lojele 2 și terasa VIP: deduse din locurile care lipsesc de pe hartă. Fotografiile nu arată clar ce e acolo.
+- Colțurile: harta are acolo blocuri rotite, iar stadionul 3D are colțuri aproape drepte. Numărul de locuri al fiecărui colț e cel de pe hartă, dar așezarea pe rânduri e calculată pe arcul liber.
 - Numerotarea rândurilor și a locurilor: harta nu arată numerele, așa că rândurile sunt numerotate de la teren spre spate în fiecare sector, iar locurile de la un capăt la celălalt al rândului.
 - Cât din sectorul 19 e al oaspeților: am considerat jumătatea dinspre colț. Planul stadionului marca inițial sectorul 2 ca sector al oaspeților; acum oaspeții stau în 18 și o parte din 19, ca pe harta de prețuri Superliga 2026–2027.
 - Celelalte porți, prețul locurilor din loje și numărul de locuri din fiecare lojă: 10, respectiv 20 în lojile duble, astfel încât cele 42 de loje să dea 440 de locuri.

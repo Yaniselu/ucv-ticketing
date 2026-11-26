@@ -2,7 +2,7 @@
 // (OpenStreetMap), pe scările / esplanada / liftul podiumului, pe promenadă până la turnichetele
 // potrivite locului, apoi prin interior la vomitor, pe culoarul dintre inele, pe scară până la rând
 // și de-a lungul rândului până la scaun.
-import { pointU, D1, Y2, D2u, Y2u, WALK_D, WALK_DP, WALK_Y, G, wrap8, lenPerU, backRowsAt, ring1Y, ring1Kind } from '../data/layout.js'
+import { pointU, D1, D2, Y2, WALK_D, WALK_Y, G, wrap8, lenPerU, backRowsAt, ring1Y, ring1Kind } from '../data/layout.js'
 import { DECK_Y, gatePoints, precinctAccess, deckPoint, angleOfPoint, inPrecinct } from '../scene/precinct.js'
 
 const SPEED = 1.25 // m/s, mers obișnuit (~4,5 km/h)
@@ -60,8 +60,6 @@ const dist3 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])
 const lenOf = (pts) => pts.reduce((s, p, k) => (k ? s + dist3(pts[k - 1], p) : 0), 0)
 const fmtM = (m) => (m < 950 ? `${Math.max(10, Math.round(m / 10) * 10)} m` : `${(m / 1000).toFixed(1).replace('.', ',')} km`)
 export const minutes = (m) => Math.max(1, Math.round(m / SPEED / 60))
-// mijlocul culoarului dintre inele în dreptul lui u (pe peluze e mai în față)
-const walkMid = (u) => ((ring1Kind(u) === 'P' ? WALK_DP : WALK_D) + D2u(0, u)) / 2
 const nth = (k) => (k <= 1 ? 'primul' : `al ${k}-lea`)
 
 export function createRouter({ data, layout }) {
@@ -328,23 +326,23 @@ export function createRouter({ data, layout }) {
       const a2 = ring === 2 && aisle ? aisle : aisleNearU(2, seat.u)
       if (a2) {
         const n = backRowsAt(a2.u)
-        const yTop = Y2u(n - 1, a2.u)
-        const back = pointU(a2.u, D2u(n, a2.u))
+        const yTop = Y2(n - 1)
+        const back = pointU(a2.u, D2(n))
         add(...corridor(gate, angleOfPoint(back.x, back.z), yTop + 0.1))
-        add(P(a2.u, D2u(n, a2.u) + 0.6, yTop + 0.1))
+        add(P(a2.u, D2(n) + 0.6, yTop + 0.1))
         const r2 = ring === 2 ? r : 0
-        for (let j = n - 1; j >= r2; j--) add(P(a2.u, D2u(j, a2.u) + a2.depth / 2, Y2u(j, a2.u) + 0.1))
+        for (let j = n - 1; j >= r2; j--) add(P(a2.u, D2(j) + a2.depth / 2, Y2(j) + 0.1))
         const where = seat.kind === 'press' ? 'tribuna presei' : seat.away ? 'sectorul oaspeților' : `partea de sus a ${sectorName(sec)}`
-        steps.push({ text: `În interior, urcă pe scări până în spatele tribunei (${where}).`, at: P(a2.u, D2u(n, a2.u) + 0.6, yTop + 0.1) })
+        steps.push({ text: `În interior, urcă pe scări până în spatele tribunei (${where}).`, at: P(a2.u, D2(n) + 0.6, yTop + 0.1) })
         if (ring === 2) {
-          add(P(seat.u, D2u(r, seat.u) + 0.15, Y2u(r, seat.u) + 0.1), seatPt)
+          add(P(seat.u, D2(r) + 0.15, Y2(r) + 0.1), seatPt)
           const k = seatsBetween(2, seat.ringRow, a2.u, seat.u)
-          steps.push({ text: `Coboară pe scară până la ${rowText}. Locul ${seat.num} e ${nth(k)} scaun de la scară, spre ${sideOf(a2.u, D2u(r, a2.u), seatPt)} (privind spre teren).`, at: seatPt })
+          steps.push({ text: `Coboară pe scară până la ${rowText}. Locul ${seat.num} e ${nth(k)} scaun de la scară, spre ${sideOf(a2.u, D2(r), seatPt)} (privind spre teren).`, at: seatPt })
           return { pts, steps }
         }
         // inelul de jos: tot pe scară până la culoarul dintre inele, apoi mai departe în jos
-        add(P(a2.u, walkMid(a2.u), WALK_Y + 0.1))
-        steps.push({ text: 'Coboară pe scară până la culoarul dintre inele.', at: P(a2.u, walkMid(a2.u), WALK_Y + 0.1) })
+        add(P(a2.u, WALK_D + 1.3, WALK_Y + 0.1))
+        steps.push({ text: 'Coboară pe scară până la culoarul dintre inele.', at: P(a2.u, WALK_D + 1.3, WALK_Y + 0.1) })
         return finishRing1(seat, aisle, a2.u, pts, steps, seatPt, rowText)
       }
     }
@@ -353,17 +351,17 @@ export function createRouter({ data, layout }) {
     if (seat.kind === 'vip') {
       const t = angleOfPoint(seat.x, seat.z)
       add(...corridor(gate, t, WALK_Y + 0.1))
-      walkStart = P(seat.u, walkMid(seat.u), WALK_Y + 0.1)
-      add(P(seat.u, D2u(0, seat.u) + 1.5, WALK_Y + 0.1), walkStart)
+      walkStart = P(seat.u, WALK_D + 1.3, WALK_Y + 0.1)
+      add(P(seat.u, D2(0) + 1.5, WALK_Y + 0.1), walkStart)
       steps.push({ text: 'În interior, treci prin lounge-ul VIP și ieși pe culoarul din fața lui.', at: walkStart })
     } else {
       const v = vomFor(seat)
-      const mouth = P(v.u, D2u(v.j1 + 1, v.u), WALK_Y + 0.1)
+      const mouth = P(v.u, D2(v.j1 + 1), WALK_Y + 0.1)
       const t = angleOfPoint(mouth[0], mouth[2])
       add(...corridor(gate, t, WALK_Y + 0.1))
-      add(P(v.u, D2u(v.j1 + 1, v.u) + 5, WALK_Y + 0.1), mouth)
-      walkStart = P(v.u, walkMid(v.u), WALK_Y + 0.1)
-      add(P(v.u, D2u(0, v.u) + 0.3, WALK_Y + 0.1), walkStart)
+      add(P(v.u, D2(v.j1 + 1) + 5, WALK_Y + 0.1), mouth)
+      walkStart = P(v.u, WALK_D + 1.3, WALK_Y + 0.1)
+      add(P(v.u, D2(0) + 0.3, WALK_Y + 0.1), walkStart)
       const lbl = v.sectorObj?.num != null ? v.sectorObj.num : v.sectorObj?.letter
       steps.push({ text: `În interior, mergi la vomitorul cu numărul ${lbl} și ieși pe culoarul dintre inele.`, at: mouth })
     }
@@ -375,11 +373,11 @@ export function createRouter({ data, layout }) {
     const uFrom = vomFor(seat).u
     const walkLen = walkAlong(pts, uFrom, aisle.u)
     const aisleTop = pts[pts.length - 1]
-    for (let j = 0; j <= r; j++) add(P(aisle.u, D2u(j, aisle.u) + aisle.depth / 2, Y2u(j, aisle.u) + 0.1))
-    add(P(seat.u, D2u(r, seat.u) + 0.15, Y2u(r, seat.u) + 0.1), seatPt)
+    for (let j = 0; j <= r; j++) add(P(aisle.u, D2(j) + aisle.depth / 2, Y2(j) + 0.1))
+    add(P(seat.u, D2(r) + 0.15, Y2(r) + 0.1), seatPt)
     const k = seatsBetween(2, seat.ringRow, aisle.u, seat.u)
     steps.push({ text: `${toAisleText(walkLen, uFrom, aisleTop)}, apoi urcă pe scară până la ${rowText}.`, at: aisleTop })
-    steps.push({ text: `Locul ${seat.num} e ${nth(k)} scaun de la scară, spre ${sideOf(aisle.u, D2u(r, aisle.u), seatPt)} (privind spre teren).`, at: seatPt })
+    steps.push({ text: `Locul ${seat.num} e ${nth(k)} scaun de la scară, spre ${sideOf(aisle.u, D2(r), seatPt)} (privind spre teren).`, at: seatPt })
     return { pts, steps }
   }
 
@@ -388,12 +386,12 @@ export function createRouter({ data, layout }) {
     const du = wrap8(uTo - uFrom + 4) - 4
     const k = lenPerU(uFrom, 20)
     const nW = Math.max(1, Math.ceil((Math.abs(du) * k) / 3))
-    for (let j = 1; j <= nW; j++) pts.push(P(uFrom + (du * j) / nW, walkMid(uFrom + (du * j) / nW), WALK_Y + 0.1))
+    for (let j = 1; j <= nW; j++) pts.push(P(uFrom + (du * j) / nW, WALK_D + 1.3, WALK_Y + 0.1))
     return Math.abs(du) * k
   }
   const toAisleText = (walkLen, uFrom, aisleTop) => (walkLen < 2
     ? 'Scara e chiar lângă tine'
-    : `Mergi ${fmtM(walkLen)} pe culoar spre ${sideOf(uFrom, walkMid(uFrom), aisleTop)} (privind spre teren) până la scară`)
+    : `Mergi ${fmtM(walkLen)} pe culoar spre ${sideOf(uFrom, WALK_D, aisleTop)} (privind spre teren) până la scară`)
   // inelul de jos: de pe culoar, pe scara din dreptul rândului, în jos până la rând și apoi la loc
   function finishRing1(seat, aisle, uFrom, pts, steps, seatPt, rowText) {
     const r = seat.ringRow - 1
@@ -405,9 +403,7 @@ export function createRouter({ data, layout }) {
     const aisleTop = pts[pts.length - 1]
     const kindAt = ring1Kind(aisle.u)
     const top = kindAt === 'P' ? G.ring1.rowsP : G.ring1.rows
-    const ter = layout.terrace
-    const onTerrace = (u, j) => ter && j >= ter.r && wrap8(u) > ter.u0 && wrap8(u) < ter.u1 && !ter.cuts.some(([a, b]) => wrap8(u) > a && wrap8(u) < b)
-    for (let j = top - 1; j >= r; j--) pts.push(P(aisle.u, D1(j) + aisle.depth / 2, (onTerrace(aisle.u, j) ? WALK_Y : ring1Y(j, kindAt)) + 0.1))
+    for (let j = top - 1; j >= r; j--) pts.push(P(aisle.u, D1(j) + aisle.depth / 2, ring1Y(j, kindAt) + 0.1))
     pts.push(P(seat.u, D1(r) + 0.15, ring1Y(r, ring1Kind(seat.u)) + 0.1), seatPt)
     const k = seatsBetween(1, seat.ringRow, aisle.u, seat.u)
     steps.push({ text: `${toAisleText(walkLen, uFrom, aisleTop)}, apoi coboară pe scară până la ${rowText} (inelul de jos).`, at: aisleTop })
