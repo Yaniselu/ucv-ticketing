@@ -170,8 +170,8 @@ export function buildStructure(root, layout, mats, { lowSpec = false } = {}) {
   const TUN = 3.5 // adâncimea tunelului de sub culoar
   const TH = NOTCH_TUN_H - 1.0 // înălțimea portalului (pereții drepți ai tunelului acoperit)
   const slopeOf = (kind) => {
-    const { wd } = RAKE[kind]
-    return (d) => Y1(0) + 0.15 + (Math.min(d, wd) / wd) * (WALK_Y - Y1(0))
+    const { wd, Y } = RAKE[kind]
+    return (d) => Y(0) + 0.15 + (Math.min(d, wd) / wd) * (WALK_Y - Y(0))
   }
   for (const p of [1, 3, 5, 7]) {
     // pavajul: de la teren până în tunel

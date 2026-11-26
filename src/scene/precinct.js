@@ -12,7 +12,7 @@
 import * as THREE from 'three'
 import polygonClipping from 'polygon-clipping'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
-import { OUTLINE_D, ESPLANADE, GRASS, WELLS, STEPS as OSM_STEPS, STATUE } from '../data/precinct.js'
+import { OUTLINE_D, ESPLANADE, GRASS, WELLS, STEPS as OSM_STEPS, STATUE, SAT_GRASS } from '../data/precinct.js'
 import { ACCESS_MAP, ACCESS_POINTS } from '../data/stadium-data.js'
 import { paverMaterial, asphaltMaterial, grassMaterial, concreteMaterial } from './paving.js'
 import { beam } from './geom.js'
@@ -390,7 +390,7 @@ export function buildPrecinct(root, { lowSpec = false } = {}) {
   group.name = 'precinct'
   root.add(group)
 
-  // ── scările: cele din OSM (paralele cu fațada) și cele de la accese (perpendiculare)
+  // ── scările dintre teren și podium (cele din OSM, paralele cu fațada)
   const stairs = []
   const addStair = (topX, topZ, ax, az, width, landing) => {
     const prof = stairProfile(landing)
@@ -402,13 +402,7 @@ export function buildPrecinct(root, { lowSpec = false } = {}) {
     const L = Math.hypot(tx - fx, tz - fz)
     addStair(fx, fz, (tx - fx) / L, (tz - fz) / L, 4, Math.max(1.2, L - 24 * ST_T))
   }
-  // [unghi, lățime]: intrarea principală (Tribuna 1 / VIP), oaspeții, colțurile
-  for (const [deg, w] of [[180, 14], [157, 6], [-157, 6], [-126, 6], [-47, 6], [20, 6]]) {
-    const t = deg * D2R
-    const [ex, ez] = edgeXZ(t, -0.02)
-    const f = edgeFrame(t)
-    addStair(ex, ez, f.nx, f.nz, w, 1.8)
-  }
+  // doar scările reale: cele din OpenStreetMap (nord și Tribuna 2); spre sud urcă esplanada
   const inStair = (s, x, z, pad = 0) => {
     const dx = x - s.top[0]
     const dz = z - s.top[1]
@@ -432,7 +426,8 @@ export function buildPrecinct(root, { lowSpec = false } = {}) {
     const R0 = [R[0] + s.ax * 0.02, R[1] + s.az * 0.02]
     bridges.push([L0, R0, back(R), back(L)])
   }
-  const LIFTS = [36, -36, -141].map((deg) => {
+  // lifturile: la cele două accese pentru persoane cu dizabilități de pe planul stadionului
+  const LIFTS = [36, -36].map((deg) => {
     const t = deg * D2R
     const f = edgeFrame(t)
     const [cx, cz] = edgeXZ(t, 3.0)
@@ -561,6 +556,16 @@ export function buildPrecinct(root, { lowSpec = false } = {}) {
   const wellGround = new Buf()
   fillMulti(wellGround, mp(wells.A), () => wellFloor.A)
   fillMulti(B.lawn, PC.union(mp(wells.B), mp(wells.C)), () => wellFloor.B)
+  // iarba de lângă podium văzută pe satelit (în afara podiumului, a scărilor și a peluzelor din OSM)
+  {
+    const stairFoot = stairs.map((s) => {
+      const L = s.prof.total + 0.6
+      const c = (a, p) => [s.top[0] + s.ax * a + s.px * p, s.top[1] + s.az * a + s.pz * p]
+      return mp([c(-0.3, -s.w / 2 - 0.3), c(L, -s.w / 2 - 0.3), c(L, s.w / 2 + 0.3), c(-0.3, s.w / 2 + 0.3)])
+    })
+    const sat = PC.difference(PC.union(...SAT_GRASS.map((f) => mp(toPts(f)))), [[outer]], esp, lawnsAll, wellsMP, ...stairFoot)
+    fillMulti(B.lawn, sat, () => 0.08)
+  }
 
   // ── pereții, balustradele și fronturile parterului, pe conturul fiecărei suprafețe
   const W = { wall: new Buf(), seat: new Buf(), white: new Buf(), granite: new Buf(), seatTop: new Buf() }

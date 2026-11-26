@@ -64,7 +64,7 @@ Modelată după planurile și fotografiile arhitecților (DICO & ȚIGĂNAȘ) și
   - sub peluze sunt parcările, cu mașini, liniile locurilor și corpuri de iluminat în tavan;
   - în colțurile de sud, podiumul iese în consolă pe stâlpi în V, iar aleile auto intră sub el.
 - **Tribuna 1:** spre ea coboară taluzuri de gazon. Scara principală are 14 m lățime, cu podest și mâini curente.
-- **Scările din OSM** sunt la est și la nord. Mai sunt scări la accese și lifturi vitrate pentru persoanele cu dizabilități.
+- **Scările dintre teren și podium** sunt doar cele din OpenStreetMap: una la nord și două spre Tribuna 2. Spre sud se urcă pe esplanadă. Lifturile vitrate pentru persoanele cu dizabilități sunt la cele două accese marcate pe planul stadionului. Unde sursele nu arată scări, nu am pus.
 - **Porțile cu turnichete** sunt sub streașina fațadei, la cele 21 de accese din planul oficial: turnichete tripod, cititoare de bilete și bare de dirijare. Numele porților sunt cele de pe bilete (Poarta 6, Poarta 8, Peluza Sud, Tribuna 1, VIP / Loje, Acces oaspeți).
 - **Esplanada Stadion** coboară spre Bd. Ilie Balaci:
   - pe mijloc, cinci linii ondulate de câte cinci trepte; pe laturi, rampe;
@@ -283,7 +283,7 @@ Gazonul are fire 3D: 20 de straturi între sol și vârful firelor (3 cm, cât g
 | Amprenta stadionului | 206,6 × 229,8 m (carcasa: 206 × 230 m la 19 m înălțime) | OpenStreetMap (way 239542656) |
 | Înălțimea | 50,14 m până în vârful acoperișului | stadiumdb.com |
 | Orientarea | axa lungă a terenului rotită cu 12,4° spre vest față de nord | OpenStreetMap |
-| Inelul de jos | 22 de rânduri pe tribune, 15 pe peluze; rând de 0,80 m; 0,40 m / rând pe tribune, 0,59 m pe peluze | harta locurilor (Entertix) |
+| Inelul de jos | 22 de rânduri pe tribune, 15 pe peluze; rând de 0,80 m. Pe tribune primul rând e la 2,5 m deasupra terenului, cu 0,40 m / rând. Pe peluze primul rând e la 3,5 m, cu 0,52 m / rând, deci peretele din fața peluzelor e mai înalt | harta locurilor (Entertix), secțiunea lungă a stadionului |
 | Culoarul dintre inele | la +11,3 m; 2,6 m lățime pe tribune, mai lat pe peluze | geometria hărții |
 | Inelul de sus | până la 33 de rânduri; rând de 0,75 m; 0,52 m / rând | harta locurilor (Entertix) |
 | Locurile | pas de 0,45 m pe tribune, 0,42 m pe peluze, 0,44 m în colțuri; culoare de 0,6–0,9 m | harta locurilor (Entertix) |

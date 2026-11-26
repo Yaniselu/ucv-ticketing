@@ -151,7 +151,7 @@ export function createRouter({ data, layout }) {
     entries.push({ b, t, label, type })
   }
   if (access) {
-    for (const s of access.stairs) addEntry(s.bottom, s.top, s.w > 10 ? 'scările mari din fața Tribunei 1' : 'scările podiumului', 1)
+    for (const s of access.stairs) addEntry(s.bottom, s.top, 'scările podiumului', 1)
     for (const l of access.lifts) addEntry(l.bottom, l.top, 'liftul podiumului', 2)
     for (const e of access.esplanade) addEntry(e.bottom, e.top, 'esplanada dinspre Bulevardul Ilie Balaci', 3)
   }

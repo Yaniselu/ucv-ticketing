@@ -22,8 +22,9 @@ export const G = {
   hz: 57.5,
   r: SEATMAP.r,
   depth: 0.8, // adâncimea unui rând din inelul de jos
-  // inelul de jos: 22 de rânduri pe tribune, 15 pe peluze (harta reală)
-  ring1: { rows: SEATMAP.r1T, rowsP: SEATMAP.r1P, y0: 2.5, rise: 0.4 },
+  // inelul de jos: 22 de rânduri pe tribune, 15 pe peluze (harta reală); pe peluze primul rând e mai
+  // sus față de teren (3,5 m, din secțiunea lungă a stadionului), pe tribune 2,5 m
+  ring1: { rows: SEATMAP.r1T, rowsP: SEATMAP.r1P, y0: 2.5, y0P: 3.5, rise: 0.4 },
   walkway: 2.6, // culoarul dintre inele
   ring2: { rows: 42, wall: 1.1, rise: 0.52, depth: SEATMAP.dep2 },
   // elipsa din spatele tribunelor: structura (stâlpii, vitrajul, grinda inelară) stă pe ea; gradenele
@@ -42,8 +43,8 @@ export const Y1 = (i) => G.ring1.y0 + i * G.ring1.rise
 export const WALK_D = G.ring1.rows * G.depth
 export const WALK_Y = Y1(G.ring1.rows)
 // peluzele: 15 rânduri, cu panta mai mare, până la același culoar
-export const RISE_P = (WALK_Y - G.ring1.y0) / G.ring1.rowsP
-export const Y1P = (i) => G.ring1.y0 + i * RISE_P
+export const RISE_P = (WALK_Y - G.ring1.y0P) / G.ring1.rowsP
+export const Y1P = (i) => G.ring1.y0P + i * RISE_P
 export const WALK_DP = G.ring1.rowsP * G.depth
 export const D2 = (j) => WALK_D + G.walkway + j * G.ring2.depth
 export const Y2 = (j) => WALK_Y + G.ring2.wall + j * G.ring2.rise
